@@ -1,0 +1,739 @@
+"use client";
+
+import {
+  CheckCircleOutlined,
+  DownloadOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  NotificationOutlined,
+  SafetyCertificateOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  DatePicker,
+  Descriptions,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  List,
+  Modal,
+  Radio,
+  Select,
+  Skeleton,
+  Space,
+  Statistic,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
+import dayjs, { type Dayjs } from "dayjs";
+import { useEffect, useMemo, useState } from "react";
+
+import { api, getErrorMessage } from "../lib/api";
+import { downloadDocumentFile } from "../lib/document-file-client";
+
+const { Text, Title } = Typography;
+
+type FocusTab = "overview" | "decision" | "notification";
+
+interface GeneratedFile {
+  id: string;
+  original_name: string;
+  file_kind: string;
+  version_no?: number | null;
+  is_current?: boolean | null;
+  created_at?: string | null;
+  download_url?: string | null;
+}
+
+interface DecisionRecord {
+  id: string;
+  technical_review_id: string;
+  decision_number: string;
+  decision_date: string;
+  decision_result: string;
+  organization_name: string;
+  organization_address?: string | null;
+  management_system?: string | null;
+  standard_name: string;
+  certification_scope: string;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  surveillance_interval_months?: number | null;
+  signatory_name: string;
+  signatory_title: string;
+  status: string;
+}
+
+interface NotificationRecord {
+  id: string;
+  technical_review_id: string;
+  certification_decision_id?: string | null;
+  notification_number: string;
+  notification_date: string;
+  audit_type: string;
+  audit_start_date?: string | null;
+  audit_end_date?: string | null;
+  notification_result: string;
+  has_certification_changes: boolean;
+  organization_name: string;
+  organization_address?: string | null;
+  recipient_name?: string | null;
+  recipient_email?: string | null;
+  management_system?: string | null;
+  standard_name: string;
+  certification_scope: string;
+  next_audit_due_date?: string | null;
+  signatory_name: string;
+  signatory_title: string;
+  status: string;
+  sent_at?: string | null;
+}
+
+interface Workspace {
+  plan: {
+    id: string;
+    plan_code?: string | null;
+    audit_type?: string | null;
+    planned_start_date?: string | null;
+    planned_end_date?: string | null;
+    project_id: string;
+    project_code: string;
+  };
+  lifecycle_type: "initial" | "surveillance" | "recertification" | "special";
+  is_surveillance: boolean;
+  requires_decision_by_default: boolean;
+  surveillance_no_change_allowed: boolean;
+  active_certificate: {
+    id: string;
+    cert_number: string;
+    issue_date?: string | null;
+    expire_date?: string | null;
+    status?: string | null;
+  } | null;
+  report: {
+    id: string;
+    report_code?: string | null;
+    status?: string | null;
+    audit_start_date?: string | null;
+    audit_end_date?: string | null;
+  } | null;
+  technical_review: {
+    id: string;
+    status: string;
+    completed_at?: string | null;
+    reviewer_name?: string | null;
+    recommendation?: string | null;
+    recommendation_comment?: string | null;
+    conditions?: string | null;
+  } | null;
+  decision: DecisionRecord | null;
+  notification: NotificationRecord | null;
+  decision_history: GeneratedFile[];
+  notification_history: GeneratedFile[];
+  can_issue_decision: boolean;
+  can_issue_notification: boolean;
+  eligibility_errors: string[];
+  defaults: {
+    organization_name: string;
+    organization_name_en?: string | null;
+    organization_address: string;
+    standard_name: string;
+    management_system: string;
+    certification_scope: string;
+    contract_number?: string | null;
+    contract_date?: string | null;
+    agreement_number?: string | null;
+    agreement_date?: string | null;
+    decision_number: string;
+    decision_date: string;
+    effective_date: string;
+    expiry_date: string;
+    surveillance_interval_months: number;
+    audit_type: "initial" | "surveillance" | "recertification" | "special";
+    notification_result: NotificationFormValues["notification_result"];
+    has_certification_changes: boolean;
+    notification_number: string;
+    notification_date: string;
+    audit_start_date?: string | null;
+    audit_end_date?: string | null;
+    next_audit_due_date?: string | null;
+    recipient_name?: string | null;
+    recipient_email?: string | null;
+    signatory_name?: string | null;
+    signatory_title?: string | null;
+  };
+}
+
+interface DecisionFormValues {
+  decision_number: string;
+  decision_date: Dayjs;
+  decision_result: "approved" | "rejected" | "deferred";
+  organization_name: string;
+  organization_address?: string;
+  management_system?: string;
+  standard_name: string;
+  certification_scope: string;
+  effective_date?: Dayjs;
+  expiry_date?: Dayjs;
+  surveillance_interval_months: number;
+  signatory_name: string;
+  signatory_title: string;
+  note?: string;
+}
+
+interface NotificationFormValues {
+  notification_number: string;
+  notification_date: Dayjs;
+  notification_result:
+    | "certification_granted"
+    | "certification_maintained"
+    | "certification_not_granted"
+    | "certification_suspended"
+    | "certification_withdrawn";
+  has_certification_changes?: boolean;
+  organization_name: string;
+  organization_address?: string;
+  recipient_name?: string;
+  recipient_email?: string;
+  management_system?: string;
+  standard_name: string;
+  certification_scope: string;
+  audit_start_date?: Dayjs;
+  audit_end_date?: Dayjs;
+  next_audit_due_date?: Dayjs;
+  signatory_name: string;
+  signatory_title: string;
+  note?: string;
+}
+
+interface Props {
+  open: boolean;
+  planId: string | null;
+  focus?: FocusTab;
+  roles: string[];
+  onClose: () => void;
+  onChanged?: () => void | Promise<void>;
+}
+
+function normalize(value?: string | null) {
+  return (value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format("DD/MM/YYYY") : "—";
+}
+
+function resultLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    approved: "Phê duyệt cấp chứng nhận",
+    rejected: "Không cấp chứng nhận",
+    deferred: "Hoãn quyết định",
+    certification_granted: "Cấp chứng nhận",
+    certification_maintained: "Duy trì chứng nhận",
+    certification_not_granted: "Không cấp chứng nhận",
+    certification_suspended: "Đình chỉ chứng nhận",
+    certification_withdrawn: "Thu hồi chứng nhận",
+  };
+  return labels[value ?? ""] ?? (value || "—").replaceAll("_", " ");
+}
+
+export default function CertificationResultWorkspaceModal({
+  open,
+  planId,
+  focus = "overview",
+  roles,
+  onClose,
+  onChanged,
+}: Props) {
+  const { message } = App.useApp();
+  const [decisionForm] = Form.useForm<DecisionFormValues>();
+  const [notificationForm] = Form.useForm<NotificationFormValues>();
+  const [activeTab, setActiveTab] = useState<FocusTab>(focus);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
+  const canDecision = normalizedRoles.some((role) => ["admin", "decisionmaker"].includes(role));
+  const canCreateNotification = normalizedRoles.some((role) => ["admin", "decisionmaker"].includes(role));
+  const canManageNotification = normalizedRoles.some((role) => ["admin", "decisionmaker", "coordinator"].includes(role));
+
+  const workspaceQuery = useQuery<Workspace>({
+    enabled: open && Boolean(planId),
+    queryKey: ["certification-result-workspace", planId],
+    queryFn: async () => {
+      if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
+      return (await api.get<Workspace>(`/certification-results/plan/${planId}/workspace`)).data;
+    },
+  });
+
+  const workspace = workspaceQuery.data;
+  const notificationHasChanges = Form.useWatch("has_certification_changes", notificationForm) ?? false;
+
+  useEffect(() => {
+    if (!open) return;
+    setActiveTab(focus);
+  }, [focus, open]);
+
+  useEffect(() => {
+    if (!workspace || workspace.decision) return;
+    const value = workspace.defaults;
+    decisionForm.setFieldsValue({
+      decision_number: value.decision_number,
+      decision_date: dayjs(value.decision_date),
+      decision_result: "approved",
+      organization_name: value.organization_name,
+      organization_address: value.organization_address,
+      management_system: value.management_system,
+      standard_name: value.standard_name,
+      certification_scope: value.certification_scope,
+      effective_date: dayjs(value.effective_date),
+      expiry_date: dayjs(value.expiry_date),
+      surveillance_interval_months: value.surveillance_interval_months || 12,
+      signatory_name: value.signatory_name || "",
+      signatory_title: value.signatory_title || "Tổng Giám đốc",
+    });
+  }, [decisionForm, workspace]);
+
+  useEffect(() => {
+    if (!workspace || workspace.notification) return;
+    const value = workspace.defaults;
+    notificationForm.setFieldsValue({
+      notification_number: value.notification_number,
+      notification_date: dayjs(value.notification_date),
+      notification_result: value.notification_result,
+      has_certification_changes: value.has_certification_changes,
+      organization_name: value.organization_name,
+      organization_address: value.organization_address,
+      recipient_name: value.recipient_name || "",
+      recipient_email: value.recipient_email || "",
+      management_system: value.management_system,
+      standard_name: value.standard_name,
+      certification_scope: value.certification_scope,
+      audit_start_date: value.audit_start_date ? dayjs(value.audit_start_date) : undefined,
+      audit_end_date: value.audit_end_date ? dayjs(value.audit_end_date) : undefined,
+      next_audit_due_date: value.next_audit_due_date ? dayjs(value.next_audit_due_date) : undefined,
+      signatory_name: value.signatory_name || "",
+      signatory_title: value.signatory_title || "Tổng Giám đốc",
+    });
+  }, [notificationForm, workspace]);
+
+  const refresh = async () => {
+    await Promise.all([workspaceQuery.refetch(), onChanged?.()]);
+  };
+
+  const decisionMutation = useMutation({
+    mutationFn: async (values: DecisionFormValues) => {
+      if (!workspace?.technical_review?.id) throw new Error("Chưa có hồ sơ thẩm xét hoàn thành");
+      return (
+        await api.post<DecisionRecord>("/certification-decisions", {
+          technical_review_id: workspace.technical_review.id,
+          decision_number: values.decision_number.trim(),
+          decision_date: values.decision_date.format("YYYY-MM-DD"),
+          decision_result: values.decision_result,
+          organization_name: values.organization_name.trim(),
+          organization_address: values.organization_address?.trim() || undefined,
+          management_system: values.management_system?.trim() || undefined,
+          standard_name: values.standard_name.trim(),
+          certification_scope: values.certification_scope.trim(),
+          effective_date: values.effective_date?.format("YYYY-MM-DD"),
+          expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
+          surveillance_interval_months: values.surveillance_interval_months,
+          signatory_name: values.signatory_name.trim(),
+          signatory_title: values.signatory_title.trim(),
+          note: values.note?.trim() || undefined,
+        })
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã ban hành quyết định chứng nhận");
+      await refresh();
+      setActiveTab("notification");
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const notificationMutation = useMutation({
+    mutationFn: async (values: NotificationFormValues) => {
+      if (!workspace?.technical_review?.id) throw new Error("Chưa có hồ sơ thẩm xét hoàn thành");
+      return (
+        await api.post<NotificationRecord>("/audit-result-notifications", {
+          technical_review_id: workspace.technical_review.id,
+          certification_decision_id: workspace.decision?.id,
+          notification_number: values.notification_number.trim(),
+          notification_date: values.notification_date.format("YYYY-MM-DD"),
+          audit_type: workspace.lifecycle_type,
+          audit_start_date: values.audit_start_date?.format("YYYY-MM-DD"),
+          audit_end_date: values.audit_end_date?.format("YYYY-MM-DD"),
+          notification_result: values.notification_result,
+          has_certification_changes: Boolean(values.has_certification_changes),
+          organization_name: values.organization_name.trim(),
+          organization_address: values.organization_address?.trim() || undefined,
+          recipient_name: values.recipient_name?.trim() || undefined,
+          recipient_email: values.recipient_email?.trim() || undefined,
+          management_system: values.management_system?.trim() || undefined,
+          standard_name: values.standard_name.trim(),
+          certification_scope: values.certification_scope.trim(),
+          next_audit_due_date: values.next_audit_due_date?.format("YYYY-MM-DD"),
+          signatory_name: values.signatory_name.trim(),
+          signatory_title: values.signatory_title.trim(),
+          note: values.note?.trim() || undefined,
+        })
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã lập thông báo kết quả đánh giá");
+      await refresh();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const markSentMutation = useMutation({
+    mutationFn: async () => {
+      if (!workspace?.notification?.id) throw new Error("Chưa có thông báo");
+      return (await api.post(`/audit-result-notifications/${workspace.notification.id}/mark-sent`, {})).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã ghi nhận thông báo được gửi cho khách hàng");
+      await refresh();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const downloadFile = async (file: GeneratedFile) => {
+    if (!file.download_url) return;
+    setDownloadingId(file.id);
+    try {
+      await downloadDocumentFile({
+        url: file.download_url,
+        filename: file.original_name,
+      });
+    } catch (error) {
+      message.error(getErrorMessage(error));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const generate = useMutation({
+    mutationFn: async (input: { kind: "decision" | "notification"; format: "docx" | "pdf" }) => {
+      const record = input.kind === "decision" ? workspace?.decision : workspace?.notification;
+      if (!record?.id) throw new Error("Chưa có hồ sơ để xuất");
+      return (
+        await api.post<{ document: GeneratedFile }>(
+          `/certification-results/${input.kind}/${record.id}/generate?format=${input.format}`,
+        )
+      ).data;
+    },
+    onSuccess: async (result) => {
+      message.success("Đã sinh tài liệu");
+      if (result.document?.download_url) await downloadFile(result.document);
+      await refresh();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const renderHistory = (files: GeneratedFile[]) => (
+    <List
+      dataSource={files}
+      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa sinh tài liệu" /> }}
+      renderItem={(file) => (
+        <List.Item
+          actions={[
+            <Button
+              icon={<DownloadOutlined />}
+              key="download"
+              loading={downloadingId === file.id}
+              onClick={() => void downloadFile(file)}
+              size="small"
+            >
+              Tải
+            </Button>,
+          ]}
+        >
+          <List.Item.Meta
+            avatar={file.file_kind === "generated_pdf" ? <FilePdfOutlined /> : <FileWordOutlined />}
+            title={<Space><span>{file.original_name}</span>{file.is_current ? <Tag color="green">Hiện hành</Tag> : null}</Space>}
+            description={`Phiên bản ${file.version_no ?? 1} · ${formatDate(file.created_at)}`}
+          />
+        </List.Item>
+      )}
+    />
+  );
+
+  const tabs = [
+    { key: "overview", label: "Tổng quan" },
+    {
+      key: "decision",
+      label: workspace?.is_surveillance
+        ? "Quyết định F.13 (khi có thay đổi)"
+        : "Quyết định F.13",
+    },
+    {
+      key: "notification",
+      label: workspace?.is_surveillance
+        ? "Thông báo duy trì F.12"
+        : "Thông báo F.12",
+    },
+  ];
+
+  return (
+    <Modal
+      destroyOnHidden
+      footer={null}
+      onCancel={onClose}
+      open={open}
+      title={(
+        <div>
+          <Text type="secondary">{workspace?.is_surveillance ? "KHÔNG GIAN KẾT QUẢ GIÁM SÁT" : "KHÔNG GIAN KẾT QUẢ CHỨNG NHẬN"}</Text>
+          <Title level={4} style={{ margin: "2px 0 0" }}>{workspace?.plan.plan_code || "Đang tải..."}</Title>
+        </div>
+      )}
+      width={1180}
+    >
+      {workspaceQuery.isLoading ? <Skeleton active /> : null}
+      {workspaceQuery.isError ? <Alert type="error" showIcon message="Không tải được dữ liệu" description={getErrorMessage(workspaceQuery.error)} /> : null}
+      {workspace ? (
+        <>
+          <Tabs activeKey={activeTab} items={tabs} onChange={(key) => setActiveTab(key as FocusTab)} />
+
+          {workspace.eligibility_errors.length ? (
+            <Alert
+              description={workspace.eligibility_errors.map((item) => <div key={item}>• {item}</div>)}
+              message="Chưa đủ điều kiện lập kết quả chứng nhận"
+              showIcon
+              type="warning"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
+
+          {workspace.is_surveillance ? (
+            <Alert
+              description={workspace.active_certificate
+                ? `Chứng chỉ hiện hành ${workspace.active_certificate.cert_number} · hiệu lực đến ${formatDate(workspace.active_certificate.expire_date)}. Nếu kết quả giám sát không làm thay đổi phạm vi/thông tin chứng nhận, chỉ cần phát hành F.12 với kết quả Duy trì chứng nhận; không lập F.13 và không cấp chứng chỉ mới.`
+                : "Chưa xác định được chứng chỉ hiện hành của dự án."}
+              message="Workflow đánh giá giám sát"
+              showIcon
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
+
+          {activeTab === "overview" ? (
+            <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                <Card><Statistic title="Thẩm xét kỹ thuật" value={workspace.technical_review?.status === "completed" ? "Hoàn thành" : "Chưa hoàn thành"} prefix={<CheckCircleOutlined />} /></Card>
+                <Card><Statistic title="Quyết định F.13" value={workspace.decision ? "Đã ban hành" : workspace.is_surveillance ? "Không bắt buộc" : "Chưa có"} prefix={<SafetyCertificateOutlined />} /></Card>
+                <Card><Statistic title="Thông báo F.12" value={workspace.notification ? "Đã lập" : "Chưa có"} prefix={<NotificationOutlined />} /></Card>
+                <Card><Statistic title="Đã gửi khách hàng" value={workspace.notification?.status === "sent" ? "Đã gửi" : "Chưa gửi"} prefix={<SendOutlined />} /></Card>
+              </div>
+              <Card title="Kết quả thẩm xét">
+                <Descriptions column={2} size="small">
+                  <Descriptions.Item label="Người thẩm xét">{workspace.technical_review?.reviewer_name || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Ngày hoàn thành">{formatDate(workspace.technical_review?.completed_at)}</Descriptions.Item>
+                  <Descriptions.Item label="Kiến nghị">{resultLabel(workspace.technical_review?.recommendation)}</Descriptions.Item>
+                  <Descriptions.Item label="Điều kiện">{workspace.technical_review?.conditions || "Không"}</Descriptions.Item>
+                  <Descriptions.Item label="Nhận xét" span={2}>{workspace.technical_review?.recommendation_comment || "—"}</Descriptions.Item>
+                </Descriptions>
+              </Card>
+              {workspace.is_surveillance ? (
+                <Card title="Chứng chỉ đang được giám sát">
+                  {workspace.active_certificate ? (
+                    <Descriptions column={2} size="small">
+                      <Descriptions.Item label="Số chứng chỉ">{workspace.active_certificate.cert_number}</Descriptions.Item>
+                      <Descriptions.Item label="Trạng thái"><Tag color="green">{workspace.active_certificate.status || "active"}</Tag></Descriptions.Item>
+                      <Descriptions.Item label="Ngày cấp">{formatDate(workspace.active_certificate.issue_date)}</Descriptions.Item>
+                      <Descriptions.Item label="Hết hiệu lực">{formatDate(workspace.active_certificate.expire_date)}</Descriptions.Item>
+                    </Descriptions>
+                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chứng chỉ hiện hành" />}
+                </Card>
+              ) : null}
+            </Space>
+          ) : null}
+
+          {activeTab === "decision" ? (
+            workspace.decision ? (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Alert type="success" showIcon message="Quyết định chứng nhận đã được ban hành" />
+                <Card title="F.13-P.09 – Quyết định chứng nhận" extra={<Space>
+                  <Button icon={<FileWordOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "docx" })}>Xuất Word</Button>
+                  <Button icon={<FilePdfOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "pdf" })}>Xuất PDF</Button>
+                </Space>}>
+                  <Descriptions column={2} size="small">
+                    <Descriptions.Item label="Số quyết định">{workspace.decision.decision_number}</Descriptions.Item>
+                    <Descriptions.Item label="Ngày quyết định">{formatDate(workspace.decision.decision_date)}</Descriptions.Item>
+                    <Descriptions.Item label="Kết quả">{resultLabel(workspace.decision.decision_result)}</Descriptions.Item>
+                    <Descriptions.Item label="Người ký">{workspace.decision.signatory_name} – {workspace.decision.signatory_title}</Descriptions.Item>
+                    <Descriptions.Item label="Tiêu chuẩn" span={2}>{workspace.decision.standard_name}</Descriptions.Item>
+                    <Descriptions.Item label="Phạm vi" span={2}>{workspace.decision.certification_scope}</Descriptions.Item>
+                    <Descriptions.Item label="Hiệu lực">{formatDate(workspace.decision.effective_date)}</Descriptions.Item>
+                    <Descriptions.Item label="Hết hiệu lực">{formatDate(workspace.decision.expiry_date)}</Descriptions.Item>
+                  </Descriptions>
+                </Card>
+                <Card title="Phiên bản F.13 đã sinh">{renderHistory(workspace.decision_history)}</Card>
+              </Space>
+            ) : (
+              <Card title={workspace.is_surveillance ? "F.13-P.09 – Chỉ lập khi giám sát làm thay đổi chứng nhận" : "Lập quyết định chứng nhận F.13-P.09"}>
+                {workspace.is_surveillance ? (
+                  <Alert
+                    description="Giám sát thông thường không cần F.13. Chỉ lập quyết định khi kết quả giám sát dẫn đến thay đổi phạm vi/thông tin chứng nhận, đình chỉ hoặc xử lý khác cần quyết định chính thức."
+                    message="Quyết định là tùy trường hợp trong kỳ giám sát"
+                    showIcon
+                    type="info"
+                    style={{ marginBottom: 16 }}
+                  />
+                ) : null}
+                <Form form={decisionForm} layout="vertical" onFinish={(values) => decisionMutation.mutate(values)}>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Số quyết định" name="decision_number" rules={[{ required: true }]}><Input /></Form.Item>
+                    <Form.Item label="Ngày quyết định" name="decision_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    <Form.Item label="Kết quả quyết định" name="decision_result" rules={[{ required: true }]}>
+                      <Select options={workspace.is_surveillance ? [
+                        { value: "approved", label: "Phê duyệt duy trì/thay đổi chứng nhận" },
+                        { value: "rejected", label: "Không phê duyệt thay đổi" },
+                        { value: "deferred", label: "Hoãn quyết định" },
+                      ] : [
+                        { value: "approved", label: "Phê duyệt cấp chứng nhận" },
+                        { value: "rejected", label: "Không cấp chứng nhận" },
+                        { value: "deferred", label: "Hoãn quyết định" },
+                      ]} />
+                    </Form.Item>
+                    <Form.Item label="Chu kỳ giám sát (tháng)" name="surveillance_interval_months" rules={[{ required: true }]}><InputNumber min={1} max={36} style={{ width: "100%" }} /></Form.Item>
+                  </div>
+                  <Form.Item label="Tên tổ chức" name="organization_name" rules={[{ required: true }]}><Input /></Form.Item>
+                  <Form.Item label="Địa chỉ" name="organization_address"><Input /></Form.Item>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Hệ thống quản lý" name="management_system"><Input /></Form.Item>
+                    <Form.Item label="Tiêu chuẩn" name="standard_name" rules={[{ required: true }]}><Input /></Form.Item>
+                  </div>
+                  <Form.Item label="Phạm vi chứng nhận" name="certification_scope" rules={[{ required: true }]}><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Ngày hiệu lực" name="effective_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    <Form.Item label="Ngày hết hiệu lực" name="expiry_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    <Form.Item label="Người ký" name="signatory_name" rules={[{ required: true, message: "Nhập người ký" }]}><Input /></Form.Item>
+                    <Form.Item label="Chức danh" name="signatory_title" rules={[{ required: true }]}><Input /></Form.Item>
+                  </div>
+                  <Form.Item label="Ghi chú" name="note"><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
+                  <Button disabled={!workspace.can_issue_decision || !canDecision} htmlType="submit" loading={decisionMutation.isPending} type="primary" icon={<SafetyCertificateOutlined />}>Ban hành quyết định</Button>
+                  {!canDecision ? <Text type="secondary" style={{ marginLeft: 12 }}>Chỉ người ra quyết định hoặc quản trị viên được ban hành.</Text> : null}
+                </Form>
+              </Card>
+            )
+          ) : null}
+
+          {activeTab === "notification" ? (
+            workspace.notification ? (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Alert type={workspace.notification.status === "sent" ? "success" : "info"} showIcon message={workspace.notification.status === "sent" ? "Thông báo đã gửi cho khách hàng" : "Thông báo đã được lập; chưa ghi nhận gửi khách hàng"} />
+                <Card title="F.12-P.09 – Thông báo kết quả đánh giá" extra={<Space>
+                  <Button icon={<FileWordOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "notification", format: "docx" })}>Xuất Word</Button>
+                  <Button icon={<FilePdfOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "notification", format: "pdf" })}>Xuất PDF</Button>
+                  {workspace.notification.status !== "sent" && canManageNotification ? <Button icon={<SendOutlined />} loading={markSentMutation.isPending} onClick={() => markSentMutation.mutate()} type="primary">Đánh dấu đã gửi</Button> : null}
+                </Space>}>
+                  <Descriptions column={2} size="small">
+                    <Descriptions.Item label="Số thông báo">{workspace.notification.notification_number}</Descriptions.Item>
+                    <Descriptions.Item label="Ngày thông báo">{formatDate(workspace.notification.notification_date)}</Descriptions.Item>
+                    <Descriptions.Item label="Kết quả">{resultLabel(workspace.notification.notification_result)}</Descriptions.Item>
+                    <Descriptions.Item label="Người nhận">{workspace.notification.recipient_name || "—"}</Descriptions.Item>
+                    <Descriptions.Item label="Email">{workspace.notification.recipient_email || "—"}</Descriptions.Item>
+                    <Descriptions.Item label="Đánh giá tiếp theo">{formatDate(workspace.notification.next_audit_due_date)}</Descriptions.Item>
+                  </Descriptions>
+                </Card>
+                <Card title="Phiên bản F.12 đã sinh">{renderHistory(workspace.notification_history)}</Card>
+              </Space>
+            ) : (
+              <Card title="Lập thông báo kết quả F.12-P.09">
+                {!workspace.decision && !workspace.is_surveillance ? <Alert showIcon type="warning" message="Chứng nhận lần đầu phải ban hành Quyết định F.13 trước khi lập Thông báo F.12." style={{ marginBottom: 16 }} /> : null}
+                {workspace.is_surveillance && notificationHasChanges && !workspace.decision ? (
+                  <Alert
+                    showIcon
+                    type="warning"
+                    message="Bạn đã chọn có thay đổi chứng nhận"
+                    description="Khi giám sát có thay đổi phạm vi/thông tin chứng nhận, cần lập quyết định F.13 trước khi phát hành F.12."
+                    style={{ marginBottom: 16 }}
+                  />
+                ) : null}
+                <Form form={notificationForm} layout="vertical" onFinish={(values) => notificationMutation.mutate(values)}>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Số thông báo" name="notification_number" rules={[{ required: true }]}><Input /></Form.Item>
+                    <Form.Item label="Ngày thông báo" name="notification_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    {workspace.is_surveillance ? (
+                      <Form.Item label="Có thay đổi thông tin/phạm vi chứng nhận?" name="has_certification_changes">
+                        <Radio.Group
+                          optionType="button"
+                          buttonStyle="solid"
+                          options={[
+                            { label: "Không thay đổi", value: false },
+                            { label: "Có thay đổi", value: true },
+                          ]}
+                          onChange={(event) => {
+                            if (!event.target.value) {
+                              notificationForm.setFieldValue("notification_result", "certification_maintained");
+                            }
+                          }}
+                        />
+                      </Form.Item>
+                    ) : null}
+                    <Form.Item label="Kết quả thông báo" name="notification_result" rules={[{ required: true }]}>
+                      <Select
+                        disabled={workspace.is_surveillance && !notificationHasChanges}
+                        options={workspace.is_surveillance ? [
+                          { value: "certification_maintained", label: "Duy trì chứng nhận" },
+                          { value: "certification_suspended", label: "Đình chỉ chứng nhận" },
+                          { value: "certification_withdrawn", label: "Thu hồi chứng nhận" },
+                        ] : [
+                          { value: "certification_granted", label: "Cấp chứng nhận" },
+                          { value: "certification_not_granted", label: "Không cấp chứng nhận" },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item label="Ngày đánh giá tiếp theo" name="next_audit_due_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                  </div>
+                  <Form.Item label="Tên tổ chức" name="organization_name" rules={[{ required: true }]}><Input /></Form.Item>
+                  <Form.Item label="Địa chỉ" name="organization_address"><Input /></Form.Item>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Người nhận" name="recipient_name"><Input /></Form.Item>
+                    <Form.Item label="Email nhận" name="recipient_email"><Input type="email" /></Form.Item>
+                    <Form.Item label="Ngày bắt đầu đánh giá" name="audit_start_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    <Form.Item label="Ngày kết thúc đánh giá" name="audit_end_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                  </div>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Hệ thống quản lý" name="management_system"><Input /></Form.Item>
+                    <Form.Item label="Tiêu chuẩn" name="standard_name" rules={[{ required: true }]}><Input /></Form.Item>
+                  </div>
+                  <Form.Item label="Phạm vi chứng nhận" name="certification_scope" rules={[{ required: true }]}><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
+                  <div className="certification-result-form-grid">
+                    <Form.Item label="Người ký" name="signatory_name" rules={[{ required: true, message: "Nhập người ký" }]}><Input /></Form.Item>
+                    <Form.Item label="Chức danh" name="signatory_title" rules={[{ required: true }]}><Input /></Form.Item>
+                  </div>
+                  <Form.Item label="Ghi chú" name="note"><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
+                  <Button
+                    disabled={
+                      !workspace.can_issue_notification
+                      || !canCreateNotification
+                      || (workspace.is_surveillance && notificationHasChanges && !workspace.decision)
+                    }
+                    htmlType="submit"
+                    loading={notificationMutation.isPending}
+                    type="primary"
+                    icon={<NotificationOutlined />}
+                  >
+                    {workspace.is_surveillance ? "Phát hành thông báo giám sát" : "Lập thông báo kết quả"}
+                  </Button>
+                  {!canCreateNotification ? <Text type="secondary" style={{ marginLeft: 12 }}>Chỉ người ra quyết định hoặc quản trị viên được lập thông báo; điều phối viên có thể gửi thông báo đã lập.</Text> : null}
+                </Form>
+              </Card>
+            )
+          ) : null}
+        </>
+      ) : null}
+    </Modal>
+  );
+}
