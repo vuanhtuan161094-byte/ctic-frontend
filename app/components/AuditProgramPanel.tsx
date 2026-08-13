@@ -22,6 +22,7 @@ import {
   Modal,
   Popconfirm,
   Space,
+  Steps,
   Table,
   Tag,
   Typography,
@@ -120,6 +121,8 @@ interface AuditProgramPanelProps {
   roles: string[];
   onChanged?: () => void | Promise<void>;
   onOpenTeamAssignment?: (projectId: string) => void;
+  onOpenAuditPlan?: (planId: string) => void;
+  onOpenPlanWorkspace?: (planId: string) => void;
 }
 
 const eventDefinitions = [
@@ -322,6 +325,8 @@ export default function AuditProgramPanel({
   roles,
   onChanged,
   onOpenTeamAssignment,
+  onOpenAuditPlan,
+  onOpenPlanWorkspace,
 }: AuditProgramPanelProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftEvents, setDraftEvents] = useState<DraftProgramEvent[]>([]);
@@ -659,9 +664,9 @@ export default function AuditProgramPanel({
         : previousPlanDate.add(1, "year");
     }
 
-    const suggestedMemberCount = eventType === "stage1"
-      ? 1
-      : countableProjectMemberCount;
+    const suggestedMemberCount = ["stage1", "stage2"].includes(eventType)
+      ? countableProjectMemberCount
+      : 1;
     const suggestedCalendarDays = Math.max(
       1,
       Math.ceil(numberValue(event.planned_mandays) / suggestedMemberCount),
@@ -676,11 +681,13 @@ export default function AuditProgramPanel({
   const createPlanFromEvent = async () => {
     const event = planEditorEvent;
     if (!event) return;
-    if (!planStartDate?.isValid() || !planEndDate?.isValid()) {
-      message.error("Chọn đầy đủ ngày bắt đầu và ngày kết thúc kế hoạch.");
+    const isStage1 = normalize(event.event_type) === "stage1";
+    const effectiveEndDate = planEndDate;
+    if (!planStartDate?.isValid() || !effectiveEndDate?.isValid()) {
+      message.error(isStage1 ? "Chọn khung thời gian dự kiến thực hiện Giai đoạn 1." : "Chọn đầy đủ ngày bắt đầu và ngày kết thúc kế hoạch.");
       return;
     }
-    if (planEndDate.isBefore(planStartDate, "day")) {
+    if (effectiveEndDate.isBefore(planStartDate, "day")) {
       message.error("Ngày kết thúc không được trước ngày bắt đầu.");
       return;
     }
@@ -689,13 +696,13 @@ export default function AuditProgramPanel({
 
     setCreatingPlanEventId(event.id);
     try {
-      await api.post("/audit-plans", {
+      const planResponse = await api.post<AuditPlanReference>("/audit-plans", {
         project_id: projectId,
         audit_event_id: event.id,
         audit_type: event.event_type,
         planned_start_date: planStartDate.format("YYYY-MM-DD"),
-        planned_end_date: planEndDate.format("YYYY-MM-DD"),
-        location: previousPlan?.location || undefined,
+        planned_end_date: effectiveEndDate.format("YYYY-MM-DD"),
+        location: isStage1 ? "Từ xa" : previousPlan?.location || undefined,
         audit_scope: previousPlan?.audit_scope || undefined,
         audit_criteria: previousPlan?.audit_criteria || undefined,
         status: "draft",
@@ -704,17 +711,23 @@ export default function AuditProgramPanel({
           audit_program_event_id: event.id,
           program_planned_month: eventPlannedMonth(event)?.format("YYYY-MM") ?? null,
           exact_dates_selected_manually: true,
+          stage1_remote_workload: isStage1,
+          stage1_remote_date_window_flexible: isStage1,
           planned_mandays: numberValue(event.planned_mandays),
           copied_from_previous_plan_id: previousPlan?.id ?? null,
           copied_from_previous_plan_code: previousPlan?.plan_code ?? null,
           carried_forward_scope_location_criteria: Boolean(previousPlan),
         },
       });
-      message.success(`Đã tạo kế hoạch cho ${eventLabel(event.event_type)}.`);
+      const createdPlan = planResponse.data;
+      message.success(isStage1
+        ? `Đã tạo khung Giai đoạn 1 từ xa. Tiếp tục chọn thành viên từ F.04 và phân đủ ${numberValue(event.planned_mandays).toFixed(1)} MD.`
+        : `Đã tạo đợt ${eventLabel(event.event_type)}. Tiếp tục điều phối ngay trên đúng đợt này.`);
       setPlanEditorEvent(null);
       setPlanStartDate(null);
       setPlanEndDate(null);
       await onChanged?.();
+      onOpenAuditPlan?.(createdPlan.id);
     } catch (error) {
       message.error(getErrorMessage(error));
     } finally {
@@ -793,12 +806,37 @@ export default function AuditProgramPanel({
     {
       title: "",
       key: "action",
-      width: 150,
+      width: 220,
       align: "right",
       render: (_, record) => {
         const plan = planByEventId.get(record.id);
+        const eventType = normalize(record.event_type);
         if (plan) {
-          return <Text type="secondary">{plan.plan_code ?? "Đã có kế hoạch"}</Text>;
+          if (!canManage) {
+            return (
+              <Button size="small" type="link" onClick={() => onOpenPlanWorkspace?.(plan.id)}>
+                Mở hồ sơ đợt
+              </Button>
+            );
+          }
+          if (eventType === "stage1") {
+            return (
+              <Space size={4}>
+                <Text type="secondary">{plan.plan_code}</Text>
+                <Button size="small" type="link" onClick={() => onOpenAuditPlan?.(plan.id)}>
+                  Điều phối GĐ1
+                </Button>
+              </Space>
+            );
+          }
+          return (
+            <Space size={4}>
+              <Text type="secondary">{plan.plan_code}</Text>
+              <Button size="small" type="link" onClick={() => onOpenAuditPlan?.(plan.id)}>
+                {eventType === "stage2" ? "Điều phối" : "Chỉ định đoàn"}
+              </Button>
+            </Space>
+          );
         }
         if (!canManage || normalize(activeProgram?.status) !== "issued") return null;
         return (
@@ -809,12 +847,12 @@ export default function AuditProgramPanel({
             size="small"
             type="link"
           >
-            Tạo kế hoạch
+            Điều phối đợt
           </Button>
         );
       },
     },
-  ], [activeProgram?.status, canManage, creatingPlanEventId, planByEventId]);
+  ], [activeProgram?.status, canManage, creatingPlanEventId, onOpenAuditPlan, onOpenPlanWorkspace, planByEventId]);
 
   if (programsQuery.isLoading || mandayQuery.isLoading || teamAppointmentQuery.isLoading) {
     return <Card loading title="Chương trình đánh giá" />;
@@ -938,6 +976,20 @@ export default function AuditProgramPanel({
             type="warning"
           />
         ) : null}
+
+        <Card size="small" style={{ marginBottom: 16 }} title="Luồng công việc của hồ sơ">
+          <Steps
+            current={normalize(activeProgram?.status) === "issued" ? 2 : projectAppointmentIssued ? 1 : 0}
+            items={[
+              { title: "Chỉ định đoàn", description: "Điều phối viên ban hành F.04 cấp hồ sơ" },
+              { title: "Chương trình", description: "Ban hành chương trình chu kỳ" },
+              { title: "Điều phối từng đợt", description: "GĐ1/GĐ2 điều phối từ F.04 lần đầu; GS/TCC chỉ định đoàn riêng theo từng đợt" },
+              { title: "Hồ sơ đánh giá", description: "Trưởng đoàn lập kế hoạch, thực hiện và báo cáo" },
+            ]}
+            responsive
+            size="small"
+          />
+        </Card>
 
         {latestCalculation && cycleSummary ? (
           <Descriptions bordered column={{ xs: 1, sm: 2, lg: 4 }} size="small" style={{ marginBottom: 16 }}>
@@ -1067,7 +1119,7 @@ export default function AuditProgramPanel({
         destroyOnHidden
         maskClosable={false}
         okButtonProps={{ loading: Boolean(planEditorEvent && creatingPlanEventId === planEditorEvent.id) }}
-        okText="Tạo kế hoạch"
+        okText={normalize(planEditorEvent?.event_type) === "stage1" ? "Tạo & điều phối GĐ1" : "Tạo & điều phối đợt"}
         onCancel={() => {
           setPlanEditorEvent(null);
           setPlanStartDate(null);
@@ -1075,14 +1127,22 @@ export default function AuditProgramPanel({
         }}
         onOk={() => void createPlanFromEvent()}
         open={Boolean(planEditorEvent)}
-        title={planEditorEvent ? `Chọn ngày cụ thể — ${eventLabel(planEditorEvent.event_type)}` : "Chọn ngày cụ thể"}
+        title={planEditorEvent
+          ? normalize(planEditorEvent.event_type) === "stage1"
+            ? "Khởi tạo Giai đoạn 1 từ xa"
+            : `Điều phối đợt — ${eventLabel(planEditorEvent.event_type)}`
+          : "Điều phối đợt"}
         width={640}
       >
         {planEditorEvent ? (
           <>
             <Alert
-              description={`Chương trình chỉ dự kiến tháng ${formatPlannedMonth(planEditorEvent)}. Bạn được chọn ngày thực tế phù hợp với khách hàng và nguồn lực; ngày không bị khóa theo ngày đầu tháng.`}
-              message="Tháng dự kiến là mốc điều phối, không phải lịch đã xác nhận"
+              description={normalize(planEditorEvent.event_type) === "stage1"
+                ? `Giai đoạn 1 thực hiện từ xa. Hãy chọn khung thời gian dự kiến để phân workload cho các thành viên trong F.04. Lịch này là cảnh báo mềm khi xếp onsite: hệ thống ưu tiên tránh trùng nhưng không khóa cứng.`
+                : `Chương trình chỉ dự kiến tháng ${formatPlannedMonth(planEditorEvent)}. Điều phối viên chọn ngày thực tế và nguồn lực; Trưởng đoàn sẽ phân công nội dung đánh giá trong kế hoạch chi tiết.`}
+              message={normalize(planEditorEvent.event_type) === "stage1"
+                ? "GĐ1 từ xa: quản lý đầy đủ thành viên + MD, không khóa cứng lịch onsite"
+                : "Điều phối viên xác định ngày và nguồn lực; Trưởng đoàn xác định nội dung"}
               showIcon
               style={{ marginBottom: 16 }}
               type="info"
@@ -1098,13 +1158,15 @@ export default function AuditProgramPanel({
               </Descriptions.Item>
               <Descriptions.Item label="Cách gợi ý độ dài">
                 {normalize(planEditorEvent.event_type) === "stage1"
-                  ? "Mặc định giả định trưởng đoàn thực hiện; có thể rút ngắn khung ngày khi bổ sung đánh giá viên."
-                  : `Tạm tính theo ${countableProjectMemberCount} trưởng đoàn/đánh giá viên trong đoàn cấp hồ sơ.`}
+                  ? `Gợi ý theo ${countableProjectMemberCount} người tính MD trong F.04. Điều phối viên chọn những thành viên thực sự tham gia GĐ1; Trưởng đoàn vẫn phải đúng người đã ban hành.`
+                  : normalize(planEditorEvent.event_type) === "stage2"
+                    ? `Gợi ý theo ${countableProjectMemberCount} người tính MD trong đoàn lần đầu; thành phần/vai trò vẫn kế thừa F.04 cấp hồ sơ.`
+                    : "Giám sát/tái chứng nhận có chỉ định đoàn riêng cho từng đợt; không giả định dùng lại đoàn lần đầu."}
               </Descriptions.Item>
             </Descriptions>
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <div>
-                <Text strong>Ngày bắt đầu</Text>
+                <Text strong>{normalize(planEditorEvent.event_type) === "stage1" ? "Khung dự kiến — ngày bắt đầu" : "Ngày bắt đầu"}</Text>
                 <DatePicker
                   allowClear={false}
                   format="DD/MM/YYYY"
@@ -1122,7 +1184,7 @@ export default function AuditProgramPanel({
                 />
               </div>
               <div>
-                <Text strong>Ngày kết thúc</Text>
+                <Text strong>{normalize(planEditorEvent.event_type) === "stage1" ? "Khung dự kiến — ngày kết thúc" : "Ngày kết thúc"}</Text>
                 <DatePicker
                   allowClear={false}
                   format="DD/MM/YYYY"
@@ -1134,14 +1196,16 @@ export default function AuditProgramPanel({
               </div>
               {planStartDate && planEndDate ? (() => {
                 const calendarDays = planEndDate.diff(planStartDate, "day") + 1;
-                const assumedMemberCount = normalize(planEditorEvent.event_type) === "stage1"
-                  ? 1
-                  : countableProjectMemberCount;
+                const assumedMemberCount = ["stage1", "stage2"].includes(normalize(planEditorEvent.event_type))
+                  ? countableProjectMemberCount
+                  : 1;
                 const capacity = calendarDays * assumedMemberCount;
                 const required = numberValue(planEditorEvent.planned_mandays);
                 return (
                   <Alert
-                    description={`Khung đã chọn có ${calendarDays} ngày. Theo giả định ${assumedMemberCount} người tính MD, khả năng bố trí là ${capacity.toFixed(1)} MD; kỳ đánh giá yêu cầu ${required.toFixed(1)} MD. Khi phân công thực tế, hệ thống sẽ kiểm tra lại theo từng người.`}
+                    description={normalize(planEditorEvent.event_type) === "stage1"
+                      ? `Khung remote có ${calendarDays} ngày và đang gợi ý theo ${assumedMemberCount} người trong F.04. Tổng MD phải đủ ${required.toFixed(1)} MD; ngày GĐ1 chỉ tạo cảnh báo mềm khi trùng onsite.`
+                      : `Khung đã chọn có ${calendarDays} ngày. Theo giả định ${assumedMemberCount} người tính MD, khả năng bố trí là ${capacity.toFixed(1)} MD; kỳ đánh giá yêu cầu ${required.toFixed(1)} MD. Khi phân công thực tế, hệ thống sẽ kiểm tra lại theo từng người.`}
                     message={capacity + 0.001 < required
                       ? "Khung ngày gợi ý hiện chưa đủ khả năng bố trí"
                       : "Khung ngày có thể tiếp tục lập kế hoạch"}

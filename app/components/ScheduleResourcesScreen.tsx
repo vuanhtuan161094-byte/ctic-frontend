@@ -273,7 +273,22 @@ interface ExpertBusyDatesResponse {
     full_name: string;
   };
   busy_dates: string[];
+  warning_dates?: string[];
   assignments: Array<{
+    appointment_id: string;
+    appointment_number?: string | null;
+    appointment_status?: string | null;
+    plan_id: string;
+    plan_code?: string | null;
+    audit_type?: string | null;
+    plan_status?: string | null;
+    project_id: string;
+    project_code: string;
+    customer_name: string;
+    start_date: string;
+    end_date: string;
+  }>;
+  warning_assignments?: Array<{
     appointment_id: string;
     appointment_number?: string | null;
     appointment_status?: string | null;
@@ -448,6 +463,11 @@ function isStage1AuditType(auditType?: string | null, eventType?: string | null)
   return /stage\s*1|stage1|giai[_\s-]*doan[_\s-]*1|gđ1/.test(value);
 }
 
+function isStage2AuditType(auditType?: string | null, eventType?: string | null) {
+  const value = `${auditType ?? ""} ${eventType ?? ""}`.toLowerCase();
+  return /stage\s*2|stage2|giai[_\s-]*doan[_\s-]*2|gđ2/.test(value);
+}
+
 function projectProgramKey(managementSystem?: string | null, standardCode?: string | null) {
   return `${(managementSystem ?? "").trim().toUpperCase()}::${(standardCode ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase()}`;
 }
@@ -582,6 +602,7 @@ interface BusyDateRangePickerProps {
   defaultAnchor?: Dayjs;
   planStart?: Dayjs | null;
   planEnd?: Dayjs | null;
+  remoteStage1?: boolean;
 }
 
 function BusyDateRangePicker({
@@ -593,6 +614,7 @@ function BusyDateRangePicker({
   defaultAnchor,
   planStart,
   planEnd,
+  remoteStage1 = false,
 }: BusyDateRangePickerProps) {
   const anchor = value?.[0] ?? planStart ?? defaultAnchor ?? dayjs();
   const lookupStart = anchor.subtract(1, "year").startOf("year");
@@ -627,6 +649,17 @@ function BusyDateRangePicker({
     () => new Set(busyQuery.data?.busy_dates ?? []),
     [busyQuery.data?.busy_dates],
   );
+  const remoteWarningDateSet = useMemo(
+    () => new Set(busyQuery.data?.warning_dates ?? []),
+    [busyQuery.data?.warning_dates],
+  );
+  const warningDateSet = useMemo(() => {
+    const dates = new Set(remoteWarningDateSet);
+    if (remoteStage1) {
+      for (const date of busyDateSet) dates.add(date);
+    }
+    return dates;
+  }, [busyDateSet, remoteStage1, remoteWarningDateSet]);
 
   const assignmentByDate = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -644,6 +677,25 @@ function BusyDateRangePicker({
     return map;
   }, [busyQuery.data?.assignments]);
 
+  const warningAssignmentByDate = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const warningItems = remoteStage1
+      ? [...(busyQuery.data?.assignments ?? []), ...(busyQuery.data?.warning_assignments ?? [])]
+      : (busyQuery.data?.warning_assignments ?? []);
+    for (const assignment of warningItems) {
+      let cursor = dayjs(assignment.start_date).startOf("day");
+      const end = dayjs(assignment.end_date).startOf("day");
+      const prefix = isStage1AuditType(assignment.audit_type) ? "GĐ1 từ xa" : "Lịch onsite";
+      const label = `${prefix}: ${assignment.customer_name} · ${assignment.plan_code ?? assignment.project_code}`;
+      while (!cursor.isAfter(end)) {
+        const key = cursor.format("YYYY-MM-DD");
+        map.set(key, [...(map.get(key) ?? []), label]);
+        cursor = cursor.add(1, "day");
+      }
+    }
+    return map;
+  }, [busyQuery.data?.assignments, busyQuery.data?.warning_assignments, remoteStage1]);
+
   const busyStatusByDate = useMemo(() => {
     const map = new Map<string, "confirmed" | "tentative">();
     for (const assignment of busyQuery.data?.assignments ?? []) {
@@ -659,6 +711,19 @@ function BusyDateRangePicker({
     return map;
   }, [busyQuery.data?.assignments]);
 
+  const selectedWarningDates = useMemo(() => {
+    if (!value?.[0] || !value?.[1]) return [] as string[];
+    const warnings: string[] = [];
+    let cursor = value[0].startOf("day");
+    const end = value[1].startOf("day");
+    while (!cursor.isAfter(end)) {
+      const key = cursor.format("YYYY-MM-DD");
+      if (warningDateSet.has(key)) warnings.push(key);
+      cursor = cursor.add(1, "day");
+    }
+    return warnings;
+  }, [value, warningDateSet]);
+
   const outsidePlan = (current: Dayjs) => (
     Boolean(planStart && current.startOf("day").isBefore(planStart.startOf("day")))
     || Boolean(planEnd && current.startOf("day").isAfter(planEnd.startOf("day")))
@@ -669,18 +734,25 @@ function BusyDateRangePicker({
       <RangePicker
         cellRender={(current, info) => {
           const key = current.format("YYYY-MM-DD");
-          if (!busyDateSet.has(key)) return info.originNode;
-          const details = assignmentByDate.get(key) ?? ["Chuyên gia đã có lịch đánh giá"];
+          const hardBusy = busyDateSet.has(key) && !remoteStage1;
+          const warning = warningDateSet.has(key);
+          if (!hardBusy && !warning) return info.originNode;
+          const details = hardBusy
+            ? assignmentByDate.get(key) ?? ["Chuyên gia đã có lịch onsite khác"]
+            : warningAssignmentByDate.get(key) ?? ["Có workload khác trong ngày này"];
           return (
             <Tooltip title={details.join("; ")}>
-              <div className={`expert-busy-calendar-cell is-${busyStatusByDate.get(key) ?? "confirmed"}`}>
+              <div className={hardBusy
+                ? `expert-busy-calendar-cell is-${busyStatusByDate.get(key) ?? "confirmed"}`
+                : "expert-busy-calendar-cell is-remote-warning"}>
                 {info.originNode}
               </div>
             </Tooltip>
           );
         }}
         disabled={!expertId}
-        disabledDate={(current) => outsidePlan(current) || busyDateSet.has(current.format("YYYY-MM-DD"))}
+        disabledDate={(current) => outsidePlan(current)
+          || (!remoteStage1 && busyDateSet.has(current.format("YYYY-MM-DD")))}
         format="DD/MM/YYYY"
         onChange={(dates) => {
           if (!dates?.[0] || !dates?.[1]) {
@@ -702,18 +774,32 @@ function BusyDateRangePicker({
             Chỉ chọn trong thời gian kế hoạch: {planStart.format("DD/MM/YYYY")}–{(planEnd ?? planStart).format("DD/MM/YYYY")}.
           </Text>
         ) : null}
+        {selectedWarningDates.length ? (
+          <Alert
+            description={remoteStage1
+              ? `Có ${selectedWarningDates.length} ngày trùng workload/onsite khác. GĐ1 vẫn được phép xếp vì là remote; nếu thuận tiện nên chọn ngày khác để giảm tải cho chuyên gia.`
+              : `Có ${selectedWarningDates.length} ngày trùng workload GĐ1 từ xa. Vẫn được phép xếp onsite, nhưng nên ưu tiên ngày khác nếu có thể.`}
+            message="Cảnh báo tải công việc — không chặn lịch"
+            showIcon
+            type="warning"
+          />
+        ) : null}
         {expertId ? (
           <div className="expert-busy-date-legend">
             <span className="expert-busy-dot is-confirmed" />
-            <Text type="secondary">Đã xác nhận</Text>
+            <Text type="secondary">Onsite đã xác nhận</Text>
             <span className="expert-busy-dot is-tentative" />
-            <Text type="secondary">Dự kiến</Text>
+            <Text type="secondary">Onsite dự kiến</Text>
+            <span className="expert-busy-dot is-remote-warning" />
+            <Text type="secondary">Cảnh báo mềm GĐ1</Text>
             <Text type="secondary">
               {busyQuery.isLoading
                 ? "Đang tải lịch..."
                 : busyQuery.isError
                   ? `Không tải được lịch: ${getErrorMessage(busyQuery.error)}`
-                  : `${busyDateSet.size} ngày không thể chọn`}
+                  : remoteStage1
+                    ? `${warningDateSet.size} ngày có workload khác — vẫn được chọn`
+                    : `${busyDateSet.size} ngày onsite bị khóa · ${remoteWarningDateSet.size} ngày GĐ1 chỉ cảnh báo`}
             </Text>
           </div>
         ) : (
@@ -954,6 +1040,13 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     selectedPlan?.audit_type,
     selectedPlan?.audit_event?.event_type,
   );
+  const selectedIsInitialStage2 = isStage2AuditType(
+    selectedPlan?.audit_type,
+    selectedPlan?.audit_event?.event_type,
+  );
+  const selectedInheritsProjectTeam = selectedIsStage1 || selectedIsInitialStage2;
+  const selectedIsFormalEventAppointment = !selectedIsProjectContext && !selectedInheritsProjectTeam;
+  const selectedIsFormalAppointment = selectedIsProjectContext || selectedIsFormalEventAppointment;
   const selectedDisplayCode = selectedIsProjectContext
     ? selectedPlan?.certification_projects?.project_code ?? selectedPlan?.plan_code
     : selectedPlan?.plan_code;
@@ -985,7 +1078,8 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
   ).length;
   const draftPlanCapacity = selectedPlanCalendarDays * draftCountingMemberCount;
   const draftPlanCapacityInsufficient = Boolean(
-    selectedRequiredMandays !== undefined
+    !selectedIsStage1
+      && selectedRequiredMandays !== undefined
       && selectedRequiredMandays > 0
       && draftPlanCapacity + 0.001 < selectedRequiredMandays,
   );
@@ -1003,7 +1097,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     : selectedAppointmentAllocatedMandays - selectedRequiredMandays;
   const selectedAppointmentMandaysBalanced = selectedIsProjectContext
     || (selectedRequiredMandays !== undefined
-      && selectedAppointmentAllocatedMandays + 0.001 >= selectedRequiredMandays);
+      && Math.abs(selectedAppointmentAllocatedMandays - selectedRequiredMandays) < 0.001);
 
   const projectBriefQuery = useQuery({
     enabled: Boolean(selectedIsProjectContext && selectedPlan?.project_id),
@@ -1058,11 +1152,22 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     ),
     [issuedProjectAppointment],
   );
+  const projectTeamRoleByExpertId = useMemo(
+    () => new Map(
+      (issuedProjectAppointment?.members ?? [])
+        .map((member) => [
+          member.experts?.id ?? member.expert_id ?? "",
+          (member.team_role ?? "AUDITOR").toUpperCase(),
+        ] as const)
+        .filter(([expertId]) => Boolean(expertId)),
+    ),
+    [issuedProjectAppointment],
+  );
   const selectableExperts = useMemo(
-    () => selectedIsProjectContext
+    () => selectedIsProjectContext || selectedIsFormalEventAppointment
       ? activeExperts
       : activeExperts.filter((expert) => projectTeamExpertIds.has(expert.id)),
-    [activeExperts, projectTeamExpertIds, selectedIsProjectContext],
+    [activeExperts, projectTeamExpertIds, selectedIsFormalEventAppointment, selectedIsProjectContext],
   );
   const requiredPrograms = useMemo<ProjectProgramOption[]>(() => {
     if (projectExpertSuitabilityQuery.data?.required_programs?.length) {
@@ -1096,7 +1201,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     }
     return map;
   }, [projectExpertSuitabilityQuery.data?.experts]);
-  const planTeamPrerequisiteBlocked = !selectedIsProjectContext && !issuedProjectAppointment;
+  const planTeamPrerequisiteBlocked = selectedInheritsProjectTeam && !issuedProjectAppointment;
 
   const projectBrief = projectBriefQuery.data?.project ?? null;
   const projectBriefApplication = projectBrief?.certification_applications ?? null;
@@ -1172,24 +1277,6 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
   }, [expertSuitabilityMap, projectScopesQuery.data, watchedMembers]);
 
   const planProgramCoverage = useMemo(() => {
-    if (selectedIsStage1) {
-      const leaders = (watchedMembers as AppointmentFormMember[]).filter(
-        (member) => member?.team_role === "TEAM_LEADER" && member?.expert_id,
-      );
-      const membersQualified = (watchedMembers as AppointmentFormMember[]).every(
-        (member) => !member?.expert_id || projectTeamExpertIds.has(member.expert_id),
-      );
-      return {
-        required: 0,
-        covered: 0,
-        missingPrograms: [] as ProjectProgramOption[],
-        leaderSelected: leaders.length === 1,
-        leaderQualified: leaders.length === 1,
-        membersQualified,
-        sufficient: leaders.length === 1 && membersQualified,
-      };
-    }
-
     const coveredKeys = new Set<string>();
     let leaderSelected = false;
     let leaderQualified = false;
@@ -1197,7 +1284,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
 
     for (const member of watchedMembers as AppointmentFormMember[]) {
       if (!member?.expert_id) continue;
-      if (!projectTeamExpertIds.has(member.expert_id)) membersQualified = false;
+      if (selectedInheritsProjectTeam && !projectTeamExpertIds.has(member.expert_id)) membersQualified = false;
       const acceptedRoles = acceptedProgramRoles(member.team_role);
       if (!acceptedRoles.length) continue;
       const capabilities = programCapabilityMap.get(member.expert_id) ?? new Map<string, ProjectProgramCapability>();
@@ -1231,7 +1318,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         && leaderQualified
         && membersQualified,
     };
-  }, [programCapabilityMap, projectTeamExpertIds, requiredPrograms, selectedIsStage1, watchedMembers]);
+  }, [programCapabilityMap, projectTeamExpertIds, requiredPrograms, selectedInheritsProjectTeam, watchedMembers]);
 
   const projectScopeStatus = httpStatus(projectScopesQuery.error);
   const scopeAccessDenied = projectScopesQuery.isError && projectScopeStatus === 403;
@@ -1461,8 +1548,8 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       const selectedScopeIds = new Set<string>();
       const selectedProgramKeys = new Set<string>();
 
-      if (!selectedIsProjectContext && !issuedProjectAppointment) {
-        throw new Error("Cần ban hành chỉ định đoàn cấp hồ sơ trước khi phân công cho từng cuộc đánh giá");
+      if (selectedInheritsProjectTeam && !issuedProjectAppointment) {
+        throw new Error("Cần ban hành chỉ định đoàn cấp hồ sơ trước khi điều phối Giai đoạn 1/Giai đoạn 2");
       }
 
       for (const member of values.members) {
@@ -1488,20 +1575,26 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           if (memberMandays < 0 || Math.abs(memberMandays * 2 - Math.round(memberMandays * 2)) > 0.001) {
             throw new Error("Ngày công phải từ 0 MD và theo bước 0,5 MD");
           }
-          if (memberMandays > maximumMandays) {
+          if (!selectedIsStage1 && memberMandays > maximumMandays) {
             throw new Error(`Ngày công ${memberMandays} MD vượt quá ${maximumMandays} ngày tham gia đã chọn`);
           }
           if (!memberCountsMandays && (parseNumber(member.planned_mandays) ?? 0) > 0) {
             throw new Error("Chuyên gia kỹ thuật, quan sát viên và chuyên gia tập sự không được tính man-day");
           }
 
-          if (!projectTeamExpertIds.has(member.expert_id)) {
+          if (selectedInheritsProjectTeam && !projectTeamExpertIds.has(member.expert_id)) {
             throw new Error("Có chuyên gia không thuộc quyết định chỉ định đoàn cấp hồ sơ đã ban hành");
+          }
+          if (selectedInheritsProjectTeam) {
+            const inheritedRole = projectTeamRoleByExpertId.get(member.expert_id);
+            if (inheritedRole && inheritedRole !== member.team_role) {
+              throw new Error("Vai trò thành viên GĐ1/GĐ2 phải giữ nguyên theo quyết định chỉ định đoàn cấp hồ sơ");
+            }
           }
 
           const acceptedRoles = acceptedProgramRoles(member.team_role);
-          const assignedProgramKeys = selectedIsStage1 ? [] : member.program_keys ?? [];
-          if (!selectedIsStage1 && acceptedRoles.length && !assignedProgramKeys.length) {
+          const assignedProgramKeys = member.program_keys ?? [];
+          if (acceptedRoles.length && !assignedProgramKeys.length) {
             throw new Error("Có thành viên chưa được phân công chương trình/tiêu chuẩn đánh giá");
           }
 
@@ -1556,10 +1649,6 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         if (!leader || !expertSuitabilityMap.get(leader.expert_id)?.can_lead) {
           throw new Error("Trưởng đoàn phải có năng lực LEAD_AUDITOR phù hợp với ít nhất một tiêu chuẩn/phạm vi của hồ sơ");
         }
-      } else if (selectedIsStage1) {
-        if (!leader || !projectTeamExpertIds.has(leader.expert_id)) {
-          throw new Error("Trưởng đoàn Giai đoạn 1 phải thuộc quyết định chỉ định đoàn cấp hồ sơ đã ban hành");
-        }
       } else {
         const missingPrograms = requiredPrograms.filter((program) => !selectedProgramKeys.has(program.key));
         if (missingPrograms.length) {
@@ -1590,13 +1679,11 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             : undefined;
           const scopeIds = selectedIsProjectContext
             ? member.project_scope_ids ?? []
-            : selectedIsStage1
-              ? []
-              : Array.from(new Set(
-                (member.program_keys ?? []).flatMap(
-                  (programKey) => programMap.get(programKey)?.project_scope_ids ?? [],
-                ),
-              ));
+            : Array.from(new Set(
+              (member.program_keys ?? []).flatMap(
+                (programKey) => programMap.get(programKey)?.project_scope_ids ?? [],
+              ),
+            ));
 
           return {
             expert_id: member.expert_id,
@@ -1635,6 +1722,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         })).data;
 
       let allocationWarning: string | null = null;
+      let autoConfirmed = false;
       if (!selectedIsProjectContext && !selectedIsStage1) {
         try {
           await api.post(
@@ -1646,27 +1734,30 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         }
       }
 
-      return { savedAppointment, allocationWarning };
+      if (selectedInheritsProjectTeam && !allocationWarning) {
+        await api.post(`/audit-team-appointments/${savedAppointment.id}/issue`);
+        autoConfirmed = true;
+      }
+
+      return { savedAppointment, allocationWarning, autoConfirmed };
     },
-    onSuccess: async ({ allocationWarning }) => {
+    onSuccess: async ({ allocationWarning, autoConfirmed }) => {
       await invalidateScheduleData();
       setAppointmentModalOpen(false);
       setAppointmentFormErrors([]);
       appointmentForm.resetFields();
       if (allocationWarning) {
         message.warning(`Đã lưu dự thảo nhưng chưa tự phân bổ được ma trận man-day: ${allocationWarning}`);
+      } else if (autoConfirmed) {
+        message.success(selectedIsStage1
+          ? "Đã lưu và xác nhận phân công Giai đoạn 1. Trưởng đoàn có thể tiếp tục lập kế hoạch/hồ sơ GĐ1."
+          : "Đã lưu và xác nhận điều phối Giai đoạn 2. Trưởng đoàn có thể tiếp tục lập kế hoạch chi tiết trong hồ sơ.");
+      } else if (selectedIsFormalAppointment) {
+        message.success(selectedAppointment
+          ? "Đã cập nhật dự thảo chỉ định đoàn. Kiểm tra lần cuối rồi bấm Ban hành."
+          : "Đã tạo dự thảo chỉ định đoàn. Kiểm tra lần cuối rồi bấm Ban hành.");
       } else {
-        message.success(
-          selectedAppointment
-            ? selectedIsProjectContext || selectedIsStage1
-              ? "Đã cập nhật dự thảo phân công"
-              : "Đã cập nhật dự thảo và tự động phân bổ lại man-day theo chương trình"
-            : selectedIsProjectContext
-              ? "Đã tạo dự thảo chỉ định đoàn"
-              : selectedIsStage1
-                ? "Đã lưu phân công Giai đoạn 1"
-                : "Đã lưu phân công và tự động phân bổ man-day theo chương trình",
-        );
+        message.success("Đã cập nhật điều phối nguồn lực.");
       }
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -1677,9 +1768,13 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       (await api.post<AuditTeamAppointment>(`/audit-team-appointments/${appointmentId}/issue`)).data,
     onSuccess: async () => {
       await invalidateScheduleData();
-      message.success(selectedIsProjectContext
-        ? "Đã ban hành chỉ định đoàn cấp hồ sơ"
-        : "Đã ban hành phân công cho cuộc đánh giá");
+      message.success(selectedIsFormalAppointment
+        ? selectedIsProjectContext
+          ? "Đã ban hành chỉ định đoàn cấp hồ sơ"
+          : "Đã ban hành chỉ định đoàn của đợt đánh giá"
+        : selectedIsStage1
+          ? "Đã xác nhận điều phối nguồn lực Giai đoạn 1"
+          : "Đã xác nhận điều phối nguồn lực Giai đoạn 2");
     },
     onError: (error) => {
       const errorMessage = getErrorMessage(error);
@@ -1702,9 +1797,11 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     const inheritedMembers = inheritedProjectAppointment?.members ?? [];
     const sourceMembers = selectedAppointment?.members?.length
       ? selectedAppointment.members
-      : selectedIsStage1
-        ? inheritedMembers.filter((member) => normalize(member.team_role) === "team_leader")
-        : inheritedMembers;
+      : selectedInheritsProjectTeam
+        ? selectedIsStage1
+          ? inheritedMembers.filter((member) => normalize(member.team_role) === "team_leader")
+          : inheritedMembers
+        : [];
 
     const defaultMembers: AppointmentFormMember[] = sourceMembers.length
       ? sourceMembers.map((member) => {
@@ -1728,11 +1825,14 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             })
             .filter((key): key is string => typeof key === "string" && key.length > 0 && programMap.has(key)),
         ));
-        const supportedProgramKeys = acceptedProgramRoles(teamRole).length
-          ? programKeys.filter((key) => capabilitySupportsRole(
-            programCapabilityMap.get(expertId)?.get(key),
+        const compatibleRequiredProgramKeys = requiredPrograms
+          .filter((program) => capabilitySupportsRole(
+            programCapabilityMap.get(expertId)?.get(program.key),
             teamRole,
           ))
+          .map((program) => program.key);
+        const supportedProgramKeys = acceptedProgramRoles(teamRole).length
+          ? Array.from(new Set([...programKeys, ...compatibleRequiredProgramKeys]))
           : [];
 
         return {
@@ -1754,10 +1854,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                     member.planned_end_date ? dayjs(member.planned_end_date) : planEnd,
                   ])
                 : selectedIsStage1
-                  ? Math.min(
-                    selectedRequiredMandays ?? inclusiveDayCount([planStart, planEnd]) ?? 0.5,
-                    inclusiveDayCount([planStart, planEnd]) ?? 0.5,
-                  )
+                  ? selectedRequiredMandays ?? 0.5
                   : inclusiveDayCount([planStart, planEnd])
               : 0,
           project_scope_ids: selectedIsProjectContext
@@ -1775,10 +1872,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         planned_mandays: selectedIsProjectContext
           ? undefined
           : selectedIsStage1
-            ? Math.min(
-              selectedRequiredMandays ?? inclusiveDayCount([planStart, planEnd]) ?? 0.5,
-              inclusiveDayCount([planStart, planEnd]) ?? 0.5,
-            )
+            ? selectedRequiredMandays ?? 0.5
             : inclusiveDayCount([planStart, planEnd]),
         project_scope_ids: [],
         program_keys: [],
@@ -1788,17 +1882,78 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       appointment_number: selectedAppointment?.appointment_number
         ?? (selectedIsProjectContext
           ? `F04-${dayjs().format("YYYYMMDD-HHmmss")}`
-          : `${selectedPlan.plan_code}-TEAM`),
+          : selectedIsFormalEventAppointment
+            ? `F04-${selectedPlan.plan_code}-${dayjs().format("YYYYMMDD-HHmmss")}`.slice(0, 50)
+            : `${selectedPlan.plan_code}-ALLOC`),
       appointment_date: selectedAppointment?.appointment_date
         ? dayjs(selectedAppointment.appointment_date)
         : dayjs(),
       note: selectedAppointment?.note
-        ?? (!selectedIsProjectContext && inheritedProjectAppointment
-          ? `Phân công cho ${selectedPlan.plan_code} từ đoàn đã ban hành của hồ sơ ${selectedPlan.certification_projects?.project_code ?? ""}`
-          : undefined),
+        ?? (selectedIsInitialStage2 && inheritedProjectAppointment
+          ? `Điều phối Giai đoạn 2 từ đoàn đã ban hành cấp hồ sơ ${selectedPlan.certification_projects?.project_code ?? ""}; Điều phối viên chỉ xác định người tham gia, ngày và MD.`
+          : selectedIsFormalEventAppointment
+            ? `Chỉ định đoàn riêng cho ${labelFromMap(selectedPlan.audit_type, auditTypeLabels)}; không mặc định kế thừa đoàn lần đầu.`
+            : undefined),
       members: defaultMembers,
     });
     setAppointmentModalOpen(true);
+  };
+
+  const balanceMandaysForMembers = () => {
+    if (selectedRequiredMandays === undefined || selectedRequiredMandays <= 0) {
+      message.warning("Kỳ đánh giá chưa có MD yêu cầu trong chương trình.");
+      return;
+    }
+    const members = [...(appointmentForm.getFieldValue("members") ?? [])] as AppointmentFormMember[];
+    const countingIndexes = members
+      .map((member, index) => countsTowardMandays(member.team_role) ? index : -1)
+      .filter((index) => index >= 0);
+    if (!countingIndexes.length) {
+      message.warning("Cần có ít nhất một Trưởng đoàn/Đánh giá viên tính MD.");
+      return;
+    }
+    if (selectedIsStage1) {
+      let remainingUnits = Math.round(selectedRequiredMandays * 2);
+      for (const index of countingIndexes) members[index].planned_mandays = 0;
+      let cursor = 0;
+      while (remainingUnits > 0) {
+        const index = countingIndexes[cursor % countingIndexes.length];
+        members[index].planned_mandays = (Math.round((members[index].planned_mandays ?? 0) * 2) + 1) / 2;
+        remainingUnits -= 1;
+        cursor += 1;
+      }
+      appointmentForm.setFieldValue("members", members);
+      message.success("Đã chia đều MD GĐ1 theo bước 0,5 cho các thành viên tính MD. Có thể chỉnh lại thủ công.");
+      return;
+    }
+
+    let remainingUnits = Math.round(selectedRequiredMandays * 2);
+    const capacities = new Map<number, number>();
+    for (const index of countingIndexes) {
+      capacities.set(index, Math.max(0, Math.round((inclusiveDayCount(members[index].planned_dates) ?? 0) * 2)));
+      members[index].planned_mandays = 0;
+    }
+    let guard = 0;
+    while (remainingUnits > 0 && guard < 10000) {
+      guard += 1;
+      let allocatedThisRound = false;
+      for (const index of countingIndexes) {
+        if (remainingUnits <= 0) break;
+        const capacity = capacities.get(index) ?? 0;
+        const currentUnits = Math.round((members[index].planned_mandays ?? 0) * 2);
+        if (currentUnits >= capacity) continue;
+        members[index].planned_mandays = (currentUnits + 1) / 2;
+        remainingUnits -= 1;
+        allocatedThisRound = true;
+      }
+      if (!allocatedThisRound) break;
+    }
+    appointmentForm.setFieldValue("members", members);
+    if (remainingUnits > 0) {
+      message.warning(`Khung ngày hiện tại còn thiếu ${(remainingUnits / 2).toFixed(1)} MD khả năng bố trí.`);
+    } else {
+      message.success("Đã cân bằng MD đúng bằng mức chương trình.");
+    }
   };
 
   const columns: TableColumnsType<AuditPlan> = [
@@ -2117,7 +2272,11 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         destroyOnHidden
         onClose={() => setSelectedPlanId(null)}
         open={Boolean(selectedPlan)}
-        title={<div><Text type="secondary">{selectedIsProjectContext ? "Chỉ định đoàn theo hồ sơ chứng nhận" : "Chi tiết kế hoạch đánh giá"}</Text><div className="drawer-code-title">{selectedDisplayCode}</div></div>}
+        title={<div><Text type="secondary">{selectedIsProjectContext
+          ? "Chỉ định đoàn cấp hồ sơ chứng nhận"
+          : selectedIsFormalEventAppointment
+            ? "Chỉ định đoàn theo đợt đánh giá"
+            : "Điều phối đợt đánh giá"}</Text><div className="drawer-code-title">{selectedDisplayCode}</div></div>}
         width={760}
       >
         {selectedPlan ? (
@@ -2205,20 +2364,26 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                   ) : null}
                   {!selectedAppointment ? (
                     <Button icon={<PlusOutlined />} type="primary" onClick={openAppointmentForm}>
-                      {selectedIsProjectContext ? "Lập chỉ định đoàn" : "Phân công cho đợt đánh giá"}
+                      {selectedIsProjectContext
+                        ? "Lập chỉ định đoàn"
+                        : selectedIsFormalEventAppointment
+                          ? "Chỉ định đoàn của đợt"
+                          : "Điều phối nguồn lực"}
                     </Button>
                   ) : null}
                   {selectedAppointment && normalize(selectedAppointment.status) === "draft" ? (
                     <Popconfirm
                       cancelText="Chưa"
-                      description="Sau khi ban hành, dự thảo sẽ được khóa để bảo đảm tính kiểm soát."
-                      okText="Ban hành"
+                      description={selectedIsFormalAppointment
+                        ? "Sau khi ban hành, dự thảo sẽ được khóa để bảo đảm tính kiểm soát."
+                        : "Sau khi xác nhận, phân công nội bộ sẽ được khóa để Trưởng đoàn tiếp tục lập kế hoạch/hồ sơ."}
+                      okText={selectedIsFormalAppointment ? "Ban hành" : "Xác nhận"}
                       onConfirm={() => issueAppointmentMutation.mutate(selectedAppointment.id)}
-                      title="Ban hành chỉ định đoàn?"
+                      title={selectedIsFormalAppointment ? "Ban hành chỉ định đoàn?" : "Xác nhận điều phối?"}
                     >
                       <Tooltip
                         title={!selectedAppointmentMandaysBalanced
-                          ? `Cần bố trí tối thiểu ${formatMandays(selectedRequiredMandays)} MD trước khi ban hành`
+                          ? `Cần bố trí đúng ${formatMandays(selectedRequiredMandays)} MD trước khi xác nhận/ban hành`
                           : undefined}
                       >
                         <Button
@@ -2227,20 +2392,28 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                           loading={issueAppointmentMutation.isPending}
                           type="primary"
                         >
-                          Ban hành
+                          {selectedIsFormalAppointment ? "Ban hành" : "Xác nhận điều phối"}
                         </Button>
                       </Tooltip>
                     </Popconfirm>
                   ) : null}
                 </Space>
               ) : null}
-              title={selectedIsProjectContext ? "Quyết định chỉ định đoàn cấp hồ sơ" : "Phân công đoàn cho cuộc đánh giá"}
+              title={selectedIsProjectContext
+                ? "Quyết định chỉ định đoàn cấp hồ sơ"
+                : selectedIsFormalEventAppointment
+                  ? "Quyết định chỉ định đoàn của đợt đánh giá"
+                  : selectedIsStage1
+                    ? "Điều phối nguồn lực Giai đoạn 1 từ xa"
+                    : "Điều phối nguồn lực Giai đoạn 2"}
             >
               {selectedAppointment ? (
                 <Descriptions column={2} size="small">
-                  <Descriptions.Item label="Số quyết định">{selectedAppointment.appointment_number ?? "Chưa cập nhật"}</Descriptions.Item>
-                  <Descriptions.Item label="Ngày chỉ định">{formatDate(selectedAppointment.appointment_date)}</Descriptions.Item>
-                  <Descriptions.Item label="Trạng thái"><PlanStatusTag status={selectedAppointment.status} /></Descriptions.Item>
+                  <Descriptions.Item label={selectedIsFormalAppointment ? "Số quyết định" : "Mã điều phối nội bộ"}>{selectedAppointment.appointment_number ?? "Chưa cập nhật"}</Descriptions.Item>
+                  <Descriptions.Item label={selectedIsFormalAppointment ? "Ngày chỉ định" : "Ngày xác nhận"}>{formatDate(selectedAppointment.appointment_date)}</Descriptions.Item>
+                  <Descriptions.Item label="Trạng thái">{!selectedIsFormalAppointment && normalize(selectedAppointment.status) === "issued"
+                    ? <Tag color="green">Đã xác nhận</Tag>
+                    : <PlanStatusTag status={selectedAppointment.status} />}</Descriptions.Item>
                   <Descriptions.Item label="Số thành viên">{selectedAppointment.members?.length ?? 0}</Descriptions.Item>
                   {selectedAppointment.note ? <Descriptions.Item label="Ghi chú" span={2}>{selectedAppointment.note}</Descriptions.Item> : null}
                 </Descriptions>
@@ -2249,13 +2422,13 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                 <Alert
                   className="drawer-manday-allocation-alert"
                   description={selectedRequiredMandays === undefined
-                    ? "Kỳ đánh giá chưa có man-day trong chương trình. Cập nhật chương trình trước khi ban hành phân công."
+                    ? "Kỳ đánh giá chưa có man-day trong chương trình. Cập nhật chương trình trước khi xác nhận/ban hành."
                     : selectedAppointmentAllocatedMandays + 0.001 < selectedRequiredMandays
-                      ? `Đang thiếu ${formatMandays(Math.abs(Number(selectedAppointmentMandayDifference)))} MD. Mở Sửa dự thảo để bổ sung.`
+                      ? `Đang thiếu ${formatMandays(Math.abs(Number(selectedAppointmentMandayDifference)))} MD. Mở Sửa dự thảo để cân bằng.`
                       : Number(selectedAppointmentMandayDifference) > 0.001
-                        ? `Đã bố trí cao hơn mức kế hoạch ${formatMandays(Number(selectedAppointmentMandayDifference))} MD. Đây là phương án hợp lệ; toàn bộ phần vượt sẽ vẫn được phân vào chương trình.`
-                        : "Tổng ngày công bố trí đúng bằng mức man-day kế hoạch."}
-                  message={`Man-day bố trí: ${formatMandays(selectedAppointmentAllocatedMandays)} MD · Kế hoạch tối thiểu: ${formatMandays(selectedRequiredMandays)} MD`}
+                        ? `Đang vượt ${formatMandays(Number(selectedAppointmentMandayDifference))} MD. Hãy giảm về đúng mức chương trình trước khi xác nhận/ban hành.`
+                        : "Tổng ngày công bố trí đúng bằng mức man-day chương trình."}
+                  message={`Man-day bố trí: ${formatMandays(selectedAppointmentAllocatedMandays)} MD · Yêu cầu chính xác: ${formatMandays(selectedRequiredMandays)} MD`}
                   showIcon
                   type={selectedRequiredMandays === undefined ? "info" : selectedAppointmentMandaysBalanced ? "success" : "warning"}
                 />
@@ -2303,7 +2476,9 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                       </div>
                       {!selectedIsProjectContext ? (
                         <div className="schedule-member-period">
-                          <CheckCircleOutlined /> {formatDateRange(member.planned_start_date, member.planned_end_date)}
+                          <CheckCircleOutlined /> {selectedIsStage1
+                            ? `Mốc hồ sơ ${formatDate(member.planned_start_date)} · ${formatMandays(parseNumber(member.planned_mandays))} MD tải lượng`
+                            : `${formatDateRange(member.planned_start_date, member.planned_end_date)} · ${formatMandays(parseNumber(member.planned_mandays))} MD`}
                         </div>
                       ) : null}
                     </div>
@@ -2429,15 +2604,17 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             || !selectableExperts.length
             || projectExpertSuitabilityQuery.isLoading
             || projectExpertSuitabilityQuery.isError
-            || (selectedIsProjectContext ? !teamCoverage.sufficient : !planProgramCoverage.sufficient),
+            || (selectedIsProjectContext ? !teamCoverage.sufficient : !planProgramCoverage.sufficient)
+            || (selectedInheritsProjectTeam && selectedRequiredMandays !== undefined
+              && Math.abs(draftAllocatedMandays - selectedRequiredMandays) >= 0.001),
           icon: <SaveOutlined />,
           loading: saveAppointmentMutation.isPending,
         }}
-        okText={selectedAppointment
-          ? "Lưu thay đổi"
-          : selectedIsProjectContext
-            ? "Tạo dự thảo chỉ định"
-            : "Lưu phân công"}
+        okText={selectedInheritsProjectTeam
+          ? "Lưu & xác nhận điều phối"
+          : selectedIsFormalAppointment
+            ? selectedAppointment ? "Lưu dự thảo" : "Tạo dự thảo chỉ định"
+            : "Lưu"}
         onCancel={() => {
           setAppointmentModalOpen(false);
           setAppointmentFormErrors([]);
@@ -2445,10 +2622,16 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         onOk={() => appointmentForm.submit()}
         open={appointmentModalOpen}
         title={selectedAppointment
-          ? `Sửa chỉ định đoàn ${selectedAppointment.appointment_number ?? ""}`
+          ? selectedIsFormalAppointment
+            ? `Sửa dự thảo chỉ định ${selectedAppointment.appointment_number ?? ""}`
+            : `Điều phối ${selectedDisplayCode ?? ""}`
           : selectedIsProjectContext
             ? `Chỉ định đoàn cho hồ sơ ${selectedDisplayCode ?? ""}`
-            : `Phân công đoàn cho đợt ${selectedDisplayCode ?? ""}`}
+            : selectedIsFormalEventAppointment
+              ? `Chỉ định đoàn theo từng đợt đánh giá — ${selectedDisplayCode ?? ""}`
+              : selectedIsStage1
+                ? `Điều phối Giai đoạn 1 từ xa — ${selectedDisplayCode ?? ""}`
+                : `Điều phối Giai đoạn 2 — ${selectedDisplayCode ?? ""}`}
         width={920}
       >
         {selectedIsProjectContext ? <Card className="appointment-modal-project-brief" size="small" title="Hồ sơ cần chỉ định đoàn">
@@ -2471,10 +2654,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
 
         {!selectableExperts.length ? (
           <Alert
-            description={selectedIsProjectContext
-              ? "Hãy tạo hoặc kích hoạt hồ sơ chuyên gia trước khi phân công đoàn đánh giá."
-              : "Chỉ các chuyên gia thuộc quyết định chỉ định đoàn cấp hồ sơ đã ban hành mới được phân công cho cuộc đánh giá này."}
-            message={selectedIsProjectContext ? "Chưa có chuyên gia đang hoạt động" : "Không có chuyên gia hợp lệ để phân công"}
+            description={selectedIsProjectContext || selectedIsFormalEventAppointment
+              ? "Hãy tạo/kích hoạt hồ sơ chuyên gia và phê duyệt năng lực phù hợp trước khi chỉ định đoàn."
+              : "GĐ1/GĐ2 chỉ sử dụng thành viên đã có trong quyết định chỉ định đoàn cấp hồ sơ."}
+            message={selectedIsProjectContext || selectedIsFormalEventAppointment ? "Chưa có chuyên gia phù hợp đang hoạt động" : "Không có thành viên hợp lệ để điều phối"}
             showIcon
             type="warning"
           />
@@ -2580,6 +2763,19 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             if (normalizedErrors[0]) focusFormError(normalizedErrors[0]);
           }}
         >
+          {!selectedIsProjectContext ? (
+            <Alert
+              description={selectedIsInitialStage2
+                ? "Giai đoạn 2 kế thừa Trưởng đoàn và vai trò thành viên từ quyết định chỉ định đoàn cấp hồ sơ. Điều phối viên chỉ chọn người tham gia thực tế, ngày và MD. Nội dung/phòng ban/quá trình do Trưởng đoàn phân công trong kế hoạch chi tiết."
+                : selectedIsStage1
+                  ? "Giai đoạn 1 thực hiện từ xa nhưng vẫn quản lý đầy đủ thành viên và MD. Trưởng đoàn/vai trò kế thừa từ F.04; Điều phối viên có thể chọn thêm các thành viên đã có trong F.04, phân MD và khung ngày remote. Ngày GĐ1 tạo cảnh báo mềm khi trùng onsite, không khóa cứng lịch."
+                  : "Giám sát/tái chứng nhận có quyết định chỉ định đoàn riêng cho từng đợt. Điều phối viên chọn đoàn, ngày và MD; Trưởng đoàn phân công nội dung đánh giá sau khi đoàn được ban hành."}
+              message={selectedIsFormalEventAppointment ? "Chỉ định đoàn theo từng đợt đánh giá" : "Ranh giới trách nhiệm Điều phối viên / Trưởng đoàn"}
+              showIcon
+              style={{ marginBottom: 12 }}
+              type="info"
+            />
+          ) : null}
           {appointmentFormErrors.length ? (
             <Alert
               className="appointment-form-error-summary"
@@ -2599,13 +2795,13 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           ) : null}
           <div className="appointment-form-grid">
             <Form.Item
-              label={selectedIsProjectContext ? "Số chỉ định đoàn" : "Mã phân công đợt đánh giá"}
+              label={selectedIsFormalAppointment ? (selectedIsProjectContext ? "Số chỉ định đoàn" : "Số chỉ định đoàn của đợt") : "Mã điều phối nội bộ"}
               name="appointment_number"
-              rules={[{ required: true, message: selectedIsProjectContext ? "Nhập số chỉ định đoàn" : "Nhập mã phân công" }]}
+              rules={[{ required: true, message: selectedIsFormalAppointment ? "Nhập số chỉ định đoàn" : "Nhập mã điều phối" }]}
             >
-              <Input maxLength={50} placeholder={selectedIsProjectContext ? "Ví dụ: F04-20260803-001" : "Ví dụ: ASSIGN-PLAN-2026-0004"} />
+              <Input maxLength={50} placeholder={selectedIsFormalAppointment ? "Ví dụ: F04-2026-001" : "Hệ thống gợi ý mã điều phối"} />
             </Form.Item>
-            <Form.Item label={selectedIsProjectContext ? "Ngày chỉ định" : "Ngày lập phân công"} name="appointment_date" rules={[{ required: true, message: "Chọn ngày lập" }]}>
+            <Form.Item label={selectedIsFormalAppointment ? "Ngày chỉ định" : "Ngày xác nhận điều phối"} name="appointment_date" rules={[{ required: true, message: "Chọn ngày" }]}>
               <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
             </Form.Item>
           </div>
@@ -2623,20 +2819,23 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                 <Descriptions.Item label="MD đã phân">{formatMandays(draftAllocatedMandays)} MD</Descriptions.Item>
               </Descriptions>
               <Alert
+                action={selectedRequiredMandays !== undefined ? (
+                  <Button onClick={balanceMandaysForMembers} size="small">Cân bằng MD tự động</Button>
+                ) : undefined}
                 description={selectedRequiredMandays === undefined
-                  ? "Kỳ đánh giá chưa có ngày công trong chương trình. Có thể lưu dự thảo, nhưng cần cập nhật chương trình trước khi ban hành."
+                  ? "Kỳ đánh giá chưa có ngày công trong chương trình. Cần cập nhật chương trình trước khi xác nhận/ban hành."
                   : draftAllocatedMandays + 0.001 < selectedRequiredMandays
-                    ? `Đang thiếu ${formatMandays(Math.abs(Number(draftMandayDifference)))} MD. Dự thảo vẫn lưu được nhưng chưa thể ban hành.`
+                    ? `Đang thiếu ${formatMandays(Math.abs(Number(draftMandayDifference)))} MD.`
                     : Number(draftMandayDifference) > 0.001
-                      ? `Đã bố trí vượt kế hoạch ${formatMandays(Number(draftMandayDifference))} MD. Hệ thống cho phép và sẽ phân toàn bộ số MD này vào ma trận chương trình.`
-                      : "Tổng ngày công bố trí đúng bằng mức kế hoạch."}
+                      ? `Đang vượt ${formatMandays(Number(draftMandayDifference))} MD. Cần cân bằng về đúng mức chương trình.`
+                      : "Tổng ngày công bố trí đúng bằng mức chương trình."}
                 message={selectedRequiredMandays === undefined
                   ? "Chưa có cơ sở đối chiếu man-day"
-                  : `MD bố trí: ${formatMandays(draftAllocatedMandays)} MD · Kế hoạch tối thiểu: ${formatMandays(selectedRequiredMandays)} MD`}
+                  : `MD bố trí: ${formatMandays(draftAllocatedMandays)} MD · Yêu cầu chính xác: ${formatMandays(selectedRequiredMandays)} MD`}
                 showIcon
                 type={selectedRequiredMandays === undefined
                   ? "info"
-                  : draftAllocatedMandays + 0.001 >= selectedRequiredMandays
+                  : Math.abs(draftAllocatedMandays - selectedRequiredMandays) < 0.001
                     ? "success"
                     : "warning"}
               />
@@ -2701,7 +2900,9 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
               description={planTeamPrerequisiteBlocked
                 ? "Hãy quay lại hồ sơ chính, hoàn thiện và ban hành quyết định chỉ định đoàn trước. Sau đó từng cuộc đánh giá chỉ phân chương trình/tiêu chuẩn, lịch và man-day cho các thành viên của đoàn."
                 : selectedIsStage1
-                  ? "Giai đoạn 1 không chia man-day theo chương trình. Trưởng đoàn chịu trách nhiệm chính; có thể bổ sung đánh giá viên khi cần. Tổng MD của trưởng đoàn và đánh giá viên phải khớp MD Giai đoạn 1; vai trò hỗ trợ bằng 0 MD."
+                  ? planProgramCoverage.missingPrograms.length
+                    ? `Đoàn GĐ1 hiện chưa bao phủ đủ năng lực: ${planProgramCoverage.missingPrograms.map(programDisplayLabel).join("; ")}. Có thể bổ sung thành viên từ F.04; hệ thống tự đối chiếu năng lực.`
+                    : "GĐ1 có thể gồm nhiều thành viên trong F.04. Trưởng đoàn giữ nguyên; hệ thống tự đối chiếu năng lực chương trình. Tổng MD phải đúng mức GĐ1 đã duyệt."
                 : planProgramCoverage.missingPrograms.length
                   ? `Chưa phân đủ: ${planProgramCoverage.missingPrograms.map(programDisplayLabel).join("; ")}`
                   : !planProgramCoverage.leaderSelected
@@ -2714,7 +2915,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
               message={planTeamPrerequisiteBlocked
                 ? "Chưa có chỉ định đoàn cấp hồ sơ đã ban hành"
                 : selectedIsStage1
-                  ? "Phân công Giai đoạn 1"
+                  ? `GĐ1: ${planProgramCoverage.covered}/${planProgramCoverage.required} chương trình đủ năng lực`
                   : `Phân công chương trình: ${planProgramCoverage.covered}/${planProgramCoverage.required}`}
               showIcon
               type={planProgramCoverage.sufficient ? "success" : "warning"}
@@ -2768,9 +2969,9 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                 )}
                                 {selectedSuitability.can_lead ? <Tag color="blue">Có thể làm trưởng đoàn</Tag> : null}
                               </Space>
-                            ) : selectedIsProjectContext
-                              ? "Chỉ hiển thị chuyên gia có ít nhất một năng lực phù hợp với hồ sơ."
-                              : "Chỉ hiển thị thành viên thuộc quyết định chỉ định đoàn cấp hồ sơ đã ban hành."}
+                            ) : selectedIsProjectContext || selectedIsFormalEventAppointment
+                              ? "Chỉ sử dụng chuyên gia có năng lực đã phê duyệt phù hợp với hồ sơ/chương trình."
+                              : "GĐ1/GĐ2 chỉ hiển thị thành viên thuộc quyết định chỉ định đoàn cấp hồ sơ đã ban hành."}
                             label="Chuyên gia"
                             name={[field.name, "expert_id"]}
                             rules={[{ required: true, message: "Chọn chuyên gia" }]}
@@ -2779,7 +2980,14 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                               disabled={!selectableExperts.length}
                               onChange={(expertId: string) => {
                                 const suitability = expertSuitabilityMap.get(expertId);
-                                const teamRole = appointmentForm.getFieldValue(["members", field.name, "team_role"]);
+                                const inheritedRole = selectedInheritsProjectTeam
+                                  ? projectTeamRoleByExpertId.get(expertId)
+                                  : undefined;
+                                const teamRole = inheritedRole
+                                  ?? appointmentForm.getFieldValue(["members", field.name, "team_role"]);
+                                if (inheritedRole) {
+                                  appointmentForm.setFieldValue(["members", field.name, "team_role"], inheritedRole);
+                                }
                                 if (selectedIsProjectContext) {
                                   appointmentForm.setFieldValue(
                                     ["members", field.name, "project_scope_ids"],
@@ -2813,16 +3021,18 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                   : ` · ${programCount}/${requiredPrograms.length} chương trình${suitability?.can_lead ? " · trưởng đoàn" : ""}`;
                                 return {
                                   disabled: selectedExpertIds.includes(expert.id)
-                                    || Boolean(selectedIsProjectContext && projectExpertSuitabilityQuery.data && !suitability?.is_relevant),
+                                    || Boolean((selectedIsProjectContext || selectedIsFormalEventAppointment)
+                                      && projectExpertSuitabilityQuery.data
+                                      && !suitability?.is_relevant),
                                   label: `${expert.full_name ?? "Chưa cập nhật tên"}${expert.email ? ` · ${expert.email}` : ""}${suitabilityLabel}`,
                                   value: expert.id,
                                 };
                               })}
                               placeholder={projectExpertSuitabilityQuery.isLoading
                                 ? "Đang đối chiếu năng lực..."
-                                : selectedIsProjectContext
+                                : selectedIsProjectContext || selectedIsFormalEventAppointment
                                   ? "Chọn chuyên gia phù hợp"
-                                  : "Chọn thành viên của đoàn cấp hồ sơ"}
+                                  : "Chọn thành viên từ đoàn đã chỉ định"}
                               showSearch
                             />
                           </Form.Item>
@@ -2832,6 +3042,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                             rules={[{ required: true, message: "Chọn vai trò" }]}
                           >
                             <Select
+                              disabled={selectedInheritsProjectTeam}
                               onChange={(teamRole: string) => {
                                 if (!selectedIsProjectContext) {
                                   if (!countsTowardMandays(teamRole)) {
@@ -2874,7 +3085,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                           </Form.Item>
                           {!selectedIsProjectContext ? (
                             <Form.Item
-                              label="Thời gian tham gia đợt đánh giá"
+                              extra={selectedIsStage1
+                                ? "GĐ1 là workload từ xa. Ngày trùng onsite/GĐ1 khác chỉ hiện cảnh báo mềm để Điều phối viên ưu tiên lịch khác nếu thuận tiện; hệ thống không khóa cứng."
+                                : undefined}
+                              label={selectedIsStage1 ? "Ngày dự kiến thực hiện GĐ1 từ xa" : "Thời gian tham gia đợt đánh giá"}
                               name={[field.name, "planned_dates"]}
                               rules={[{ required: true, message: "Chọn thời gian tham gia" }]}
                             >
@@ -2882,7 +3096,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                 defaultAnchor={selectedPlanStart ?? dayjs()}
                                 excludeAppointmentId={selectedAppointment?.id}
                                 expertId={selectedExpertId}
-                                onSuggestedMandaysChange={(suggested) => {
+                                onSuggestedMandaysChange={selectedIsStage1 ? undefined : (suggested) => {
                                   const teamRole = appointmentForm.getFieldValue(["members", field.name, "team_role"]);
                                   appointmentForm.setFieldValue(
                                     ["members", field.name, "planned_mandays"],
@@ -2891,6 +3105,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                 }}
                                 planEnd={selectedPlanEnd}
                                 planStart={selectedPlanStart}
+                                remoteStage1={selectedIsStage1}
                               />
                             </Form.Item>
                           ) : null}
@@ -2899,9 +3114,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                               extra={!countsTowardMandays(selectedMember?.team_role)
                                 ? "Vai trò này tham gia hỗ trợ nhưng không được tính man-day."
                                 : selectedIsStage1
-                                  ? selectedMember?.planned_dates
-                                    ? `Gợi ý ${formatMandays(inclusiveDayCount(selectedMember.planned_dates))} MD theo thời gian tham gia. Tổng MD của trưởng đoàn và đánh giá viên phải tối thiểu ${formatMandays(selectedRequiredMandays ?? 0)} MD.`
-                                    : "Giai đoạn 1 không chia theo chương trình; nhập man-day trực tiếp cho từng người tham gia."
+                                  ? `Phân MD GĐ1 theo bước 0,5. Tổng các thành viên phải đúng ${formatMandays(selectedRequiredMandays ?? 0)} MD; lịch remote chỉ dùng để cảnh báo tải công việc, không khóa onsite.`
                                   : selectedMember?.planned_dates
                                     ? `Đã tự tính ${formatMandays(inclusiveDayCount(selectedMember.planned_dates))} MD theo ${inclusiveDayCount(selectedMember.planned_dates)} ngày đã chọn. Có thể điều chỉnh lại theo bước 0,5 MD; khi lưu hệ thống tự phân bổ lại ma trận chương trình.`
                                     : "Chọn thời gian để hệ thống xác định năng lực nhận man-day tối đa."}
@@ -2920,7 +3133,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                       throw new Error("Thành viên tính man-day tham gia Giai đoạn 1 phải có tối thiểu 0,5 MD");
                                     }
                                     if (Math.abs(mandays * 2 - Math.round(mandays * 2)) > 0.001) throw new Error("Ngày công phải theo bước 0,5 MD");
-                                    if (maximumMandays !== undefined && mandays > maximumMandays) {
+                                    if (!selectedIsStage1 && maximumMandays !== undefined && mandays > maximumMandays) {
                                       throw new Error(`Không vượt quá ${maximumMandays} MD theo thời gian đã chọn`);
                                     }
                                   },
@@ -2959,21 +3172,29 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                               />
                             </Form.Item>
                           ) : selectedIsStage1 ? (
-                            <Alert
+                            <Form.Item
                               className="appointment-member-scope-field"
-                              message={countsTowardMandays(selectedMember?.team_role)
-                                ? selectedMember?.team_role === "TEAM_LEADER"
-                                  ? "Trưởng đoàn chịu trách nhiệm chính và được phân man-day Giai đoạn 1"
-                                  : "Đánh giá viên có thể tham gia và được phân man-day Giai đoạn 1"
-                                : "Vai trò hỗ trợ tham gia nhưng không được tính man-day"}
-                              showIcon
-                              type="info"
-                            />
+                              extra="Hệ thống tự đối chiếu năng lực theo các chương trình/tiêu chuẩn; Điều phối viên không phân phòng ban/quá trình ở bước này."
+                              label="Chương trình hệ thống tự đối chiếu"
+                              name={[field.name, "program_keys"]}
+                            >
+                              <Select
+                                disabled
+                                maxTagCount="responsive"
+                                mode="multiple"
+                                options={requiredPrograms.map((program) => ({
+                                  disabled: Boolean(selectedExpertId && !compatibleProgramKeys.has(program.key)),
+                                  label: programDisplayLabel(program),
+                                  value: program.key,
+                                }))}
+                                placeholder="Tự động theo năng lực đã phê duyệt"
+                              />
+                            </Form.Item>
                           ) : (
                             <Form.Item
                               className="appointment-member-scope-field"
-                              extra="Không kiểm tra lại IAF/NACE tại đây. Hệ thống chỉ đối chiếu chương trình/tiêu chuẩn với năng lực đã phê duyệt của thành viên."
-                              label="Chương trình/tiêu chuẩn phụ trách"
+                              extra="Hệ thống tự đối chiếu chương trình/tiêu chuẩn với năng lực đã phê duyệt. Điều phối viên không phân công phòng ban/quá trình ở bước này."
+                              label="Chương trình/tiêu chuẩn hệ thống đối chiếu"
                               name={[field.name, "program_keys"]}
                               rules={[{
                                 validator: async (_, value: string[] | undefined) => {
@@ -2985,7 +3206,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                             >
                               <Select
                                 allowClear
-                                disabled={!requiredPrograms.length || !selectedExpertId}
+                                disabled
                                 loading={projectScopesQuery.isLoading || projectExpertSuitabilityQuery.isLoading}
                                 maxTagCount="responsive"
                                 mode="multiple"
@@ -2995,7 +3216,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                                   label: programDisplayLabel(program),
                                   value: program.key,
                                 }))}
-                                placeholder="Chọn chương trình chuyên gia thực hiện trong cuộc đánh giá"
+                                placeholder="Hệ thống tự xác định theo năng lực chuyên gia"
                                 showSearch
                               />
                             </Form.Item>
@@ -3036,20 +3257,22 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                   }}
                   type="dashed"
                 >
-                  Thêm thành viên
+                  {selectedInheritsProjectTeam
+                    ? "Thêm thành viên từ đoàn đã chỉ định"
+                    : "Thêm thành viên"}
                 </Button>
               </>
             )}
           </Form.List>
 
-          {!selectedIsProjectContext && selectedAppointment ? (
+          {!selectedIsProjectContext && !selectedIsStage1 && selectedAppointment ? (
             <IntegratedMandayAllocationPanel
               appointmentId={selectedAppointment.id}
               onChanged={async () => {
                 await invalidateScheduleData();
               }}
             />
-          ) : !selectedIsProjectContext ? (
+          ) : !selectedIsProjectContext && !selectedIsStage1 ? (
             <Alert
               message="Lưu dự thảo trước khi phân bổ ma trận man-day"
               description="Sau khi lưu thành phần đoàn và lịch tham gia, mở lại dự thảo để bấm Tự động phân bổ theo Thành viên + Chương trình."
@@ -3098,7 +3321,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         />
         {planDateRange && selectedRequiredMandays !== undefined ? (
           <Alert
-            description={`Khoảng đã chọn có ${planDateRange[1].diff(planDateRange[0], "day") + 1} ngày. Sau khi cập nhật, hãy phân ngày và MD cho từng thành viên; tổng phải tối thiểu ${formatMandays(selectedRequiredMandays)} MD; có thể bố trí cao hơn khi cần.`}
+            description={`Khoảng đã chọn có ${planDateRange[1].diff(planDateRange[0], "day") + 1} ngày. Sau khi cập nhật, hãy phân ngày và MD cho từng thành viên; tổng phải đúng ${formatMandays(selectedRequiredMandays)} MD theo chương trình.`}
             message="Kiểm tra khả năng bố trí sau khi chọn thành viên"
             showIcon
             style={{ marginTop: 16 }}

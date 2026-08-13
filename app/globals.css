@@ -4113,3 +4113,133 @@ input { font: inherit; }
   text-overflow: clip;
   word-break: keep-all;
 }
+
+/* Stage 1 remote workload: soft scheduling warning, never a hard onsite block. */
+.expert-busy-dot.is-remote-warning {
+  background: #faad14;
+  box-shadow: 0 0 0 3px rgba(250, 173, 20, 0.14);
+}
+
+.expert-busy-calendar-cell.is-remote-warning,
+.expert-busy-calendar-cell.is-remote-warning .ant-picker-cell-inner {
+  background: #fffbe6 !important;
+  color: #ad6800 !important;
+}
+
+
+/* Audit workflow UX consolidation — one operational entry point per PLAN */
+.audit-plan-actionbar-simplified {
+  align-items: flex-start;
+}
+
+.audit-plan-status-summary {
+  display: flex;
+  flex: 1 1 360px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.audit-plan-status-summary > .ant-typography {
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 560px;
+}
+
+.audit-plan-readiness-strip {
+  background: #fff;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  display: grid;
+  grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.audit-plan-readiness-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.audit-plan-readiness-item + .audit-plan-readiness-item {
+  border-left: 1px solid #edf1f6;
+}
+
+.audit-plan-readiness-item > span {
+  color: #748399;
+  font-size: 11px;
+}
+
+.audit-plan-readiness-item > strong {
+  color: #17365f;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.audit-plan-readiness-item > small {
+  color: #8b98aa;
+  font-size: 10px;
+}
+
+.audit-plan-readiness-primary .ant-progress {
+  margin-top: 2px;
+  max-width: 180px;
+}
+
+.audit-plan-execution-handoff .ant-card-body {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.audit-plan-execution-handoff .ant-card-body > div:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.audit-plan-execution-handoff strong {
+  color: #17365f;
+}
+
+.audit-plan-execution-handoff .ant-typography {
+  font-size: 12px;
+}
+
+@media (max-width: 980px) {
+  .audit-plan-readiness-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .audit-plan-readiness-item:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid #edf1f6;
+  }
+
+  .audit-plan-readiness-item:nth-child(4) {
+    border-top: 1px solid #edf1f6;
+  }
+}
+
+@media (max-width: 620px) {
+  .audit-plan-readiness-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-plan-readiness-item + .audit-plan-readiness-item,
+  .audit-plan-readiness-item:nth-child(3),
+  .audit-plan-readiness-item:nth-child(4) {
+    border-left: 0;
+    border-top: 1px solid #edf1f6;
+  }
+
+  .audit-plan-execution-handoff .ant-card-body {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

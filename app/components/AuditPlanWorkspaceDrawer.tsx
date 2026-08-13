@@ -1,18 +1,10 @@
 "use client";
 
 import {
-  AuditOutlined,
-  CalendarOutlined,
-  CheckCircleOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
-  FileDoneOutlined,
-  FileWordOutlined,
-  FolderOpenOutlined,
   PlayCircleOutlined,
-  SendOutlined,
   TeamOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -23,7 +15,6 @@ import {
   Checkbox,
   DatePicker,
   Descriptions,
-  Divider,
   Drawer,
   Empty,
   Form,
@@ -34,7 +25,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Tag,
   Typography,
 } from "antd";
@@ -43,7 +33,6 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
-import AuditDocumentCenterModal from "./AuditDocumentCenterModal";
 import AuditExecutionWorkspaceModal, { type AuditExecutionWorkspaceMode } from "./AuditExecutionWorkspaceModal";
 
 const { Text } = Typography;
@@ -289,7 +278,6 @@ export default function AuditPlanWorkspaceDrawer({
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [executionMode, setExecutionMode] = useState<AuditExecutionWorkspaceMode | null>(null);
-  const [documentCenterOpen, setDocumentCenterOpen] = useState(false);
   const [editForm] = Form.useForm<PlanEditValues>();
   const canManage = roles.some((role) => manageRoles.has(normalize(role)));
   const canExecute = roles.some((role) => executeRoles.has(normalize(role)));
@@ -378,6 +366,28 @@ export default function AuditPlanWorkspaceDrawer({
       ready: checks.every(Boolean),
     };
   }, [workspace]);
+
+  const executionSummary = useMemo(() => {
+    const reports = workspace?.reports ?? [];
+    const findings = workspace?.findings ?? [];
+    const openNc = findings.filter((finding) =>
+      ["major_nc", "minor_nc"].includes(normalize(finding.finding_type))
+      && normalize(finding.status) !== "closed",
+    );
+    return {
+      reportCount: reports.length,
+      findingCount: findings.length,
+      openNcCount: openNc.length,
+    };
+  }, [workspace]);
+
+  const executionButtonLabel = !canExecute
+    ? "Xem thực hiện"
+    : normalize(plan?.status) === "in_progress"
+      ? "Tiếp tục đánh giá"
+      : normalize(plan?.status) === "completed"
+        ? "Xem kết quả"
+        : "Mở thực hiện";
 
   useEffect(() => {
     if (!editOpen || !plan) return;
@@ -477,97 +487,66 @@ export default function AuditPlanWorkspaceDrawer({
           />
         ) : workspace && plan ? (
           <div className="audit-plan-workspace audit-plan-workspace-v2">
-            <div className="audit-plan-actionbar">
+            <div className="audit-plan-actionbar audit-plan-actionbar-simplified">
+              <div className="audit-plan-status-summary">
+                <Space wrap size={6}>
+                  <StatusTag status={plan.status} />
+                  <Tag color={readiness.ready ? "green" : "orange"}>
+                    {readiness.ready ? "Sẵn sàng" : "Cần hoàn thiện"}
+                  </Tag>
+                </Space>
+                <Text type="secondary">
+                  Một điểm vào cho kế hoạch; báo cáo, phát hiện và hoàn thành được xử lý trong Không gian thực hiện đánh giá.
+                </Text>
+              </div>
               <Space wrap>
-                <StatusTag status={plan.status} />
-                <Tag color={readiness.ready ? "green" : "orange"}>
-                  {readiness.ready ? "Sẵn sàng thực hiện" : "Chưa đủ điều kiện"}
-                </Tag>
-              </Space>
-              <Space wrap>
+                <Button
+                  icon={<PlayCircleOutlined />}
+                  onClick={() => setExecutionMode("full")}
+                  type="primary"
+                >
+                  {executionButtonLabel}
+                </Button>
+                <Button
+                  icon={<TeamOutlined />}
+                  onClick={() => planId && onOpenScheduling(planId)}
+                >
+                  {appointment ? "Điều phối đoàn" : "Phân công đoàn"}
+                </Button>
                 {canManage ? (
                   <Button icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
                     Sửa kế hoạch
                   </Button>
                 ) : null}
-                {canExecute ? (
-                  <>
-                    <Button
-                      icon={<PlayCircleOutlined />}
-                      onClick={() => setExecutionMode("full")}
-                    >
-                      Thực hiện
-                    </Button>
-                    <Button
-                      icon={<FileDoneOutlined />}
-                      onClick={() => setExecutionMode("report")}
-                      type="primary"
-                    >
-                      Báo cáo đánh giá
-                    </Button>
-                    <Button
-                      icon={<WarningOutlined />}
-                      onClick={() => setExecutionMode("findings")}
-                    >
-                      Phát hiện
-                    </Button>
-                  </>
-                ) : null}
-                <Button
-                  icon={<FileWordOutlined />}
-                  onClick={() => setDocumentCenterOpen(true)}
-                >
-                  Hồ sơ Word/PDF
-                </Button>
-                <Button
-                  icon={<TeamOutlined />}
-                  onClick={() => planId && onOpenScheduling(planId)}
-                  type={canExecute ? "default" : "primary"}
-                >
-                  {appointment ? "Điều phối đoàn" : "Phân công đoàn"}
-                </Button>
               </Space>
             </div>
 
-            <section className="audit-plan-readiness-grid">
-              <Card size="small">
-                <Statistic
-                  prefix={<AuditOutlined />}
-                  title="Mức độ sẵn sàng"
-                  value={Math.round((readiness.completedChecks / readiness.totalChecks) * 100)}
-                  suffix="%"
-                />
+            <section className="audit-plan-readiness-strip">
+              <div className="audit-plan-readiness-item audit-plan-readiness-primary">
+                <span>Mức độ chuẩn bị</span>
+                <strong>{Math.round((readiness.completedChecks / readiness.totalChecks) * 100)}%</strong>
                 <Progress
                   percent={Math.round((readiness.completedChecks / readiness.totalChecks) * 100)}
                   showInfo={false}
                   size="small"
+                  status={readiness.ready ? "success" : "active"}
                 />
-              </Card>
-              <Card size="small">
-                <Statistic
-                  prefix={<CalendarOutlined />}
-                  title="Ngày công yêu cầu"
-                  value={readiness.requiredMandays}
-                  precision={1}
-                  suffix="MD"
-                />
-              </Card>
-              <Card size="small">
-                <Statistic
-                  prefix={<TeamOutlined />}
-                  title="Ngày công đã phân"
-                  value={readiness.allocatedMandays}
-                  precision={1}
-                  suffix="MD"
-                />
-              </Card>
-              <Card size="small">
-                <Statistic
-                  prefix={appointment ? <CheckCircleOutlined /> : <WarningOutlined />}
-                  title="Chỉ định đoàn"
-                  value={appointment ? readableStatus(appointment.status) : "Chưa có"}
-                />
-              </Card>
+              </div>
+              <div className="audit-plan-readiness-item">
+                <span>Ngày công</span>
+                <strong>{readiness.allocatedMandays.toFixed(1)} / {readiness.requiredMandays.toFixed(1)} MD</strong>
+                <small>đã phân / yêu cầu</small>
+              </div>
+              <div className="audit-plan-readiness-item">
+                <span>Đoàn đánh giá</span>
+                <strong>{appointment ? readableStatus(appointment.status) : "Chưa có"}</strong>
+                <small>{appointment?.members?.length ?? 0} thành viên</small>
+              </div>
+              <div className="audit-plan-readiness-item">
+                <span>Thực hiện</span>
+                <strong>{executionSummary.reportCount} báo cáo</strong>
+                <small>{executionSummary.findingCount} phát hiện · {executionSummary.openNcCount} NC mở</small>
+              </div>
             </section>
 
             {readiness.issues.length ? (
@@ -581,14 +560,7 @@ export default function AuditPlanWorkspaceDrawer({
                 showIcon
                 type="warning"
               />
-            ) : (
-              <Alert
-                description="Thông tin kế hoạch, đoàn đánh giá và ngày công đã được kiểm tra đồng bộ. IAF/NACE đã được kiểm tra ở bước chỉ định đoàn cấp hồ sơ."
-                message="Kế hoạch đã đủ dữ liệu nghiệp vụ"
-                showIcon
-                type="success"
-              />
-            )}
+            ) : null}
 
             <Card className="audit-plan-overview" size="small" title="Thông tin kế hoạch">
               <div className="audit-plan-overview-heading">
@@ -666,90 +638,20 @@ export default function AuditPlanWorkspaceDrawer({
               )}
             </Card>
 
-            <Divider />
-
-            <div className="audit-plan-result-grid">
-              <Card
-                extra={(
-                  <Space wrap>
-                    <Tag>{workspace.reports.length} báo cáo</Tag>
-                    <Button icon={<FileDoneOutlined />} onClick={() => setExecutionMode("report")} size="small" type="primary">
-                      Mở báo cáo
-                    </Button>
-                  </Space>
-                )}
-                title="Báo cáo đánh giá"
-              >
-                <List<AuditReport>
-                  dataSource={workspace.reports}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có báo cáo đánh giá" /> }}
-                  renderItem={(report) => {
-                    const reportFindings = workspace.findings.filter((finding) => finding.report_id === report.id);
-                    const reportNc = reportFindings.filter((finding) =>
-                      ["major_nc", "minor_nc"].includes(normalize(finding.finding_type)),
-                    );
-                    const openReportNc = reportNc.filter((finding) => normalize(finding.status) !== "closed");
-                    return (
-                      <List.Item>
-                        <div className="audit-report-item">
-                          <div>
-                            <strong>{report.report_code || "Báo cáo chưa cấp mã"}</strong>
-                            <span>{formatDate(report.report_date)} · Phiên bản {report.version_no ?? 1}</span>
-                          </div>
-                          <Space wrap>
-                            <StatusTag status={report.audit_result} />
-                            <StatusTag status={report.status} />
-                            <Tag color={openReportNc.length ? "orange" : "default"}>
-                              {reportFindings.length} phát hiện · {openReportNc.length} NC mở
-                            </Tag>
-                          </Space>
-                        </div>
-                      </List.Item>
-                    );
-                  }}
-                />
-              </Card>
-
-              <Card
-                extra={(() => {
-                  const openNc = workspace.findings.filter((finding) =>
-                    ["major_nc", "minor_nc"].includes(normalize(finding.finding_type))
-                    && normalize(finding.status) !== "closed",
-                  );
-                  return <Tag color={openNc.length ? "orange" : "green"}>{openNc.length} NC chưa đóng</Tag>;
-                })()}
-                title="Phát hiện và NC/CAP"
-              >
-                <List<AuditFinding>
-                  dataSource={workspace.findings}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có phát hiện đánh giá" /> }}
-                  renderItem={(finding) => (
-                    <List.Item>
-                      <div className="audit-finding-item">
-                        <div>
-                          <strong>{finding.finding_code || "Chưa cấp mã"}</strong>
-                          <span>{findingTypeLabels[normalize(finding.finding_type)] ?? readableStatus(finding.finding_type)}{finding.clause ? ` · Điều khoản ${finding.clause}` : ""}</span>
-                          {finding.description ? <small>{finding.description}</small> : null}
-                        </div>
-                        <div>
-                          <StatusTag status={finding.status} />
-                          <Text type="secondary">Hạn {formatDate(finding.due_date)}</Text>
-                        </div>
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              </Card>
-            </div>
+            <Card className="audit-plan-execution-handoff" size="small">
+              <div>
+                <strong>Không gian thực hiện đánh giá</strong>
+                <Text type="secondary">
+                  Báo cáo, phát hiện/NC và xác nhận hoàn thành được quản lý tại một nơi. Hồ sơ Word/PDF chính thức được quản lý ở danh sách thành phần hồ sơ theo kỳ.
+                </Text>
+              </div>
+              <Button icon={<PlayCircleOutlined />} onClick={() => setExecutionMode("full")}>
+                {executionButtonLabel}
+              </Button>
+            </Card>
           </div>
         ) : null}
       </Drawer>
-
-      <AuditDocumentCenterModal
-        onClose={() => setDocumentCenterOpen(false)}
-        open={documentCenterOpen}
-        planId={planId}
-      />
 
       <AuditExecutionWorkspaceModal
         mode={executionMode ?? "full"}

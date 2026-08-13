@@ -71,6 +71,18 @@ interface AuditPlanExecutionDetail {
   audit_criteria?: string | null;
   audit_objectives?: string | null;
   status?: string | null;
+  stage2_lifecycle_gate?: {
+    applicable: boolean;
+    allowed: boolean;
+    code: string;
+    message: string;
+    stage1_plan_id?: string | null;
+    stage1_plan_status?: string | null;
+    stage1_report_id?: string | null;
+    stage1_report_status?: string | null;
+    stage1_readiness_result?: string | null;
+    stage1_report_submitted_at?: string | null;
+  } | null;
   certification_projects?: {
     project_code?: string | null;
     standard_name?: string | null;
@@ -399,6 +411,7 @@ export default function AuditExecutionWorkspaceModal({
   const plan = workspace?.plan;
   const reportStage = normalizedAuditStage(plan?.audit_type);
   const isStage1Report = reportStage === "stage1";
+  const stage2LifecycleGate = plan?.stage2_lifecycle_gate ?? null;
   const appointment = workspace?.appointment;
   const reports = workspace?.reports ?? [];
   const selectedReport = reports.find((item) => item.id === selectedReportId) ?? reports[0] ?? null;
@@ -799,6 +812,13 @@ export default function AuditExecutionWorkspaceModal({
                   <Descriptions.Item label="Tiêu chuẩn">{plan.certification_projects?.standard_name || plan.audit_criteria || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Thời gian">{formatDate(plan.planned_start_date)} – {formatDate(plan.planned_end_date)}</Descriptions.Item>
                   <Descriptions.Item label="Man-day kế hoạch">{numberValue(plan.audit_event?.planned_mandays).toFixed(1)} MD</Descriptions.Item>
+                  {stage2LifecycleGate?.applicable ? (
+                    <Descriptions.Item label="Điều kiện GĐ2">
+                      <Tag color={stage2LifecycleGate.allowed ? "success" : "error"}>
+                        {stage2LifecycleGate.allowed ? "GĐ1 đã sẵn sàng" : "Chưa đủ điều kiện"}
+                      </Tag>
+                    </Descriptions.Item>
+                  ) : null}
                   <Descriptions.Item label="Địa điểm" span={2}>{plan.location || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Phạm vi" span={2}>{plan.audit_scope || "—"}</Descriptions.Item>
                 </Descriptions>
@@ -809,28 +829,41 @@ export default function AuditExecutionWorkspaceModal({
               ) : normalize(plan.status) === "completed" ? (
                 <Alert message="Cuộc đánh giá đã hoàn thành và dữ liệu thực hiện đã được khóa." showIcon type="success" />
               ) : normalize(plan.status) !== "in_progress" ? (
-                <Alert
-                  action={(
-                    <Button
-                      icon={<PlayCircleOutlined />}
-                      loading={startMutation.isPending}
-                      onClick={() => modal.confirm({
-                        title: "Bắt đầu cuộc đánh giá?",
-                        content: "Backend sẽ kiểm tra lại kế hoạch, quyết định chỉ định đoàn, lịch và man-day trước khi cho phép bắt đầu.",
-                        okText: "Bắt đầu",
-                        cancelText: "Hủy",
-                        onOk: async () => startMutation.mutateAsync(),
-                      })}
-                      type="primary"
-                    >
-                      Bắt đầu đánh giá
-                    </Button>
-                  )}
-                  description="Chỉ bắt đầu khi quyết định chỉ định đoàn đã ban hành và tổng man-day phân công khớp kỳ đánh giá."
-                  message="Cuộc đánh giá chưa bắt đầu"
-                  showIcon
-                  type="warning"
-                />
+                stage2LifecycleGate?.applicable && !stage2LifecycleGate.allowed ? (
+                  <Alert
+                    description={stage2LifecycleGate.message}
+                    message="Chưa đủ điều kiện bắt đầu Giai đoạn 2"
+                    showIcon
+                    type="error"
+                  />
+                ) : (
+                  <Alert
+                    action={(
+                      <Button
+                        icon={<PlayCircleOutlined />}
+                        loading={startMutation.isPending}
+                        onClick={() => modal.confirm({
+                          title: "Bắt đầu cuộc đánh giá?",
+                          content: stage2LifecycleGate?.applicable
+                            ? "Backend sẽ kiểm tra lại việc hoàn thành Giai đoạn 1, kết luận sẵn sàng Giai đoạn 2, quyết định chỉ định đoàn, lịch và man-day trước khi cho phép bắt đầu."
+                            : "Backend sẽ kiểm tra lại kế hoạch, quyết định chỉ định đoàn, lịch và man-day trước khi cho phép bắt đầu.",
+                          okText: "Bắt đầu",
+                          cancelText: "Hủy",
+                          onOk: async () => startMutation.mutateAsync(),
+                        })}
+                        type="primary"
+                      >
+                        Bắt đầu đánh giá
+                      </Button>
+                    )}
+                    description={stage2LifecycleGate?.applicable
+                      ? "Giai đoạn 1 đã hoàn thành và kết luận sẵn sàng. Hệ thống vẫn kiểm tra lại toàn bộ điều kiện tại backend khi bắt đầu GĐ2."
+                      : "Chỉ bắt đầu khi quyết định chỉ định đoàn đã ban hành và tổng man-day phân công khớp kỳ đánh giá."}
+                    message="Cuộc đánh giá chưa bắt đầu"
+                    showIcon
+                    type="warning"
+                  />
+                )
               ) : !selectedReport ? (
                 <Empty description="Chưa có báo cáo đánh giá" image={Empty.PRESENTED_IMAGE_SIMPLE}>
                   <Button

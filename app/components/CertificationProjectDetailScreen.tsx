@@ -7,6 +7,7 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  DownOutlined,
   FileDoneOutlined,
   FileOutlined,
   FilePdfOutlined,
@@ -21,7 +22,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import type { TableColumnsType } from "antd";
+import type { MenuProps, TableColumnsType } from "antd";
 import {
   Alert,
   Button,
@@ -29,6 +30,7 @@ import {
   Descriptions,
   Divider,
   Drawer,
+  Dropdown,
   Empty,
   Input,
   List,
@@ -537,7 +539,7 @@ function ProjectStatusTag({ status }: { status?: string | null }) {
 function DossierStatusTag({ status }: { status: string }) {
   const normalized = normalize(status);
   if (normalized === "completed") {
-    return <Tag color="green" icon={<CheckCircleOutlined />}>Đã có</Tag>;
+    return <Tag color="green" icon={<CheckCircleOutlined />}>Đủ dữ liệu</Tag>;
   }
   if (normalized === "not_applicable") {
     return <Tag>Không áp dụng</Tag>;
@@ -595,12 +597,12 @@ const workflowStageDefinitions = [
     keys: ["certification_application", "application_review", "business_license"],
   },
   {
-    title: "Chuẩn bị đánh giá",
-    keys: ["audit_team_assignment", "audit_program", "stage1_audit_plan", "stage1_audit_report", "stage2_audit_plan"],
+    title: "Chuẩn bị & Giai đoạn 1",
+    keys: ["audit_team_assignment", "audit_program", "stage1_audit_plan", "stage1_audit_report"],
   },
   {
-    title: "Đánh giá & khắc phục",
-    keys: ["audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap"],
+    title: "Giai đoạn 2 & khắc phục",
+    keys: ["stage2_audit_plan", "audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap"],
   },
   {
     title: "Thẩm xét kỹ thuật",
@@ -850,7 +852,7 @@ export function CertificationProjectDetailScreen({
       setDocumentActionError(
         item.storage_type === "uploaded_file"
           ? "Chưa xác định được hồ sơ gốc để gắn tệp. Hãy tải lại trang rồi thử lại."
-          : "Hãy hoàn thành nghiệp vụ này trước khi tải PDF đã ký/chốt.",
+          : "Hãy hoàn thành nghiệp vụ này trước khi tải lên PDF chính thức.",
       );
       return;
     }
@@ -897,7 +899,7 @@ export function CertificationProjectDetailScreen({
       return;
     }
     if (uploadTarget.pdfOnly && uploadFile.type !== "application/pdf" && !uploadFile.name.toLowerCase().endsWith(".pdf")) {
-      setUploadError("Bản hồ sơ đã ký/chốt phải là file PDF.");
+      setUploadError("Tệp chính thức phải ở định dạng PDF.");
       return;
     }
 
@@ -919,7 +921,7 @@ export function CertificationProjectDetailScreen({
       const message = uploadTarget.currentVersion
         ? `Đã tạo phiên bản ${uploadTarget.currentVersion + 1}. Phiên bản cũ được giữ trong lịch sử.`
         : uploadTarget.officialCopy
-          ? `Đã tải bản PDF đã ký/chốt của ${uploadTarget.title}.`
+          ? `Đã tải lên PDF chính thức của ${uploadTarget.title}.`
           : `Đã bổ sung ${uploadTarget.title} vào hồ sơ.`;
       resetUploadDialog();
       setDocumentActionMessage(message);
@@ -1282,7 +1284,7 @@ export function CertificationProjectDetailScreen({
           : Number(officialPdf?.version_no ?? 1);
         return (
           <Space size={4} wrap>
-            {officialPdf ? <Tag color="green">PDF đã chốt</Tag> : <Tag color="orange">Chưa chốt PDF</Tag>}
+            {officialPdf ? <Tag color="green">PDF chính thức</Tag> : <Tag color="orange">Chưa có PDF chính thức</Tag>}
             <Tag>v{officialPdf?.version_no ?? latestVersion}</Tag>
             {officialPdf || currentFiles.some((file) => file.file_kind === "generated_pdf") ? <FilePdfOutlined /> : null}
             {!officialPdf && currentFiles.some((file) => file.file_kind !== "generated_pdf") ? <FileWordOutlined /> : null}
@@ -1295,82 +1297,115 @@ export function CertificationProjectDetailScreen({
       title: "Thao tác",
       key: "document_action",
       align: "right",
-      width: 330,
+      width: 228,
       render: (_, record) => {
         const key = normalize(record.document_key);
-        const latestFile = latestDossierFile(record);
-        const latestFileIsPdf = Boolean(latestFile && (latestFile.file_kind === "generated_pdf" || latestFile.original_name.toLowerCase().endsWith(".pdf")));
+        const dossierFiles = dossierFilesForItem(record);
+        const officialPdf = signedDossierFile(record);
+        const currentPdf = officialPdf ?? dossierFiles.find((file) => (
+          file.file_kind.includes("pdf") || file.original_name.toLowerCase().endsWith(".pdf")
+        )) ?? null;
+        const currentWord = dossierFiles.find((file) => (
+          file.file_kind === "generated_docx" || /\.docx?$/i.test(file.original_name)
+        )) ?? null;
+        const canUploadOfficialPdf = canManageDocuments
+          && key !== "certificate"
+          && normalize(record.status) !== "not_applicable";
+        const uploadDisabled = !record.entity_type || !record.entity_id;
         let primaryAction = <></>;
 
         if (["stage1_audit_report", "stage2_audit_report", "audit_report"].includes(key)) {
           primaryAction = (
-            <Button icon={<FileDoneOutlined />} onClick={() => void openDossierItem(record)} size="small" type="primary">
+            <Button icon={<FileDoneOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở báo cáo
             </Button>
           );
         } else if (key === "nc_cap") {
           primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" type="primary">
+            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở NC/CAP
             </Button>
           );
         } else if (key === "technical_review_report") {
           primaryAction = (
-            <Button icon={<AuditOutlined />} onClick={() => void openDossierItem(record)} size="small" type="primary">
+            <Button icon={<AuditOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở thẩm xét
             </Button>
           );
         } else if (["certification_decision", "audit_result_notification"].includes(key)) {
           primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" type="primary">
+            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở kết quả
             </Button>
           );
         } else if (key === "certificate") {
           primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" type="primary">
+            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở chứng chỉ
             </Button>
           );
         } else if (dossierAuditDocumentDefinition(record.document_key)) {
           primaryAction = (
-            <Button icon={<FileDoneOutlined />} onClick={() => openAuditDocumentWorkspace(record)} size="small" type="primary">
+            <Button icon={<FileDoneOutlined />} onClick={() => openAuditDocumentWorkspace(record)} size="small" style={{ minWidth: 108 }} type="primary">
               Mở biểu
             </Button>
           );
         } else {
           primaryAction = (
-            <Button icon={<EyeOutlined />} onClick={() => void openDossierItem(record)} size="small">
+            <Button icon={<EyeOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
               Xem dữ liệu
             </Button>
           );
         }
 
+        const documentMenuItems: MenuProps["items"] = [
+          ...(currentWord ? [{
+            key: "download-word",
+            icon: <FileWordOutlined />,
+            label: "Tải Word",
+          }] : []),
+          ...(currentPdf ? [{
+            key: "view-pdf",
+            icon: <EyeOutlined />,
+            label: officialPdf ? "Xem PDF chính thức" : "Xem PDF",
+          }] : []),
+          ...((currentWord || currentPdf) && canUploadOfficialPdf ? [{ type: "divider" as const }] : []),
+          ...(canUploadOfficialPdf ? [{
+            key: "upload-official-pdf",
+            disabled: uploadDisabled,
+            icon: <UploadOutlined />,
+            label: officialPdf ? "Thay PDF chính thức" : "Tải lên PDF chính thức",
+            title: uploadDisabled ? "Hoàn thành nghiệp vụ trước khi tải lên PDF chính thức" : undefined,
+          }] : []),
+        ];
+
+        const handleDocumentMenuClick: NonNullable<MenuProps["onClick"]> = ({ key: menuKey }) => {
+          if (menuKey === "download-word" && currentWord) {
+            void openDossierFile(currentWord);
+            return;
+          }
+          if (menuKey === "view-pdf" && currentPdf) {
+            void openDossierFile(currentPdf);
+            return;
+          }
+          if (menuKey === "upload-official-pdf" && !uploadDisabled) {
+            startMissingDocumentUpload(record);
+          }
+        };
+
         return (
-          <Space size={4} wrap style={{ justifyContent: "flex-end" }}>
+          <Space size={6} style={{ justifyContent: "flex-end", whiteSpace: "nowrap" }}>
             {primaryAction}
-            <Button
-              disabled={!latestFile}
-              icon={latestFileIsPdf ? <EyeOutlined /> : <FileWordOutlined />}
-              loading={Boolean(latestFile && openingFileId === latestFile.id)}
-              onClick={() => latestFile && void openDossierFile(latestFile)}
-              size="small"
+            <Dropdown
+              disabled={!documentMenuItems.length}
+              menu={{ items: documentMenuItems, onClick: handleDocumentMenuClick }}
+              placement="bottomRight"
+              trigger={["click"]}
             >
-              {latestFileIsPdf ? "Xem PDF" : "Tải Word"}
-            </Button>
-            {canManageDocuments && key !== "certificate" && normalize(record.status) !== "not_applicable" ? (
-              <Button
-                disabled={!record.entity_type || !record.entity_id}
-                icon={<UploadOutlined />}
-                onClick={() => startMissingDocumentUpload(record)}
-                size="small"
-                title={!record.entity_type || !record.entity_id
-                  ? "Hoàn thành nghiệp vụ trước khi tải PDF đã ký/chốt"
-                  : undefined}
-              >
-                {signedDossierFile(record) ? "Thay PDF chốt" : "Tải PDF chốt"}
+              <Button icon={<FileOutlined />} size="small" style={{ minWidth: 92 }}>
+                Tài liệu <DownOutlined />
               </Button>
-            ) : null}
+            </Dropdown>
           </Space>
         );
       },
@@ -1690,6 +1725,8 @@ export function CertificationProjectDetailScreen({
         auditPlans={project.audit_plans}
         onChanged={() => detailQuery.refetch().then(() => undefined)}
         onOpenTeamAssignment={onOpenTeamAssignment}
+        onOpenAuditPlan={onOpenAuditPlan}
+        onOpenPlanWorkspace={(planId) => setSelectedPlanId(planId)}
         projectCreatedAt={project.created_at}
         projectId={project.id}
         roles={roles}
@@ -2179,11 +2216,11 @@ export function CertificationProjectDetailScreen({
         className="document-version-modal"
         destroyOnHidden
         okButtonProps={{ disabled: !uploadFile, loading: uploading }}
-        okText={uploadTarget?.currentVersion ? "Tạo phiên bản mới" : uploadTarget?.officialCopy ? "Tải PDF chốt" : "Bổ sung vào hồ sơ"}
+        okText={uploadTarget?.currentVersion ? "Tạo phiên bản mới" : uploadTarget?.officialCopy ? "Tải lên PDF chính thức" : "Bổ sung vào hồ sơ"}
         onCancel={resetUploadDialog}
         onOk={() => void submitDocumentUpload()}
         open={Boolean(uploadTarget)}
-        title={uploadTarget?.currentVersion ? "Cập nhật phiên bản tài liệu" : uploadTarget?.officialCopy ? "Tải bản PDF đã ký/chốt" : "Bổ sung tài liệu hồ sơ"}
+        title={uploadTarget?.currentVersion ? "Cập nhật phiên bản tài liệu" : uploadTarget?.officialCopy ? "Tải lên PDF chính thức" : "Bổ sung tài liệu hồ sơ"}
       >
         <div className="document-upload-dialog">
           <div className="document-upload-context">
@@ -2194,7 +2231,7 @@ export function CertificationProjectDetailScreen({
 
           <label className="document-file-picker">
             <UploadOutlined />
-            <span>{uploadFile ? uploadFile.name : uploadTarget?.pdfOnly ? "Chọn file PDF đã ký/chốt" : "Chọn PDF, Word, JPG hoặc PNG"}</span>
+            <span>{uploadFile ? uploadFile.name : uploadTarget?.pdfOnly ? "Chọn file PDF đã ký/xác nhận" : "Chọn PDF, Word, JPG hoặc PNG"}</span>
             <input
               accept={uploadTarget?.pdfOnly ? ".pdf,application/pdf" : ".pdf,.doc,.docx,.jpg,.jpeg,.png"}
               onChange={(event) => {
@@ -2217,7 +2254,7 @@ export function CertificationProjectDetailScreen({
           {uploadError ? <Alert description={uploadError} showIcon type="error" /> : null}
           <Alert
             description={uploadTarget?.officialCopy
-              ? "Đây là bản PDF chính thức sau khi ký/đóng dấu hoặc ký số. Hệ thống ưu tiên bản này khi xem hồ sơ và khi thẩm xét. Nếu tải bản chốt mới sau khi tài liệu đã được chấp nhận, hạng mục thẩm xét sẽ tự chuyển về chờ thẩm xét lại."
+              ? "Đây là bản PDF chính thức sau khi đã ký, đóng dấu, ký số hoặc được xác nhận theo quy trình của tổ chức. Hệ thống ưu tiên bản này khi xem hồ sơ và thẩm xét. Nếu tải lên phiên bản chính thức mới sau khi tài liệu đã được chấp nhận, hạng mục thẩm xét sẽ tự chuyển về chờ thẩm xét lại."
               : "Bản mới sẽ trở thành phiên bản hiện hành; bản cũ vẫn được giữ trong lịch sử. Nếu tài liệu thuộc bước thẩm xét, hồ sơ có thể được mở lại để kiểm tra theo đúng quy trình."}
             showIcon
             type="info"

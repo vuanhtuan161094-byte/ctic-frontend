@@ -476,7 +476,7 @@ export default function TechnicalReviewWorkspaceModal({
   };
 
   const reviewFileKindLabel = (file: GeneratedDocumentFile) => {
-    if (file.file_kind === "signed_scan") return "PDF đã ký/chốt";
+    if (file.file_kind === "signed_scan") return "PDF chính thức";
     if (file.file_kind === "generated_pdf") return "PDF hệ thống";
     if (file.file_kind === "generated_docx") return "Word hệ thống";
     return "Tệp bổ sung";
@@ -585,9 +585,9 @@ export default function TechnicalReviewWorkspaceModal({
                     : "Tệp hồ sơ"}
               </Text>
               {hasOfficialPdf
-                ? <Tag color="green">PDF đã chốt</Tag>
+                ? <Tag color="green">PDF chính thức</Tag>
                 : primaryFile
-                  ? <Tag color="orange">PDF hệ thống · chưa chốt</Tag>
+                  ? <Tag color="orange">PDF hệ thống · chưa có bản chính thức</Tag>
                   : <Tag>Chưa có PDF xem trực tiếp</Tag>}
             </Space>
             {primaryFile ? (
@@ -1018,7 +1018,7 @@ export default function TechnicalReviewWorkspaceModal({
                 <Alert
                   icon={<WarningOutlined />}
                   message="Chưa thể hoàn thành thẩm xét"
-                  description={`Cần chấp nhận đủ ${reviewItems.length} hạng mục, có PDF đã ký/chốt cho ${requiredReviewItems.length} hạng mục bắt buộc (hiện ${officialPdfCount}/${requiredReviewItems.length}) và kết luận đủ ${criteriaTotal} tiêu chí F.11.`}
+                  description={`Cần chấp nhận đủ ${reviewItems.length} hạng mục, có PDF chính thức cho ${requiredReviewItems.length} hạng mục bắt buộc (hiện ${officialPdfCount}/${requiredReviewItems.length}) và kết luận đủ ${criteriaTotal} tiêu chí F.11.`}
                   showIcon
                   type="warning"
                 />
