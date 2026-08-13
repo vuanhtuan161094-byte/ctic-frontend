@@ -42,10 +42,36 @@ import { api, getErrorMessage } from "../lib/api";
 
 const { Text, Title } = Typography;
 
+const COUNTRY_CODE_OPTIONS = [
+  { value: "VN", label: "VN · Việt Nam" },
+  { value: "KH", label: "KH · Campuchia" },
+  { value: "ID", label: "ID · Indonesia" },
+  { value: "CN", label: "CN · Trung Quốc" },
+  { value: "JP", label: "JP · Nhật Bản" },
+  { value: "KR", label: "KR · Hàn Quốc" },
+  { value: "SG", label: "SG · Singapore" },
+  { value: "MY", label: "MY · Malaysia" },
+  { value: "TH", label: "TH · Thái Lan" },
+  { value: "OTHER", label: "Khác · Nhập tên quốc gia" },
+];
+
+function normalizeCountryCode(value?: string | null) {
+  return String(value ?? "VN").trim().toUpperCase();
+}
+
+function taxIdentifierLabel(countryCode?: string | null) {
+  return normalizeCountryCode(countryCode) === "VN"
+    ? "Mã số thuế"
+    : "Tax ID / Business ID";
+}
+
+
 interface Customer {
   id: string;
   customer_code: string;
   company_name: string;
+  country_code?: string | null;
+  country_name?: string | null;
   tax_code?: string | null;
   address?: string | null;
   phone?: string | null;
@@ -58,6 +84,8 @@ interface Customer {
 interface CustomerFormValues {
   customer_code: string;
   company_name: string;
+  country_code?: string;
+  country_name?: string;
   tax_code?: string;
   address?: string;
   phone?: string;
@@ -117,6 +145,10 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [countryChoice, setCountryChoice] = useState("VN");
+  const watchedCountryCode = countryChoice === "OTHER"
+    ? "OT"
+    : (Form.useWatch("country_code", form) ?? editingCustomer?.country_code ?? "VN");
 
   const normalizedRoles = roles.map((role) => normalize(role));
   const canManage = normalizedRoles.some((role) => ["admin", "staff", "sales"].includes(role));
@@ -165,7 +197,14 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
     mutationFn: async (values: CustomerFormValues) => {
       const payload = Object.fromEntries(
         Object.entries(values).map(([key, value]) => [key, typeof value === "string" ? value.trim() || undefined : value]),
-      );
+      ) as Record<string, unknown>;
+      if (countryChoice === "OTHER") {
+        payload.country_code = "OT";
+        payload.country_name = values.country_name?.trim();
+      } else {
+        payload.country_code = countryChoice;
+        payload.country_name = null;
+      }
       if (editingCustomer) {
         return (await api.patch<Customer>(`/customers/${editingCustomer.id}`, payload)).data;
       }
@@ -204,14 +243,21 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const openCreate = () => {
     setEditingCustomer(null);
     form.resetFields();
+    form.setFieldsValue({ country_code: "VN", country_name: undefined });
+    setCountryChoice("VN");
     setFormOpen(true);
   };
 
   const openEdit = (customer: Customer) => {
     setEditingCustomer(customer);
+    const normalizedCountry = normalizeCountryCode(customer.country_code ?? "VN");
+    const knownCountry = COUNTRY_CODE_OPTIONS.some((option) => option.value === normalizedCountry && option.value !== "OTHER");
+    setCountryChoice(knownCountry ? normalizedCountry : "OTHER");
     form.setFieldsValue({
       customer_code: customer.customer_code,
       company_name: customer.company_name,
+      country_code: knownCountry ? normalizedCountry : "OT",
+      country_name: knownCountry ? undefined : (customer.country_name ?? (normalizedCountry !== "OT" ? normalizedCountry : undefined)),
       tax_code: customer.tax_code ?? undefined,
       address: customer.address ?? undefined,
       phone: customer.phone ?? undefined,
@@ -238,7 +284,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       render: (_, record) => (
         <div className="customer-name-cell">
           <strong>{record.company_name}</strong>
-          <small>{record.tax_code ? `MST ${record.tax_code}` : "Chưa cập nhật mã số thuế"}</small>
+          <small>{record.tax_code ? `${taxIdentifierLabel(record.country_code)} ${record.tax_code}` : `Chưa cập nhật ${taxIdentifierLabel(record.country_code).toLowerCase()}`}</small>
         </div>
       ),
     },
@@ -381,7 +427,8 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
               </div>
               <Descriptions column={{ xs: 1, sm: 2 }}>
                 <Descriptions.Item label="Mã khách hàng">{selectedCustomer.customer_code}</Descriptions.Item>
-                <Descriptions.Item label="Mã số thuế">{selectedCustomer.tax_code || "Chưa cập nhật"}</Descriptions.Item>
+                <Descriptions.Item label="Quốc gia">{selectedCustomer.country_name?.trim() || normalizeCountryCode(selectedCustomer.country_code)}</Descriptions.Item>
+                <Descriptions.Item label={taxIdentifierLabel(selectedCustomer.country_code)}>{selectedCustomer.tax_code || "Chưa cập nhật"}</Descriptions.Item>
                 <Descriptions.Item label="Điện thoại">{selectedCustomer.phone || "Chưa cập nhật"}</Descriptions.Item>
                 <Descriptions.Item label="Email">{selectedCustomer.email || "Chưa cập nhật"}</Descriptions.Item>
                 <Descriptions.Item label="Địa chỉ" span={2}>{selectedCustomer.address || "Chưa cập nhật"}</Descriptions.Item>
@@ -443,8 +490,58 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
             <Form.Item label="Mã khách hàng" name="customer_code" rules={[{ required: true, message: "Nhập mã khách hàng" }, { max: 20 }]}>
               <Input disabled={Boolean(editingCustomer)} placeholder="Ví dụ: CUST004" />
             </Form.Item>
-            <Form.Item label="Mã số thuế" name="tax_code" rules={[{ max: 20 }]}>
-              <Input placeholder="Mã số thuế của tổ chức" />
+            <Form.Item label="Quốc gia">
+              <Select
+                value={countryChoice}
+                options={COUNTRY_CODE_OPTIONS}
+                onChange={(value) => {
+                  setCountryChoice(value);
+                  if (value !== "OTHER") {
+                    form.setFieldValue("country_code", value);
+                    form.setFieldValue("country_name", undefined);
+                  } else {
+                    form.setFieldValue("country_code", "OT");
+                  }
+                }}
+              />
+            </Form.Item>
+            {countryChoice === "OTHER" ? (
+              <Form.Item
+                label="Tên quốc gia"
+                name="country_name"
+                rules={[
+                  { required: true, message: "Nhập tên quốc gia" },
+                  { max: 100, message: "Tên quốc gia không được vượt quá 100 ký tự" },
+                ]}
+                extra="Ví dụ: Lào, Hoa Kỳ, Vương quốc Anh. Tax ID sẽ dùng định dạng tự do của quốc gia đó."
+              >
+                <Input maxLength={100} placeholder="Nhập tên quốc gia" />
+              </Form.Item>
+            ) : null}
+            <Form.Item hidden name="country_code"><Input /></Form.Item>
+            <Form.Item
+              dependencies={["country_code"]}
+              label={taxIdentifierLabel(watchedCountryCode)}
+              name="tax_code"
+              rules={[
+                { max: 20, message: "Tax ID/Business ID không được vượt quá 20 ký tự" },
+                ({ getFieldValue }) => ({
+                  validator: async (_, value) => {
+                    if (!value) return;
+                    const countryCode = normalizeCountryCode(getFieldValue("country_code"));
+                    if (countryCode !== "VN") return;
+                    const normalized = String(value).replace(/[\s-]/g, "");
+                    if (!/^\d{10}(?:\d{3})?$/.test(normalized)) {
+                      throw new Error("Mã số thuế Việt Nam phải gồm 10 hoặc 13 chữ số");
+                    }
+                  },
+                }),
+              ]}
+              extra={normalizeCountryCode(watchedCountryCode) === "VN"
+                ? "Chấp nhận 10 số hoặc 13 số; có thể nhập dạng 0101234567-001."
+                : "Khách hàng nước ngoài: nhập Tax ID/Business ID theo định dạng của quốc gia đó."}
+            >
+              <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Tax ID / Business ID"} />
             </Form.Item>
             <Form.Item className="customer-form-wide" label="Tên tổ chức" name="company_name" rules={[{ required: true, message: "Nhập tên tổ chức" }, { max: 255 }]}>
               <Input placeholder="Tên pháp lý đầy đủ của tổ chức" />

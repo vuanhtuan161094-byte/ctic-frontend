@@ -23,6 +23,7 @@ import {
   Card,
   Checkbox,
   Collapse,
+  ConfigProvider,
   DatePicker,
   Descriptions,
   Divider,
@@ -48,6 +49,7 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, getErrorMessage, SESSION_STORAGE_KEY, type AuthSession } from "../lib/api";
+import { downloadDocumentFile, isBrowserPreviewableDocument, openDocumentFile } from "../lib/document-file-client";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
 
 const { Text, Title } = Typography;
@@ -57,11 +59,22 @@ interface ProjectCustomer {
   id: string;
   customer_code: string;
   company_name: string;
+  country_code?: string | null;
   tax_code?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
   status?: string | null;
+}
+
+interface ApplicationDocumentFile {
+  id: string;
+  document_type: string;
+  original_name: string;
+  mime_type?: string | null;
+  download_url: string;
+  note?: string | null;
+  version_no?: number | null;
 }
 
 interface ApplicationSite {
@@ -131,6 +144,8 @@ interface ProjectApplication {
     client_code?: string | null;
     manday_method?: string | null;
     risk_level?: string | null;
+    ems_complexity?: string | null;
+    ohsms_complexity?: string | null;
     base_mandays?: number | string | null;
     increase_factors?: string | null;
     increase_percent?: number | string | null;
@@ -157,21 +172,16 @@ interface ProjectApplication {
     ims_integration_percent?: number | string | null;
     combined_audit_capability_percent?: number | string | null;
     integration_reduction_percent?: number | string | null;
-    checked_by_name?: string | null;
     approved_by_name?: string | null;
     workflow_status?: string | null;
     prepared_by_id?: string | null;
-    checker_id?: string | null;
-    approver_id?: string | null;
+    reviewer_id?: string | null;
     submitted_at?: string | null;
-    checked_at?: string | null;
     approved_at?: string | null;
     returned_at?: string | null;
-    checker_comment?: string | null;
     approver_comment?: string | null;
     prepared_by?: ReviewAssignee | null;
-    checker?: ReviewAssignee | null;
-    approver?: ReviewAssignee | null;
+    users?: ReviewAssignee | null;
     workflow_actions?: Array<{
       id: string;
       action: string;
@@ -194,8 +204,20 @@ interface ReviewAssignee {
 }
 
 interface ReviewAssigneeResponse {
-  checkers: ReviewAssignee[];
-  approvers: ReviewAssignee[];
+  reviewers: ReviewAssignee[];
+}
+
+interface CertificationBodyCapabilityEvaluation {
+  review_id: string;
+  evaluated_at: string;
+  overall_result: "CAPABLE" | "REVIEW_REQUIRED" | "NOT_CAPABLE";
+  items: Array<{
+    program_code: string;
+    program_name: string;
+    iaf_code: string | null;
+    result: "CAPABLE" | "REVIEW_REQUIRED" | "NOT_CAPABLE";
+    reason: string;
+  }>;
 }
 
 interface ProjectContract {
@@ -206,6 +228,7 @@ interface ProjectContract {
   start_date?: string | null;
   end_date?: string | null;
   total_value?: number | string | null;
+  currency?: string | null;
 }
 
 interface ProjectAgreement {
@@ -492,9 +515,8 @@ interface ProjectCreationValues {
   recertification_date?: Dayjs;
   conclusion?: string;
   client_code?: string;
-  checked_by_name?: string;
   approved_by_name?: string;
-  checker_user_id?: string;
+  reviewer_id?: string;
   workflow_comment?: string;
   contract_mode: "new" | "existing" | "none";
   existing_contract_id?: string;
@@ -503,6 +525,7 @@ interface ProjectCreationValues {
   contract_start_date?: Dayjs;
   contract_end_date?: Dayjs;
   contract_total_value?: number;
+  contract_currency?: string;
   contract_file_kind?: "attachment" | "signed_scan";
   contract_file_list?: UploadFile[];
   agreement_mode: "new" | "existing" | "none";
@@ -522,7 +545,7 @@ interface CertificationProjectsScreenProps {
 const statusLabels: Record<string, string> = {
   draft: "Bản nháp",
   submitted: "Đã gửi",
-  under_review: "Đang chỉnh sửa xem xét",
+  under_review: "Chờ reviewer",
   pending_check: "Chờ kiểm tra kỹ thuật",
   pending_approval: "Chờ phê duyệt",
   returned_to_preparer: "Trả người lập",
@@ -700,9 +723,9 @@ const defaultReviewItems: ReviewItemForm[] = [
     result: "YES",
   },
   {
-    item_code: "AUDITOR_COMPETENCE_CONFIRMED",
-    content_vi: "Chuyên gia dự kiến đáp ứng năng lực tiêu chuẩn và lĩnh vực",
-    content_en: "The proposed auditor meets the standard and sector competence requirements",
+    item_code: "CB_CAPABILITY_CONFIRMED",
+    content_vi: "Năng lực của tổ chức chứng nhận đã được đối chiếu theo chương trình và mã IAF",
+    content_en: "Certification body capability has been checked against the programme and IAF scope",
     result: "YES",
   },
   {
@@ -800,9 +823,8 @@ const creationFieldLabels: Record<string, string> = {
   stage1_mandays: "Ngày công giai đoạn 1",
   stage2_mandays: "Ngày công giai đoạn 2",
   conclusion: "Kết luận xem xét",
-  checked_by_name: "Người kiểm tra",
   approved_by_name: "Người duyệt",
-  checker_user_id: "Người kiểm tra kỹ thuật",
+  reviewer_id: "Reviewer",
   existing_contract_id: "Hợp đồng đã có",
   contract_number: "Số hợp đồng",
   contract_sign_date: "Ngày ký hợp đồng",
@@ -1005,16 +1027,7 @@ function parseSavedMandayAdjustments(
     ...parseMandayAdjustmentField(review.reduction_factors, "reduction"),
   ];
 
-  const imsPercent = Number(review.integration_reduction_percent ?? 0);
-  if (imsPercent > 0 && !parsed.some((item) => item.adjustment_type === "ims_reduction")) {
-    parsed.push({
-      adjustment_type: "ims_reduction",
-      factor_code: "IAF MD11",
-      percentage: imsPercent,
-      reason: "Giảm thời gian đánh giá tích hợp theo kết quả xem xét IAF MD11",
-    });
-  }
-  return parsed;
+  return parsed.filter((item) => item.adjustment_type !== "ims_reduction");
 }
 
 function serializeMandayAdjustments(
@@ -1165,6 +1178,10 @@ function formatDatePayload(value?: Dayjs) {
   return value?.isValid() ? value.format("YYYY-MM-DD") : undefined;
 }
 
+function formatMonthPayload(value?: Dayjs) {
+  return value?.isValid() ? value.startOf("month").format("YYYY-MM-DD") : undefined;
+}
+
 function generateNextCode(prefix: string, values: Array<string | null | undefined>) {
   const year = dayjs().format("YYYY");
   const expression = new RegExp(`^${prefix}-${year}-(\\d+)$`, "i");
@@ -1199,13 +1216,17 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [standardFilter, setStandardFilter] = useState("all");
+  const [applicationMonthFilter, setApplicationMonthFilter] = useState("all");
+  const [applicationYearFilter, setApplicationYearFilter] = useState("all");
   const [creationOpen, setCreationOpen] = useState(false);
-  const [applicationDialogMode, setApplicationDialogMode] = useState<"create" | "view" | "edit" | "review">("create");
+  const [applicationDialogMode, setApplicationDialogMode] = useState<"create" | "view" | "edit" | "review" | "status">("create");
   const [creationStep, setCreationStep] = useState(0);
   const [creationSubmitting, setCreationSubmitting] = useState(false);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [savedApplication, setSavedApplication] = useState<ProjectApplication | null>(null);
   const [creationError, setCreationError] = useState<string | null>(null);
+  const [uploadingApplicationDocument, setUploadingApplicationDocument] = useState<string | null>(null);
+  const [draftReviewId, setDraftReviewId] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<CreationValidationIssue[]>([]);
   const actualCreationStep = isApplicationWorkspace ? creationStep : ([0, 2, 3][creationStep] ?? 0);
   const [mandayTableOpen, setMandayTableOpen] = useState(false);
@@ -1223,6 +1244,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const [industryResolutionRows, setIndustryResolutionRows] = useState<IndustryResolutionRow[]>([]);
   const [industryResolveLoading, setIndustryResolveLoading] = useState(false);
   const mandayRequestVersionRef = useRef(0);
+  const lastMandayCalculationSignatureRef = useRef<string | null>(null);
   const [workflowActionSubmitting, setWorkflowActionSubmitting] = useState(false);
   const [workflowComment, setWorkflowComment] = useState("");
 
@@ -1358,7 +1380,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const contracts = contractsQuery.data ?? [];
   const agreements = agreementsQuery.data ?? [];
   const experts = expertsQuery.data ?? [];
-  const reviewAssignees = reviewAssigneesQuery.data ?? { checkers: [], approvers: [] };
+  const reviewAssignees = reviewAssigneesQuery.data ?? { reviewers: [] };
   const isicCodes = isicCodesQuery.data ?? [];
   const isicSelectOptions = useMemo(
     () => isicCodes.map((code) => ({
@@ -1381,16 +1403,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const effectivePersonnel = Form.useWatch("employee_count", wizardForm) ?? 1;
   const plannedAuditorIds = Form.useWatch("proposed_auditor_ids", wizardForm) ?? [];
   const imsIntegrationCriteria = Form.useWatch("ims_integration_criteria", wizardForm) ?? [];
-  const applicationSites = Form.useWatch("sites", wizardForm) ?? [];
-  const headquartersAddress = Form.useWatch("headquarters_address", wizardForm);
-  const certificationScope = Form.useWatch("certification_scope", wizardForm);
   const riskLevel = Form.useWatch("risk_level", wizardForm);
   const selectedIafCode = Form.useWatch("iaf_code", wizardForm) ?? "";
   const selectedIndustryScopes = Form.useWatch("industry_scopes", wizardForm) ?? [];
-  const selectedResourceExpertId = Form.useWatch("proposed_auditor_id", wizardForm);
   const emsComplexity = Form.useWatch("ems_complexity", wizardForm) ?? "MEDIUM";
   const ohsmsComplexity = Form.useWatch("ohsms_complexity", wizardForm) ?? "MEDIUM";
-  const mandayAdjustments = Form.useWatch("manday_adjustments", wizardForm) ?? [];
 
   const selectedApplication = useMemo(
     () => applications.find((application) => application.id === existingApplicationId) ?? null,
@@ -1405,21 +1422,43 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   ), [selectedApplication]);
   const reviewApplication = savedApplication ?? selectedApplication;
   const latestWorkflowReview = reviewApplication?.application_reviews?.[0] ?? null;
+  const applicationDocumentFilesQuery = useQuery({
+    queryKey: ["application-document-files", reviewApplication?.id],
+    queryFn: async () => (
+      await api.get<ApplicationDocumentFile[]>(`/document-files/entity/certification_application/${reviewApplication!.id}/current`)
+    ).data,
+    enabled: Boolean(reviewApplication?.id),
+    retry: false,
+  });
+  const applicationDocumentFiles = applicationDocumentFilesQuery.data ?? [];
   const reviewWorkflowStatus = String(latestWorkflowReview?.workflow_status ?? "").toUpperCase();
-  const canCheckWorkflow = Boolean(
+  const latestInvalidationAction = reviewWorkflowStatus === "RETURNED"
+    ? latestWorkflowReview?.workflow_actions?.find(
+        (action) => action.action === "INVALIDATE_APPLICATION_CHANGE" && action.to_status === "RETURNED",
+      ) ?? null
+    : null;
+  const activeCapabilityReviewId = latestWorkflowReview?.id ?? draftReviewId;
+  const capabilityEvaluationQuery = useQuery({
+    queryKey: ["application-review-capability", activeCapabilityReviewId],
+    queryFn: async () => (
+      await api.get<CertificationBodyCapabilityEvaluation>(
+        `/application-reviews/${activeCapabilityReviewId}/capability-evaluation`,
+      )
+    ).data,
+    enabled: Boolean(activeCapabilityReviewId),
+  });
+  const capabilityEvaluation = capabilityEvaluationQuery.data ?? null;
+  const canReviewWorkflow = Boolean(
     latestWorkflowReview?.id &&
-    ["PENDING_CHECK", "RETURNED_TO_CHECKER", "PENDING_APPROVAL"].includes(reviewWorkflowStatus) &&
-    (isAdmin || latestWorkflowReview.checker_id === currentUserId),
+    reviewWorkflowStatus === "SUBMITTED" &&
+    latestWorkflowReview.reviewer_id === currentUserId,
   );
   const hasActiveWorkflow = [
-    "PENDING_CHECK",
-    "PENDING_APPROVAL",
-    "RETURNED_TO_CHECKER",
+    "SUBMITTED",
     "APPROVED",
-    "REJECTED",
   ].includes(reviewWorkflowStatus);
   const canEditReviewDraft =
-    !hasActiveWorkflow || reviewWorkflowStatus === "RETURNED_TO_PREPARER";
+    !hasActiveWorkflow || reviewWorkflowStatus === "RETURNED";
 
   const calculationStandardNames = useMemo(() => {
     if (actualCreationStep === 1 && reviewApplication?.standard_name) {
@@ -1447,35 +1486,18 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     ),
     [experts],
   );
-  const selectedIafCodes = useMemo(
-    () => Array.from(new Set([
-      ...selectedIndustryScopes.map((scope) => scope.iaf_code).filter(Boolean),
-      ...(selectedIafCode ? [selectedIafCode] : []),
-    ])),
-    [selectedIndustryScopes, selectedIafCode],
-  );
-  const matchingIndustryExperts = useMemo(
-    () => approvedExperts.filter((expert) => selectedIafCodes.some((code) => expertMatchesIaf(expert, code))),
-    [approvedExperts, selectedIafCodes],
-  );
-  const uncoveredIafCodes = useMemo(
-    () => selectedIafCodes.filter((code) => !approvedExperts.some((expert) => expertMatchesIaf(expert, code))),
-    [approvedExperts, selectedIafCodes],
-  );
-  const selectedResourceExpert = useMemo(
-    () => approvedExperts.find((expert) => expert.id === selectedResourceExpertId) ?? null,
-    [approvedExperts, selectedResourceExpertId],
-  );
   const imsAuditorCandidates = useMemo(
     () => approvedExperts.filter(
       (expert) => expertSupportedStandardLabels(expert, supportedCalculationStandards).length > 0,
     ),
     [approvedExperts, supportedCalculationStandards],
   );
-  const reviewAssociatedDocuments = useMemo(
-    () => parseAssociatedDocumentList(reviewApplication?.associated_documents),
-    [reviewApplication?.associated_documents],
-  );
+  const reviewAssociatedDocuments = useMemo(() => (
+    applicationDocumentFiles
+      .filter((file) => file.document_type.startsWith("application_supporting_"))
+      .map((file) => file.note?.trim())
+      .filter((value): value is string => Boolean(value))
+  ), [applicationDocumentFiles]);
   const imsIntegrationPercent = round2(
     Math.min(100, (imsIntegrationCriteria.length / imsIntegrationCriteriaOptions.length) * 100),
   );
@@ -1523,29 +1545,35 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     }));
   }, [mandayEngineSuggestion]);
 
-  const adjustmentTotals = useMemo(() => mandayAdjustments.reduce(
-    (totals, adjustment) => {
-      const percentage = Number(adjustment?.percentage ?? 0);
-      if (!Number.isFinite(percentage) || percentage <= 0) return totals;
-
-      if (adjustment.adjustment_type === "increase") totals.increase += percentage;
-      if (adjustment.adjustment_type === "reduction") totals.reduction += percentage;
-      if (adjustment.adjustment_type === "ims_reduction") totals.imsReduction += percentage;
-      return totals;
-    },
-    { increase: 0, reduction: 0, imsReduction: 0 },
-  ), [mandayAdjustments]);
-  const increasePercent = adjustmentTotals.increase;
-  const reductionPercent = Math.min(30, adjustmentTotals.reduction);
-  const manualIntegrationReductionPercent = Math.min(20, adjustmentTotals.imsReduction);
   const calculatedIntegrationReductionPercent = Number(
     mandayEngineSuggestion?.ims_reduction_percent
       ?? mandayEngineSuggestion?.calculated_ims_reduction_percent
       ?? 0,
   );
-  const integrationReductionPercent = manualIntegrationReductionPercent > 0
-    ? manualIntegrationReductionPercent
-    : calculatedIntegrationReductionPercent;
+  const integrationReductionPercent = Math.max(0, calculatedIntegrationReductionPercent);
+  const currentMandayInputSignature = useMemo(() => JSON.stringify({
+    standards: [...supportedCalculationStandards].sort(),
+    effective_personnel: effectivePersonnelForCalculation,
+    sites: (reviewApplication?.sites ?? []).map((site) => ({
+      site_no: site.site_no,
+      employee_count: Number(site.employee_count ?? 0),
+      is_headquarters: Boolean(site.is_headquarters),
+    })),
+    ems_complexity: emsComplexity,
+    ohsms_complexity: ohsmsComplexity,
+    ims_integration_percent: Number(imsIntegrationPercent || 0),
+    combined_audit_capability_percent: Number(combinedAuditCapabilityPercent || 0),
+    proposed_auditor_ids: [...plannedAuditorIds].sort(),
+  }), [
+    combinedAuditCapabilityPercent,
+    effectivePersonnelForCalculation,
+    emsComplexity,
+    imsIntegrationPercent,
+    ohsmsComplexity,
+    plannedAuditorIds,
+    reviewApplication?.sites,
+    supportedCalculationStandards,
+  ]);
   const externalProviderUsed = Form.useWatch("external_provider_used", wizardForm);
   const otherManagementSystems = Form.useWatch("other_management_systems", wizardForm);
   const associatedDocumentOptions = useMemo(
@@ -1590,7 +1618,22 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     [agreements, effectiveCustomerId],
   );
 
+  const getCurrentManualAdjustmentTotals = () => {
+    const currentAdjustments = (wizardForm.getFieldValue("manday_adjustments") ?? []) as MandayAdjustmentForm[];
+    return currentAdjustments.reduce((totals, adjustment) => {
+      const percentage = Number(adjustment?.percentage ?? 0);
+      if (!Number.isFinite(percentage) || percentage <= 0) return totals;
+      if (adjustment.adjustment_type === "increase") totals.increase += percentage;
+      if (adjustment.adjustment_type === "reduction") totals.reduction += percentage;
+      return totals;
+    }, { increase: 0, reduction: 0 });
+  };
+
   const calculateMandaysNow = async () => {
+    const adjustmentTotals = getCurrentManualAdjustmentTotals();
+    const currentIncreasePercent = adjustmentTotals.increase;
+    const currentReductionPercent = Math.min(30, adjustmentTotals.reduction);
+
     if (!supportedCalculationStandards.length) {
       message.warning("Chưa xác định tiêu chuẩn để tính man-day.");
       return;
@@ -1609,14 +1652,16 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     try {
       if (!isIntegratedAudit) {
         setMandayEngineSuggestion(null);
+        wizardForm.setFieldsValue({ increase_percent: currentIncreasePercent, reduction_percent: currentReductionPercent, integration_reduction_percent: 0 });
         setMandayLocalSuggestion(calculateMandaySuggestion(
           effectivePersonnelForCalculation,
           1,
           riskLevel,
-          Number(increasePercent || 0),
-          Number(reductionPercent || 0),
+          Number(currentIncreasePercent || 0),
+          Number(currentReductionPercent || 0),
           0,
         ));
+        lastMandayCalculationSignatureRef.current = currentMandayInputSignature;
         setMandayCalculationDirty(false);
         return;
       }
@@ -1630,11 +1675,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         activities: site.activities ?? undefined,
         employee_count: site.employee_count ?? undefined,
         is_headquarters: site.is_headquarters,
-      })) ?? applicationSites;
+      })) ?? (wizardForm.getFieldValue("sites") ?? []);
       const normalizedSites = normalizeApplicationSites(
         sourceSites,
-        reviewApplication?.headquarters_address ?? headquartersAddress,
-        reviewApplication?.certification_scope ?? certificationScope,
+        reviewApplication?.headquarters_address ?? wizardForm.getFieldValue("headquarters_address"),
+        reviewApplication?.certification_scope ?? wizardForm.getFieldValue("certification_scope"),
         effectivePersonnelForCalculation,
       );
       const payload: Record<string, unknown> = {
@@ -1650,15 +1695,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           is_headquarters: site.is_headquarters,
         })),
         sampled_site_reduction_percent: 0,
-        increase_percent: Number(increasePercent || 0),
-        reduction_percent: Number(reductionPercent || 0),
+        increase_percent: Number(currentIncreasePercent || 0),
+        reduction_percent: Number(currentReductionPercent || 0),
         ims_integration_percent: imsIntegrationPercent,
         combined_audit_capability_percent: combinedAuditCapabilityPercent,
       };
-      if (manualIntegrationReductionPercent > 0) {
-        payload.ims_reduction_percent = manualIntegrationReductionPercent;
-      }
-
       const response = await api.post<MandayEngineSuggestion>(
         "/manday-calculations/suggest",
         payload,
@@ -1666,6 +1707,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       if (requestVersion !== mandayRequestVersionRef.current) return;
       setMandayLocalSuggestion(null);
       setMandayEngineSuggestion(response.data);
+      wizardForm.setFieldsValue({
+        increase_percent: currentIncreasePercent,
+        reduction_percent: currentReductionPercent,
+        integration_reduction_percent: Number(response.data.ims_reduction_percent ?? response.data.calculated_ims_reduction_percent ?? 0),
+      });
+      lastMandayCalculationSignatureRef.current = currentMandayInputSignature;
       setMandayCalculationDirty(false);
     } catch (error) {
       if (requestVersion === mandayRequestVersionRef.current) {
@@ -1680,34 +1727,16 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
 
   useEffect(() => {
     if (!creationOpen || actualCreationStep !== 1) return;
-    setMandayCalculationDirty(true);
-  }, [
-    actualCreationStep,
-    applicationSites,
-    certificationScope,
-    combinedAuditCapabilityPercent,
-    creationOpen,
-    effectivePersonnelForCalculation,
-    headquartersAddress,
-    imsIntegrationPercent,
-    increasePercent,
-    manualIntegrationReductionPercent,
-    reductionPercent,
-    emsComplexity,
-    ohsmsComplexity,
-    reviewApplication,
-    riskLevel,
-    selectedPlannedAuditors,
-    supportedCalculationStandards,
-  ]);
+    setMandayCalculationDirty(
+      lastMandayCalculationSignatureRef.current !== currentMandayInputSignature,
+    );
+  }, [actualCreationStep, creationOpen, currentMandayInputSignature]);
 
   useEffect(() => {
     if (!creationOpen || actualCreationStep !== 1) return;
 
     wizardForm.setFieldsValue({
       employee_count: effectivePersonnelForCalculation,
-      increase_percent: increasePercent,
-      reduction_percent: reductionPercent,
       integration_reduction_percent: integrationReductionPercent,
       ims_integration_percent: imsIntegrationPercent,
       combined_audit_capability_percent: combinedAuditCapabilityPercent,
@@ -1718,20 +1747,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     creationOpen,
     effectivePersonnelForCalculation,
     imsIntegrationPercent,
-    increasePercent,
     integrationReductionPercent,
-    reductionPercent,
     wizardForm,
   ]);
-
-  useEffect(() => {
-    if (!creationOpen || applicationMode !== "new") return;
-    const currentDocuments = wizardForm.getFieldValue("associated_documents") ?? [];
-    wizardForm.setFieldValue(
-      "associated_documents",
-      Array.from(new Set([...currentDocuments, ...associatedDocumentOptions])),
-    );
-  }, [applicationMode, associatedDocumentOptions, creationOpen, wizardForm]);
 
   useEffect(() => {
     if (!creationOpen || actualCreationStep !== 1) return;
@@ -1768,6 +1786,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       ims_integration_percent: imsIntegrationPercent,
       combined_audit_capability_percent: combinedAuditCapabilityPercent,
     });
+    message.success("Đã áp dụng kết quả man-day đề xuất vào biểu xem xét.");
   };
 
   const openMandayReferenceTable = () => {
@@ -1784,9 +1803,10 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   };
 
   const applyReferenceMandays = (mandays: number, selectedRisk?: "HIGH" | "MEDIUM" | "LOW" | "LIMITED") => {
+    const adjustmentTotals = getCurrentManualAdjustmentTotals();
     const adjusted = roundToHalf(
       Number(mandays) *
-      (1 + Number(increasePercent || 0) / 100 - Number(reductionPercent || 0) / 100) *
+      (1 + Number(adjustmentTotals.increase || 0) / 100 - Number(Math.min(30, adjustmentTotals.reduction) || 0) / 100) *
       (1 - Number(integrationReductionPercent || 0) / 100),
     );
     const stage1 = Math.max(0.5, roundToHalf(adjusted * 0.2));
@@ -1805,27 +1825,6 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     });
     setMandayTableOpen(false);
     message.success(`Đã chọn ${mandays} MD từ bảng tra cứu`);
-  };
-
-  const applyImsReferenceReduction = (percentage: number, integration: number, capability: number) => {
-    const currentAdjustments = wizardForm.getFieldValue("manday_adjustments") ?? [];
-    const otherAdjustments = currentAdjustments.filter(
-      (item: MandayAdjustmentForm) => item?.factor_code !== "IAF_MD11_MATRIX",
-    );
-    const nextAdjustments = percentage > 0
-      ? [
-          ...otherAdjustments,
-          {
-            adjustment_type: "ims_reduction",
-            factor_code: "IAF_MD11_MATRIX",
-            percentage,
-            reason: `Mức tích hợp ${integration}%; khả năng đánh giá kết hợp ${capability}% theo ma trận IAF MD11`,
-          },
-        ]
-      : otherAdjustments;
-    wizardForm.setFieldValue("manday_adjustments", nextAdjustments);
-    setMandayTableOpen(false);
-    message.success(`Đã chọn mức giảm tích hợp ${percentage}%`);
   };
 
   const standards: string[] = useMemo(
@@ -1878,6 +1877,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     [applications],
   );
 
+  const applicationYears = useMemo(() => Array.from(new Set(
+    applications
+      .map((item) => dayjs(item.updated_at ?? item.application_date).year())
+      .filter((year) => Number.isFinite(year)),
+  )).sort((a, b) => b - a), [applications]);
+
   const filteredApplications = useMemo(() => {
     const keyword = searchTerm.trim().toLocaleLowerCase("vi");
     return applications.filter((application) => {
@@ -1890,9 +1895,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       ].some((value) => value?.toLocaleLowerCase("vi").includes(keyword));
       const matchesStatus = statusFilter === "all" || normalizeStatus(application.status) === statusFilter;
       const matchesStandard = standardFilter === "all" || application.standard_name === standardFilter;
-      return matchesSearch && matchesStatus && matchesStandard;
+      const applicationDate = dayjs(application.updated_at ?? application.application_date);
+      const matchesMonth = applicationMonthFilter === "all" || String(applicationDate.month() + 1) === applicationMonthFilter;
+      const matchesYear = applicationYearFilter === "all" || String(applicationDate.year()) === applicationYearFilter;
+      return matchesSearch && matchesStatus && matchesStandard && matchesMonth && matchesYear;
     });
-  }, [applications, searchTerm, standardFilter, statusFilter]);
+  }, [applicationMonthFilter, applicationYearFilter, applications, searchTerm, standardFilter, statusFilter]);
 
   const pendingApplications = applications.filter((item) => [
     "draft",
@@ -1976,9 +1984,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         ? (() => { try { return JSON.parse(latestReview.review_items_json) as ReviewItemForm[]; } catch { return defaultReviewItems; } })()
         : defaultReviewItems,
       review_result: (latestReview?.result as ProjectCreationValues["review_result"]) ?? "ACCEPTED",
-      review_comment: latestReview?.comment ?? latestReview?.checker_comment ?? latestReview?.approver_comment ?? "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
+      review_comment: latestReview?.comment ?? latestReview?.approver_comment ?? "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
       conclusion: latestReview?.conclusion ?? "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
-      checker_user_id: latestReview?.checker_id ?? undefined,
+      reviewer_id: latestReview?.reviewer_id ?? undefined,
       client_code: latestReview?.client_code ?? application.customers?.customer_code,
       proposed_auditor_id: latestReview?.proposed_auditor_id ?? plannedAuditorIds[0] ?? undefined,
       proposed_auditor_ids: plannedAuditorIds,
@@ -2001,6 +2009,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       surveillance2_date: latestReview?.surveillance2_date ? dayjs(latestReview.surveillance2_date) : undefined,
       recertification_date: latestReview?.recertification_date ? dayjs(latestReview.recertification_date) : undefined,
       risk_level: latestReview?.risk_level ?? "MEDIUM",
+      ems_complexity: (latestReview?.ems_complexity as ProjectCreationValues["ems_complexity"]) ?? (latestReview?.risk_level as ProjectCreationValues["ems_complexity"]) ?? "MEDIUM",
+      ohsms_complexity: (latestReview?.ohsms_complexity as ProjectCreationValues["ohsms_complexity"]) ?? ((latestReview?.risk_level && latestReview.risk_level !== "LIMITED") ? latestReview.risk_level as ProjectCreationValues["ohsms_complexity"] : "MEDIUM"),
       manday_adjustments: parseSavedMandayAdjustments(latestReview),
     });
   };
@@ -2010,6 +2020,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     setCreationStep(0);
     setCreatedProjectId(null);
     setSavedApplication(application);
+    setDraftReviewId(null);
     setCreationError(null);
     setValidationIssues([]);
     setCreationOpen(true);
@@ -2025,6 +2036,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     setCreationStep(0);
     setCreatedProjectId(null);
     setSavedApplication(application);
+    setDraftReviewId(null);
     setCreationError(null);
     setValidationIssues([]);
     setCreationOpen(true);
@@ -2040,13 +2052,36 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     setCreationStep(1);
     setCreatedProjectId(null);
     setSavedApplication(application);
+    setDraftReviewId(application.application_reviews?.[0]?.id ?? null);
     setCreationError(null);
     setValidationIssues([]);
     setWorkflowComment("");
     mandayRequestVersionRef.current += 1;
+    lastMandayCalculationSignatureRef.current = null;
     setMandayEngineSuggestion(null);
     setMandayLocalSuggestion(null);
     setMandayCalculationDirty(true);
+    setCreationOpen(true);
+    window.setTimeout(() => {
+      wizardForm.resetFields();
+      applyApplicationToForm(application);
+    }, 0);
+  };
+
+  const openApplicationStatus = (application: ProjectApplication) => {
+    setApplicationDialogMode("status");
+    setCreationStep(1);
+    setCreatedProjectId(null);
+    setSavedApplication(application);
+    setDraftReviewId(application.application_reviews?.[0]?.id ?? null);
+    setCreationError(null);
+    setValidationIssues([]);
+    setWorkflowComment("");
+    mandayRequestVersionRef.current += 1;
+    lastMandayCalculationSignatureRef.current = null;
+    setMandayEngineSuggestion(null);
+    setMandayLocalSuggestion(null);
+    setMandayCalculationDirty(false);
     setCreationOpen(true);
     window.setTimeout(() => {
       wizardForm.resetFields();
@@ -2060,10 +2095,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     setCreationStep(0);
     setCreatedProjectId(null);
     setSavedApplication(null);
+    setDraftReviewId(null);
     setCreationError(null);
     setValidationIssues([]);
     setWorkflowComment("");
     mandayRequestVersionRef.current += 1;
+    lastMandayCalculationSignatureRef.current = null;
     setMandayEngineSuggestion(null);
     setMandayLocalSuggestion(null);
     setMandayCalculationDirty(true);
@@ -2075,7 +2112,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         application_mode: isApplicationWorkspace ? "new" : "existing",
         existing_application_id: isApplicationWorkspace ? undefined : acceptedApplications[0]?.id,
         customer_id: isApplicationWorkspace ? undefined : acceptedApplications[0]?.customer_id,
-        application_code: generateNextCode("APP", applications.map((item) => item.application_code)),
+        application_code: undefined,
         application_date: today,
         certification_type: "INITIAL",
         standard_names: isApplicationWorkspace
@@ -2097,7 +2134,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         }],
         external_provider_used: false,
         other_management_systems: false,
-        associated_documents: getAssociatedDocumentOptions("INITIAL", ["ISO 9001:2015"]),
+        associated_documents: [],
         certificate_languages: ["Tiếng Việt", "Tiếng Anh"],
         declaration_accepted: false,
         review_items: defaultReviewItems,
@@ -2124,6 +2161,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         contract_number: generateNextCode(PLATFORM_BRANDING.documentCodePrefix, contracts.map((item) => item.contract_number)),
         contract_sign_date: today,
         contract_start_date: today,
+        contract_currency: "VND",
         contract_file_kind: "signed_scan",
         contract_file_list: [],
         agreement_mode: "new",
@@ -2151,6 +2189,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     setCreationError(null);
     setValidationIssues([]);
     mandayRequestVersionRef.current += 1;
+    lastMandayCalculationSignatureRef.current = null;
     setMandayEngineSuggestion(null);
     setMandayLocalSuggestion(null);
     setMandayCalculationDirty(true);
@@ -2169,12 +2208,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       "increase_percent", "reduction_percent", "integration_reduction_percent", "final_mandays",
       "stage1_mandays", "stage2_mandays", "surveillance_mandays", "recertification_mandays",
       "stage1_proposed_date", "stage2_proposed_date", "surveillance1_date", "surveillance2_date",
-      "recertification_date", "conclusion", "client_code", "checker_user_id",
+      "recertification_date", "conclusion", "client_code", "reviewer_id",
     ].includes(root)) actualStep = 1;
 
     if ([
       "contract_mode", "existing_contract_id", "contract_number", "contract_sign_date",
-      "contract_start_date", "contract_end_date", "contract_total_value", "contract_file_kind",
+      "contract_start_date", "contract_end_date", "contract_total_value", "contract_currency", "contract_file_kind",
       "contract_file_list", "agreement_mode", "existing_agreement_id", "agreement_number",
       "agreement_sign_date", "agreement_file_kind", "agreement_file_list",
     ].includes(root)) actualStep = 2;
@@ -2231,10 +2270,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         ? error.message
         : apiMessage;
     const recoverableMessage = savedApplication
-      ? `${errorMessage} Đơn ${savedApplication.application_code} đã được lưu và có thể tiếp tục tạo hồ sơ, không cần nhập lại.`
+      ? `Không thể hoàn tất bước hiện tại: ${errorMessage}. Đơn ${savedApplication.application_code} đã được lưu; không cần nhập lại đơn. Hãy sửa nội dung được báo rồi tiếp tục xem xét.`
       : errorMessage;
     setCreationError(recoverableMessage);
-    message.error(errorMessage);
+    if (savedApplication) {
+      message.warning("Đơn đã được lưu. Hãy xử lý nội dung được cảnh báo trong biểu xem xét.");
+    } else {
+      message.error(errorMessage);
+    }
   };
 
   const focusValidationIssue = (issue: CreationValidationIssue) => {
@@ -2303,7 +2346,6 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
 
       await wizardForm.validateFields([
         "customer_id",
-        "application_code",
         "application_date",
         "certification_type",
         "other_certification_type",
@@ -2360,10 +2402,13 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         "stage1_mandays",
         "stage2_mandays",
         "conclusion",
-        "checker_user_id",
+        "reviewer_id",
       ]);
 
       const values = wizardForm.getFieldsValue(true);
+      if (values.reviewer_id === currentUserId) {
+        throw new Error("Người lập/coordinator và reviewer phải là hai tài khoản khác nhau.");
+      }
       const stage1 = Number(values.stage1_mandays ?? 0);
       const stage2 = Number(values.stage2_mandays ?? 0);
       const total = Number(values.final_mandays ?? 0);
@@ -2452,6 +2497,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     (values.manday_adjustments ?? [])
       .filter((adjustment) => (
         adjustment?.adjustment_type &&
+        adjustment.adjustment_type !== "ims_reduction" &&
         adjustment.factor_code?.trim() &&
         Number(adjustment.percentage ?? 0) > 0 &&
         adjustment.reason?.trim()
@@ -2527,11 +2573,16 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     })),
   });
 
-  const buildReviewPayload = (applicationId: string, values: ProjectCreationValues) => {
+  const buildReviewPayload = (
+    applicationId: string,
+    values: ProjectCreationValues,
+    submissionAction: "SAVE_DRAFT" | "SUBMIT",
+  ) => {
     const adjustments = normalizeMandayAdjustments(values);
 
     return {
     application_id: applicationId,
+    submission_action: submissionAction,
     review_date: dayjs().format("YYYY-MM-DD"),
     result: values.review_result ?? "ACCEPTED",
     comment: values.review_comment?.trim() || undefined,
@@ -2548,33 +2599,32 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     combined_audit_capability_percent:
       values.combined_audit_capability_percent ?? combinedAuditCapabilityPercent,
     risk_level: values.ems_complexity ?? values.ohsms_complexity ?? values.risk_level,
+    ems_complexity: values.ems_complexity,
+    ohsms_complexity: values.ohsms_complexity,
     manday_method: values.manday_method,
     base_mandays: values.base_mandays,
     increase_factors: serializeMandayAdjustments(adjustments, ["increase"]),
     increase_percent: adjustments
       .filter((item) => item.adjustment_type === "increase")
       .reduce((sum, item) => sum + item.percentage, 0),
-    reduction_factors: serializeMandayAdjustments(adjustments, ["reduction", "ims_reduction"]),
+    reduction_factors: serializeMandayAdjustments(adjustments, ["reduction"]),
     reduction_percent: adjustments
       .filter((item) => item.adjustment_type === "reduction")
       .reduce((sum, item) => sum + item.percentage, 0),
-    integration_reduction_percent: values.integration_reduction_percent
-      ?? adjustments
-        .filter((item) => item.adjustment_type === "ims_reduction")
-        .reduce((sum, item) => sum + item.percentage, 0),
+    integration_reduction_percent: values.integration_reduction_percent ?? 0,
     final_mandays: values.final_mandays,
     stage1_mandays: values.stage1_mandays,
     stage2_mandays: values.stage2_mandays,
     surveillance_mandays: values.surveillance_mandays,
     recertification_mandays: values.recertification_mandays,
-    stage1_proposed_date: formatDatePayload(values.stage1_proposed_date ?? values.stage1_requested_date),
-    stage2_proposed_date: formatDatePayload(values.stage2_proposed_date ?? values.stage2_requested_date),
-    surveillance1_date: formatDatePayload(values.surveillance1_date),
-    surveillance2_date: formatDatePayload(values.surveillance2_date),
-    recertification_date: formatDatePayload(values.recertification_date),
+    stage1_proposed_date: formatMonthPayload(values.stage1_proposed_date ?? values.stage1_requested_date),
+    stage2_proposed_date: formatMonthPayload(values.stage2_proposed_date ?? values.stage2_requested_date),
+    surveillance1_date: formatMonthPayload(values.surveillance1_date),
+    surveillance2_date: formatMonthPayload(values.surveillance2_date),
+    recertification_date: formatMonthPayload(values.recertification_date),
     conclusion: values.conclusion?.trim() || undefined,
     client_code: values.client_code?.trim() || undefined,
-    checker_user_id: values.checker_user_id,
+    reviewer_id: values.reviewer_id,
     };
   };
 
@@ -2592,7 +2642,10 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           buildApplicationPayload(values),
         );
         setSavedApplication(response.data);
-        await queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
+        queryClient.setQueryData<ProjectApplication[]>(["certification-applications"], (current) =>
+          current?.map((item) => item.id === response.data.id ? response.data : item),
+        );
+        void queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
         return response.data;
       }
       return savedApplication;
@@ -2604,8 +2657,36 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     );
     const application = applicationResponse.data;
     setSavedApplication(application);
-    await queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
+    queryClient.setQueryData<ProjectApplication[]>(["certification-applications"], (current) =>
+      current ? [application, ...current.filter((item) => item.id !== application.id)] : [application],
+    );
+    void queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
+    wizardForm.setFieldValue("application_code", application.application_code);
     return application;
+  };
+
+  const checkCertificationBodyCapability = async () => {
+    try {
+      setCreationError(null);
+      setCreationSubmitting(true);
+      const values = wizardForm.getFieldsValue(true);
+      const application = await ensureApplicationCreated(values);
+      const response = await api.post<{ id: string }>(
+        "/application-reviews",
+        buildReviewPayload(application.id, values, "SAVE_DRAFT"),
+      );
+      setDraftReviewId(response.data.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
+        queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
+        queryClient.invalidateQueries({ queryKey: ["application-review-capability", response.data.id] }),
+      ]);
+      message.success("Đã lưu nháp và đối chiếu năng lực tổ chức chứng nhận.");
+    } catch (error) {
+      handleCreationFailure(error);
+    } finally {
+      setCreationSubmitting(false);
+    }
   };
 
   const submitApplicationReview = async () => {
@@ -2616,13 +2697,13 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       setCreationSubmitting(true);
       const values = wizardForm.getFieldsValue(true);
       const application = await ensureApplicationCreated(values);
-      await api.post("/application-reviews", buildReviewPayload(application.id, values));
+      await api.post("/application-reviews", buildReviewPayload(application.id, values, "SUBMIT"));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
         queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
       ]);
-      message.success(`Đã gửi bản xem xét đơn ${application.application_code} tới đánh giá viên kiểm tra`);
+      message.success(`Đã gửi bản xem xét đơn ${application.application_code} tới reviewer`);
       closeCreationWizard();
     } catch (error) {
       handleCreationFailure(error);
@@ -2631,20 +2712,37 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     }
   };
 
-  const submitWorkflowAction = async (
-    stage: "check" | "approve",
-    action: "CHECKED" | "RETURN" | "APPROVE" | "REJECT",
-  ) => {
+  const saveApplicationReviewDraft = async () => {
+    try {
+      setCreationError(null);
+      setCreationSubmitting(true);
+      const values = wizardForm.getFieldsValue(true);
+      const application = await ensureApplicationCreated(values);
+      const response = await api.post<{ id: string }>("/application-reviews", buildReviewPayload(application.id, values, "SAVE_DRAFT"));
+      setDraftReviewId(response.data.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
+        queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
+      ]);
+      message.success("Đã lưu bản nháp Application Review.");
+    } catch (error) {
+      handleCreationFailure(error);
+    } finally {
+      setCreationSubmitting(false);
+    }
+  };
+
+  const submitWorkflowAction = async (action: "RETURN" | "APPROVE") => {
     const reviewId = latestWorkflowReview?.id;
     if (!reviewId) return;
-    if (["RETURN", "REJECT"].includes(action) && !workflowComment.trim()) {
-      message.warning("Nhập nhận xét trước khi trả lại hoặc từ chối.");
+    if (action === "RETURN" && !workflowComment.trim()) {
+      message.warning("Nhập lý do trước khi trả lại.");
       return;
     }
 
     setWorkflowActionSubmitting(true);
     try {
-      await api.patch(`/application-reviews/${reviewId}/${stage}`, {
+      await api.patch(`/application-reviews/${reviewId}/review`, {
         action,
         comment: workflowComment.trim() || undefined,
       });
@@ -2655,10 +2753,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       ]);
       const successMessages: Record<string, string> = {
-        CHECKED: "Đánh giá viên đã xác nhận xem xét; đơn được cập nhật theo kết quả xem xét.",
         RETURN: "Đã trả lại bản xem xét để chỉnh sửa.",
         APPROVE: "Đã phê duyệt bản xem xét đăng ký.",
-        REJECT: "Đã từ chối bản xem xét đăng ký.",
       };
       message.success(successMessages[action]);
       setWorkflowComment("");
@@ -2742,15 +2838,25 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   };
 
   const updateIndustryResolutionRow = (key: string, patch: Partial<IndustryResolutionRow>) => {
-    setIndustryResolutionRows((current) => current.map((row) => {
-      if (row.key !== key) return row;
-      const next = { ...row, ...patch };
-      if (patch.selected_nace_mapping_id) {
-        const candidate = row.response.nace_candidates.find((item) => item.mapping_id === patch.selected_nace_mapping_id);
-        next.selected_iaf_mapping_id = candidate?.iaf_candidates[0]?.mapping_id;
-      }
-      return next;
-    }));
+    setIndustryResolutionRows((current) => {
+      const sourceRow = current.find((row) => row.key === key);
+      if (!sourceRow) return current;
+      const sourceId = sourceRow.response.source.id;
+      return current.map((row) => {
+        const shouldSyncClassification = row.response.source.id === sourceId &&
+          (patch.selected_nace_mapping_id !== undefined || patch.selected_iaf_mapping_id !== undefined);
+        if (row.key !== key && !shouldSyncClassification) return row;
+        const next = { ...row, ...patch };
+        if (patch.selected_nace_mapping_id) {
+          const candidate = row.response.nace_candidates.find((item) => item.mapping_id === patch.selected_nace_mapping_id);
+          if (candidate) {
+            next.selected_nace_mapping_id = candidate.mapping_id;
+            next.selected_iaf_mapping_id = candidate.iaf_candidates[0]?.mapping_id;
+          }
+        }
+        return next;
+      });
+    });
   };
 
   const applyIndustrySelections = () => {
@@ -2782,6 +2888,89 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     message.success(`Đã áp dụng ${uniqueScopes.length} phạm vi mã ngành.`);
   };
 
+  const suggestCertificationCycleMonths = (stage2Month?: Dayjs | null, force = false) => {
+    if (!stage2Month) return;
+    const current = wizardForm.getFieldsValue(["surveillance1_date", "surveillance2_date", "recertification_date"]);
+    wizardForm.setFieldsValue({
+      surveillance1_date: force || !current.surveillance1_date ? stage2Month.add(12, "month") : current.surveillance1_date,
+      surveillance2_date: force || !current.surveillance2_date ? stage2Month.add(24, "month") : current.surveillance2_date,
+      recertification_date: force || !current.recertification_date ? stage2Month.add(36, "month") : current.recertification_date,
+    });
+  };
+
+  const applicationDocumentType = (index: number) => `application_supporting_${String(index + 1).padStart(2, "0")}`;
+  const applicationDocumentTypeForName = (documentName: string) => {
+    const index = associatedDocumentOptions.findIndex((item) => item === documentName);
+    return applicationDocumentType(Math.max(0, index));
+  };
+
+  const uploadApplicationSupportingDocument = async (documentName: string, index: number, file: File) => {
+    const documentType = applicationDocumentType(index);
+    setUploadingApplicationDocument(documentType);
+    try {
+      const values = wizardForm.getFieldsValue(true);
+      const application = reviewApplication ?? await ensureApplicationCreated(values);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("entity_type", "certification_application");
+      formData.append("entity_id", application.id);
+      formData.append("document_type", documentType);
+      formData.append("file_kind", "attachment");
+      formData.append("note", documentName);
+      await api.post("/document-files/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 120_000,
+      });
+      const selectedDocuments = wizardForm.getFieldValue("associated_documents") ?? [];
+      if (!selectedDocuments.includes(documentName)) {
+        wizardForm.setFieldValue("associated_documents", [...selectedDocuments, documentName]);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["application-document-files", application.id] });
+      message.success(`Đã tải lên: ${documentName}`);
+    } catch (error) {
+      message.error(getErrorMessage(error, "Không tải được tài liệu"));
+    } finally {
+      setUploadingApplicationDocument(null);
+    }
+    return false;
+  };
+
+  const applicationDocumentDownloadLabel = (file: ApplicationDocumentFile) => (
+    /\.(doc|docx)$/i.test(file.original_name) ? "Tải Word" : "Tải file"
+  );
+
+  const canPreviewApplicationDocument = (file: ApplicationDocumentFile) =>
+    isBrowserPreviewableDocument(file.original_name, file.mime_type);
+
+  const previewApplicationDocument = async (file: ApplicationDocumentFile) => {
+    if (!canPreviewApplicationDocument(file)) {
+      message.info("Tệp Word/Office chưa thể xem trực tiếp ổn định trong trình duyệt. Dùng nút Tải file; viewer PDF sẽ được bổ sung theo cơ chế chuyển đổi và cache để không làm nặng màn hình.");
+      return;
+    }
+    try {
+      await openDocumentFile({
+        url: file.download_url || `/document-files/${file.id}/download`,
+        filename: file.original_name,
+        mimeType: file.mime_type ?? undefined,
+        title: file.note || file.original_name,
+      });
+    } catch (error) {
+      message.error(getErrorMessage(error));
+    }
+  };
+
+  const downloadApplicationDocument = async (file: ApplicationDocumentFile) => {
+    try {
+      await downloadDocumentFile({
+        url: file.download_url || `/document-files/${file.id}/download`,
+        filename: file.original_name,
+        mimeType: file.mime_type ?? undefined,
+      });
+    } catch (error) {
+      message.error(getErrorMessage(error, "Không tải được tài liệu"));
+    }
+  };
+
   const saveApplicationDraft = async () => {
     try {
       setCreationError(null);
@@ -2790,7 +2979,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       setCreationSubmitting(true);
       const values = wizardForm.getFieldsValue(true);
       const application = await ensureApplicationCreated(values);
-      message.success(`Đã lưu đơn đăng ký ${application.application_code}`);
+      message.success(`Đã lưu đơn ${application.application_code}`);
       closeCreationWizard();
     } catch (error) {
       handleCreationFailure(error);
@@ -2865,6 +3054,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           start_date: formatDatePayload(values.contract_start_date),
           end_date: formatDatePayload(values.contract_end_date),
           total_value: values.contract_total_value,
+          currency: values.contract_currency?.trim().toUpperCase(),
         } : undefined,
         agreement_mode: values.agreement_mode,
         agreement_id: values.agreement_mode === "existing" ? values.existing_agreement_id : undefined,
@@ -2932,9 +3122,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
             reduction_percent: normalizedAdjustments
               .filter((item) => item.adjustment_type === "reduction")
               .reduce((sum, item) => sum + item.percentage, 0),
-            ims_reduction_percent: normalizedAdjustments
-              .filter((item) => item.adjustment_type === "ims_reduction")
-              .reduce((sum, item) => sum + item.percentage, 0),
+            ims_reduction_percent: Number(values.integration_reduction_percent ?? 0),
             adjustments: normalizedAdjustments,
             calculation_basis: [
               values.manday_method,
@@ -2976,7 +3164,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
 
   const applicationHasActiveWorkflow = (application: ProjectApplication) => {
     const workflow = String(application.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
-    return ["PENDING_CHECK", "RETURNED_TO_CHECKER", "PENDING_APPROVAL"].includes(workflow);
+    return ["SUBMITTED", "APPROVED"].includes(workflow);
   };
 
   const canEditApplication = (application: ProjectApplication) => (
@@ -3127,7 +3315,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       dataIndex: "status",
       key: "status",
       width: 150,
-      render: (value: string) => <ProjectStatusTag status={value} />,
+      render: (value: string, record) => {
+        const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+        if (workflow === "SUBMITTED") return <Tag color="purple" icon={<ClockCircleOutlined />}>Đã gửi reviewer</Tag>;
+        if (workflow === "RETURNED") return <Tag color="orange" icon={<WarningOutlined />}>Cần chỉnh sửa xem xét</Tag>;
+        if (workflow === "APPROVED") return <Tag color="green" icon={<CheckCircleOutlined />}>Đã phê duyệt xem xét</Tag>;
+        if (workflow === "DRAFT") return <Tag color="blue" icon={<FileSearchOutlined />}>Đang lập xem xét</Tag>;
+        return <ProjectStatusTag status={value} />;
+      },
     },
     {
       title: "Cập nhật",
@@ -3146,18 +3341,27 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           <Button icon={<EyeOutlined />} onClick={() => openApplicationView(record)} size="small">Xem đơn</Button>
           <Button
             icon={<FileSearchOutlined />}
-            onClick={() => openApplicationReview(record)}
+            onClick={() => {
+              const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+              const assignedReviewerId = record.application_reviews?.[0]?.reviewer_id;
+              if (workflow === "SUBMITTED" && assignedReviewerId !== currentUserId) return openApplicationStatus(record);
+              if (workflow === "APPROVED") return openApplicationStatus(record);
+              return openApplicationReview(record);
+            }}
             size="small"
             type={normalizeStatus(record.status) === "accepted" ? "default" : "primary"}
           >
-            {{
-              accepted: "Xem lại",
-              pending_check: "Kiểm tra",
-              pending_approval: "Phê duyệt",
-              under_review: "Sửa xem xét",
-              need_more_info: "Bổ sung",
-              rejected: "Xem lại",
-            }[normalizeStatus(record.status)] ?? "Xem xét"}
+            {(() => {
+              const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+              if (workflow === "SUBMITTED") {
+                const assignedReviewerId = record.application_reviews?.[0]?.reviewer_id;
+                return assignedReviewerId === currentUserId ? "Xem xét" : "Xem trạng thái";
+              }
+              if (workflow === "RETURNED") return "Sửa & gửi lại";
+              if (workflow === "APPROVED") return "Xem lại";
+              if (workflow === "DRAFT") return "Tiếp tục xem xét";
+              return normalizeStatus(record.status) === "accepted" ? "Xem lại" : "Xem xét";
+            })()}
           </Button>
           <Button
             disabled={!canEditApplication(record)}
@@ -3257,6 +3461,28 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
             ]}
             value={standardFilter}
           />
+          {isApplicationWorkspace && (
+            <Select
+              aria-label="Lọc theo tháng cập nhật"
+              onChange={setApplicationMonthFilter}
+              options={[
+                { value: "all", label: "Tất cả tháng" },
+                ...Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: `Tháng ${index + 1}` })),
+              ]}
+              value={applicationMonthFilter}
+            />
+          )}
+          {isApplicationWorkspace && (
+            <Select
+              aria-label="Lọc theo năm cập nhật"
+              onChange={setApplicationYearFilter}
+              options={[
+                { value: "all", label: "Tất cả năm" },
+                ...applicationYears.map((year) => ({ value: String(year), label: String(year) })),
+              ]}
+              value={applicationYearFilter}
+            />
+          )}
         </div>
 
         <Table<any>
@@ -3308,7 +3534,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
             </Button>
           </Space>
         ) : isApplicationWorkspace ? (
-          applicationDialogMode === "view" ? (
+          applicationDialogMode === "status" ? (
+            <Button onClick={closeCreationWizard}>Đóng</Button>
+          ) : applicationDialogMode === "view" ? (
             <Space wrap>
               <Button onClick={closeCreationWizard}>Đóng</Button>
               {savedApplication && canEditApplication(savedApplication) && (
@@ -3326,21 +3554,22 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           ) : hasActiveWorkflow ? (
             <Space wrap>
               <Button onClick={closeCreationWizard}>Đóng</Button>
-              {canCheckWorkflow && (
+              {canReviewWorkflow && (
                 <>
                   <Button
                     danger
                     loading={workflowActionSubmitting}
-                    onClick={() => void submitWorkflowAction("check", "RETURN")}
+                    onClick={() => void submitWorkflowAction("RETURN")}
                   >
-                    Trả người lập
+                    Trả coordinator
                   </Button>
                   <Button
-                    loading={workflowActionSubmitting}
-                    onClick={() => void submitWorkflowAction("check", "CHECKED")}
+                    disabled={capabilityEvaluation?.overall_result !== "CAPABLE"}
+                    loading={workflowActionSubmitting || capabilityEvaluationQuery.isLoading}
+                    onClick={() => void submitWorkflowAction("APPROVE")}
                     type="primary"
                   >
-                    Xác nhận xem xét
+                    Phê duyệt
                   </Button>
                 </>
               )}
@@ -3355,17 +3584,22 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
               )}
               {actualCreationStep === 0 && (
                 <Button loading={creationSubmitting} onClick={() => void saveApplicationDraft()}>
-                  Lưu đơn đăng ký
+                  Lưu đơn
                 </Button>
               )}
               {creationStep < currentWizardSteps.length - 1 ? (
                 <Button loading={creationSubmitting} onClick={() => void goToNextStep()} type="primary">
-                  Tiếp tục xem xét
+                  Lưu & lập xem xét
                 </Button>
               ) : (
-                <Button loading={creationSubmitting} onClick={() => void submitApplicationReview()} type="primary">
-                  Gửi đánh giá viên
-                </Button>
+                <>
+                  <Button loading={creationSubmitting} onClick={() => void saveApplicationReviewDraft()}>
+                    Lưu nháp
+                  </Button>
+                  <Button loading={creationSubmitting} onClick={() => void submitApplicationReview()} type="primary">
+                    {reviewWorkflowStatus === "RETURNED" ? "Gửi lại reviewer" : "Gửi reviewer"}
+                  </Button>
+                </>
               )}
             </Space>
           )
@@ -3407,7 +3641,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           <Alert description={getErrorMessage(creationQueryError)} message="Không tải được dữ liệu tạo hồ sơ" showIcon type="error" />
         ) : (
           <Form<ProjectCreationValues>
-            disabled={isApplicationWorkspace && applicationDialogMode === "view"}
+            disabled={isApplicationWorkspace && (applicationDialogMode === "view" || applicationDialogMode === "status" || (applicationDialogMode === "review" && ["SUBMITTED", "APPROVED"].includes(reviewWorkflowStatus)))}
             form={wizardForm}
             layout="vertical"
             preserve
@@ -3420,12 +3654,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
               </>
             ) : (
               <Alert
-                message={applicationDialogMode === "view" ? "Thông tin đơn đăng ký ban đầu" : "Chỉnh sửa đơn đăng ký"}
+                message={applicationDialogMode === "view" ? "Thông tin đơn đăng ký ban đầu" : applicationDialogMode === "status" ? "Trạng thái Application Review — chỉ đọc" : "Chỉnh sửa đơn đăng ký"}
                 description={applicationDialogMode === "edit" && savedApplication && ["accepted", "rejected"].includes(normalizeStatus(savedApplication.status))
                   ? "Khi lưu thay đổi, kết quả xem xét cũ không còn là căn cứ cuối cùng và đơn sẽ chuyển về trạng thái cần xem xét lại."
                   : undefined}
                 showIcon
-                type={applicationDialogMode === "view" ? "info" : "warning"}
+                type={["view", "status"].includes(applicationDialogMode) ? "info" : "warning"}
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -3554,11 +3788,15 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             showSearch
                           />
                         </Form.Item>
-                        <Form.Item label="Mã đơn đăng ký" name="application_code" rules={[{ required: true, message: "Nhập mã đơn" }]}>
-                          <Input maxLength={50} />
+                        <Form.Item
+                          extra={applicationDialogMode === "create" ? "Mã được backend tự cấp khi lưu để tránh trùng khi nhiều người thao tác đồng thời." : undefined}
+                          label="Mã đơn đăng ký"
+                          name="application_code"
+                        >
+                          <Input disabled maxLength={50} placeholder="Hệ thống tự cấp: APP-YYYY-NNNN" />
                         </Form.Item>
                         <Form.Item label="Ngày đăng ký" name="application_date" rules={[{ required: true, message: "Chọn ngày đăng ký" }]}>
-                          <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+                          <DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} />
                         </Form.Item>
                         <Form.Item className="span-2" label="Tên tổ chức bằng tiếng Anh" name="company_name_en">
                           <Input maxLength={255} placeholder="Organization name in English" />
@@ -3621,9 +3859,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                           />
                         </Form.Item>
                         <Form.Item className="span-2" label="Điều khoản loại trừ (nếu có)" name="excluded_clauses"><Input placeholder="Ví dụ: 8.3" /></Form.Item>
-                        <Form.Item className="span-2" label="Phạm vi đăng ký chứng nhận" name="certification_scope" rules={[{ required: true, message: "Nhập phạm vi chứng nhận" }]}>
+                        <Form.Item className="span-2" label="Phạm vi đăng ký chứng nhận" name="certification_scope" validateTrigger="onBlur" rules={[{ required: true, message: "Nhập phạm vi chứng nhận" }]}>
                           <TextArea
-                            autoSize={{ minRows: 3, maxRows: 6 }}
+                            rows={3}
                             maxLength={4000}
                             onBlur={(event) => {
                               const sites = wizardForm.getFieldValue("sites") ?? [];
@@ -3643,8 +3881,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             <Input />
                           </Form.Item>
                         ) : <div />}
-                        <Form.Item label="Đánh giá giai đoạn 1 đề nghị" name="stage1_requested_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Đánh giá giai đoạn 2 đề nghị" name="stage2_requested_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Đánh giá giai đoạn 1 đề nghị" name="stage1_requested_date"><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Đánh giá giai đoạn 2 đề nghị" name="stage2_requested_date"><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                       </div>
                     </Card>
 
@@ -3669,13 +3907,13 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                               <div className="application-site-card" key={field.key}>
                                 <div className="application-site-card__heading">
                                   <strong>Địa điểm {String(index + 1).padStart(2, "0")}{index === 0 ? " · Trụ sở chính" : ""}</strong>
-                                  {index > 0 && <Button danger onClick={() => remove(field.name)} size="small">Xóa</Button>}
+                                  {index > 0 && <Button danger onClick={() => { remove(field.name); setMandayCalculationDirty(true); }} size="small">Xóa</Button>}
                                 </div>
                                 <div className="project-creation-grid wide">
                                   <Form.Item label="Tên địa điểm" name={[field.name, "site_name"]}><Input /></Form.Item>
                                   <Form.Item label="Số nhân sự" name={[field.name, "employee_count"]}><InputNumber min={0} precision={0} style={{ width: "100%" }} /></Form.Item>
-                                  <Form.Item className="span-2" label="Địa chỉ" name={[field.name, "address"]} rules={[{ required: true, message: "Nhập địa chỉ địa điểm" }]}><TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
-                                  <Form.Item className="span-2" label="Sản phẩm, dịch vụ, hoạt động" name={[field.name, "activities"]}><TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
+                                  <Form.Item className="span-2" label="Địa chỉ" name={[field.name, "address"]} validateTrigger="onBlur" rules={[{ required: true, message: "Nhập địa chỉ địa điểm" }]}><TextArea rows={2} /></Form.Item>
+                                  <Form.Item className="span-2" label="Sản phẩm, dịch vụ, hoạt động" name={[field.name, "activities"]}><TextArea rows={2} /></Form.Item>
                                 </div>
                               </div>
                             ))}
@@ -3696,7 +3934,52 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                           <Form.Item label="Tiêu chuẩn và tổ chức chứng nhận" name="management_system_details"><Input /></Form.Item>
                         ) : <div />}
                         <Form.Item className="span-2" label="Tài liệu, hồ sơ kèm theo" name="associated_documents">
-                          <Checkbox.Group className="application-document-checklist" options={associatedDocumentOptions} />
+                          <Checkbox.Group style={{ width: "100%" }}>
+                            <div className="application-document-upload-grid">
+                              {associatedDocumentOptions.map((documentName, index) => {
+                                const documentType = applicationDocumentType(index);
+                                const uploaded = applicationDocumentFiles.find((file) => file.document_type === documentType);
+                                return (
+                                  <div className="application-document-upload-row" key={documentName}>
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                      <Checkbox disabled value={documentName}>{documentName}</Checkbox>
+                                      {uploaded ? <div style={{ paddingLeft: 24 }}><Text type="secondary" ellipsis={{ tooltip: uploaded.original_name }}>{uploaded.original_name}</Text></div> : null}
+                                    </div>
+                                    <Space size={6}>
+                                      {uploaded ? (
+                                        canPreviewApplicationDocument(uploaded) ? (
+                                          <Button icon={<EyeOutlined />} onClick={() => void previewApplicationDocument(uploaded)} size="small">
+                                            Xem file
+                                          </Button>
+                                        ) : (
+                                          <Button onClick={() => void downloadApplicationDocument(uploaded)} size="small">
+                                            {applicationDocumentDownloadLabel(uploaded)}
+                                          </Button>
+                                        )
+                                      ) : null}
+                                      <Upload
+                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.rar"
+                                        beforeUpload={(file) => {
+                                          void uploadApplicationSupportingDocument(documentName, index, file as File);
+                                          return Upload.LIST_IGNORE;
+                                        }}
+                                        maxCount={1}
+                                        showUploadList={false}
+                                      >
+                                        <Button
+                                          icon={<UploadOutlined />}
+                                          loading={uploadingApplicationDocument === documentType}
+                                          size="small"
+                                        >
+                                          {uploaded ? "Thay file" : "Tải file"}
+                                        </Button>
+                                      </Upload>
+                                    </Space>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </Checkbox.Group>
                         </Form.Item>
                         <Form.Item label="Đơn vị tư vấn" name="consultant_organization"><Input /></Form.Item>
                         <Form.Item label="Chuyên gia tư vấn" name="consultant_name"><Input /></Form.Item>
@@ -3735,45 +4018,88 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                     type="success"
                   />
                   {latestWorkflowReview?.id && (
-                    <Card size="small" title="Quy trình xem xét hai người">
+                    <Card size="small" title="Quy trình Application Review">
+                      {latestInvalidationAction && (
+                        <Alert
+                          description={latestInvalidationAction.comment || "Dữ liệu trọng yếu của đơn đã thay đổi sau phê duyệt. Cần thực hiện lại Application Review trước khi lập hợp đồng."}
+                          message="Bản xem xét cần thực hiện lại"
+                          showIcon
+                          style={{ marginBottom: 12 }}
+                          type="warning"
+                        />
+                      )}
                       <Descriptions bordered column={{ xs: 1, md: 2 }} size="small">
                         <Descriptions.Item label="Trạng thái">
                           <Tag color={
                             reviewWorkflowStatus === "APPROVED" ? "green" :
-                            reviewWorkflowStatus === "REJECTED" ? "red" :
-                            reviewWorkflowStatus.includes("RETURNED") ? "orange" :
-                            reviewWorkflowStatus === "PENDING_APPROVAL" ? "purple" : "gold"
+                            reviewWorkflowStatus === "RETURNED" ? "orange" :
+                            reviewWorkflowStatus === "SUBMITTED" ? "purple" : "gold"
                           }>
                             {{
-                              PENDING_CHECK: "Chờ kiểm tra kỹ thuật",
-                              PENDING_APPROVAL: "Chờ phê duyệt",
-                              RETURNED_TO_PREPARER: "Trả người lập",
-                              RETURNED_TO_CHECKER: "Trả người kiểm tra",
+                              DRAFT: "Bản nháp",
+                              SUBMITTED: "Đã gửi reviewer",
+                              RETURNED: latestInvalidationAction ? "Cần xem xét lại" : "Reviewer trả lại",
                               APPROVED: "Đã phê duyệt",
-                              REJECTED: "Đã từ chối",
                             }[reviewWorkflowStatus] ?? reviewWorkflowStatus}
                           </Tag>
                         </Descriptions.Item>
                         <Descriptions.Item label="Người lập">
                           {latestWorkflowReview.prepared_by?.full_name || latestWorkflowReview.prepared_by?.username || "—"}
                         </Descriptions.Item>
-                        <Descriptions.Item label="Người kiểm tra">
-                          {latestWorkflowReview.checker?.full_name || latestWorkflowReview.checked_by_name || "—"}
+                        <Descriptions.Item label="Reviewer">
+                          {latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "—"}
                         </Descriptions.Item>
-                        <Descriptions.Item label="Ý kiến kiểm tra">
-                          {latestWorkflowReview.checker_comment || "—"}
+                        <Descriptions.Item label="Ý kiến reviewer">
+                          {latestWorkflowReview.approver_comment || "—"}
                         </Descriptions.Item>
                       </Descriptions>
-                      {canCheckWorkflow && (
-                        <div style={{ marginTop: 12 }}>
-                          <TextArea
-                            maxLength={4000}
-                            onChange={(event) => setWorkflowComment(event.target.value)}
-                            placeholder="Nhận xét của đánh giá viên/người kiểm tra kỹ thuật"
-                            rows={3}
-                            value={workflowComment}
-                          />
-                        </div>
+                      {reviewWorkflowStatus === "SUBMITTED" && !canReviewWorkflow && (
+                        <Alert
+                          description="Tài khoản hiện tại là người lập/theo dõi nên chỉ xem trạng thái. Reviewer được chỉ định cần đăng nhập bằng tài khoản của họ để thực hiện Phê duyệt hoặc Trả lại."
+                          message={`Đang chờ reviewer: ${latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "Chưa xác định"}`}
+                          showIcon
+                          style={{ marginTop: 12 }}
+                          type="info"
+                        />
+                      )}
+                      <Card size="small" style={{ marginTop: 12 }} title="Năng lực tổ chức chứng nhận">
+                        {capabilityEvaluationQuery.isLoading ? (
+                          <Text type="secondary">Đang đánh giá Program + IAF…</Text>
+                        ) : capabilityEvaluation ? (
+                          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                            {capabilityEvaluation.items.map((item, index) => (
+                              <div key={`${item.program_code}-${item.iaf_code ?? "unresolved"}-${index}`}>
+                                <Space wrap>
+                                  <Text strong>{item.program_name} / IAF {item.iaf_code ?? "—"}</Text>
+                                  <Tag color={item.result === "CAPABLE" ? "green" : item.result === "NOT_CAPABLE" ? "red" : "orange"}>
+                                    {item.result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : item.result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}
+                                  </Tag>
+                                </Space>
+                                <div><Text type="secondary">{item.reason}</Text></div>
+                              </div>
+                            ))}
+                            <Alert
+                              message={`Kết luận tổng thể: ${capabilityEvaluation.overall_result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}`}
+                              showIcon
+                              type={capabilityEvaluation.overall_result === "CAPABLE" ? "success" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "error" : "warning"}
+                            />
+                          </Space>
+                        ) : (
+                          <Alert message="Chưa thể đánh giá năng lực" description={capabilityEvaluationQuery.isError ? getErrorMessage(capabilityEvaluationQuery.error) : "Chưa có bản xem xét"} showIcon type="warning" />
+                        )}
+                      </Card>
+                      {canReviewWorkflow && (
+                        <ConfigProvider componentDisabled={false}>
+                          <div style={{ marginTop: 12 }}>
+                            <TextArea
+                              maxLength={4000}
+                              onChange={(event) => setWorkflowComment(event.target.value)}
+                              placeholder="Nhận xét của reviewer; bắt buộc khi trả lại"
+                              rows={3}
+                              value={workflowComment}
+                            />
+                          </div>
+                        </ConfigProvider>
                       )}
                     </Card>
                   )}
@@ -3802,7 +4128,10 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                                 <Descriptions.Item label="Mã khách hàng">
                                   {reviewApplication?.customers?.customer_code ?? "—"}
                                 </Descriptions.Item>
-                                <Descriptions.Item label="Mã số thuế">
+                                <Descriptions.Item label="Quốc gia">
+                                  {reviewApplication?.customers?.country_code ?? "VN"}
+                                </Descriptions.Item>
+                                <Descriptions.Item label={(reviewApplication?.customers?.country_code ?? "VN") === "VN" ? "Mã số thuế" : "Tax ID / Business ID"}>
                                   {reviewApplication?.customers?.tax_code ?? "—"}
                                 </Descriptions.Item>
                                 <Descriptions.Item label="Điện thoại tổ chức">
@@ -3883,23 +4212,25 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                               </Divider>
                               {reviewAssociatedDocuments.length > 0 ? (
                                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 8 }}>
-                                  {reviewAssociatedDocuments.map((documentName, index) => (
-                                    <div
-                                      key={`${documentName}-${index}`}
-                                      style={{
-                                        alignItems: "flex-start",
-                                        background: "#fafafa",
-                                        border: "1px solid #f0f0f0",
-                                        borderRadius: 8,
-                                        display: "flex",
-                                        gap: 8,
-                                        padding: "9px 11px",
-                                      }}
-                                    >
-                                      <CheckCircleOutlined style={{ color: "#1677ff", marginTop: 3 }} />
-                                      <Text>{documentName}</Text>
-                                    </div>
-                                  ))}
+                                  {reviewAssociatedDocuments.map((documentName, index) => {
+                                    const uploaded = applicationDocumentFiles.find((file) => file.document_type === applicationDocumentTypeForName(documentName));
+                                    return (
+                                      <div className="application-review-document-row" key={`${documentName}-${index}`}>
+                                        <CheckCircleOutlined style={{ color: "#1677ff", marginTop: 3 }} />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <Text>{documentName}</Text>
+                                          {uploaded ? <div><Text type="secondary">{uploaded.original_name}</Text></div> : null}
+                                        </div>
+                                        {uploaded ? (
+                                          canPreviewApplicationDocument(uploaded) ? (
+                                            <Button icon={<EyeOutlined />} onClick={() => void previewApplicationDocument(uploaded)} size="small">Xem file</Button>
+                                          ) : (
+                                            <Button onClick={() => void downloadApplicationDocument(uploaded)} size="small">{applicationDocumentDownloadLabel(uploaded)}</Button>
+                                          )
+                                        ) : <Tag>Chưa tải file</Tag>}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <Empty description="Chưa khai báo tài liệu kèm theo" image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -3982,7 +4313,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                       </Form.List>
                     </Card>
 
-                    <Card size="small" title="Lĩnh vực, mã ngành và khả năng đáp ứng chuyên gia">
+                    <Card size="small" title="Lĩnh vực, mã ngành và năng lực tổ chức chứng nhận">
                       <div className="project-creation-grid wide">
                         <Form.Item className="span-2" label="Lĩnh vực đánh giá" name="audit_field" rules={[{ required: true, message: "Nhập lĩnh vực đánh giá" }]}>
                           <TextArea autoSize={{ minRows: 2, maxRows: 4 }} />
@@ -4044,50 +4375,51 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                         </div>
 
                         <div className="span-2">
-                          {!selectedIafCodes.length ? (
-                            <Alert description="Chọn mã ISIC, sau đó xác nhận NACE và IAF để kiểm tra nguồn lực." message="Chưa có mã IAF" showIcon type="info" />
-                          ) : uncoveredIafCodes.length === 0 ? (
-                            <Alert
-                              description={<Space direction="vertical" size={4}><Text>Đã có chuyên gia cho toàn bộ mã IAF: {selectedIafCodes.join(", ")}.</Text><Space wrap>{matchingIndustryExperts.slice(0, 8).map((expert) => <Tag color="green" key={expert.id}>{expert.full_name}</Tag>)}</Space></Space>}
-                              message="Có thể đáp ứng nguồn lực chuyên gia" showIcon type="success"
-                            />
-                          ) : (
-                            <Alert description={`Chưa có chuyên gia được phê duyệt cho IAF ${uncoveredIafCodes.join(", ")}.`} message="Chưa đáp ứng đầy đủ nguồn lực" showIcon type="warning" />
-                          )}
-                        </div>
-
-                        <Form.Item
-                          className="span-2"
-                          label="Chuyên gia phù hợp dự kiến để xác nhận nguồn lực"
-                          name="proposed_auditor_id"
-                          rules={[{ required: true, message: "Chọn chuyên gia có mã ngành phù hợp" }]}
-                          tooltip="Trường này dùng để xác nhận tổ chức chứng nhận có nguồn lực phù hợp với mã IAF của đơn. Đây chưa phải quyết định phân công đoàn đánh giá."
-                        >
-                          <Select
-                            allowClear
-                            notFoundContent={selectedIafCode ? "Không có chuyên gia phù hợp mã IAF đã chọn" : "Chọn mã IAF trước"}
-                            optionFilterProp="label"
-                            options={matchingIndustryExperts.map((expert) => ({
-                              value: expert.id,
-                              label: `${expert.employee_code ?? "Chưa có mã"} · ${expert.full_name}`,
-                            }))}
-                            placeholder="Chọn chuyên gia phù hợp mã ngành"
-                            showSearch
-                          />
-                        </Form.Item>
-                        <div className="span-2">
-                          {selectedResourceExpert && (
-                            <Card size="small" type="inner" title={selectedResourceExpert.full_name}>
-                              <Space wrap>
-                                {approvedActiveCompetencies(selectedResourceExpert).map((competency, index) => (
-                                  <Tag key={`${competency.standard_code}-${competency.iaf_code}-${index}`}>
-                                    {competency.standard_code ?? competency.management_system ?? "Năng lực"} · IAF {competency.iaf_code ?? "—"}
-                                    {competency.nace_code ? ` · NACE ${competency.nace_code}` : ""}
-                                  </Tag>
-                                ))}
+                          <Card size="small" title="Đối chiếu năng lực tổ chức chứng nhận">
+                            {!activeCapabilityReviewId ? (
+                              <Alert
+                                message="Đối chiếu năng lực tổ chức trước khi gửi reviewer"
+                                description={
+                                  <Space direction="vertical" size={8}>
+                                    <Text>Năng lực được đánh giá theo Chương trình/Tiêu chuẩn + mã IAF của tổ chức chứng nhận; không phụ thuộc chuyên gia dự kiến.</Text>
+                                    <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()} type="primary">
+                                      Đối chiếu năng lực tổ chức
+                                    </Button>
+                                  </Space>
+                                }
+                                showIcon
+                                type="info"
+                              />
+                            ) : capabilityEvaluationQuery.isLoading ? (
+                              <Skeleton active paragraph={{ rows: 2 }} />
+                            ) : capabilityEvaluation ? (
+                              <Space direction="vertical" size={8} style={{ width: "100%" }}>
+                                <div className="cb-capability-grid">
+                                  {capabilityEvaluation.items.map((item, index) => (
+                                    <div className="cb-capability-item" key={`${item.program_code}-${item.iaf_code ?? "unresolved"}-${index}`}>
+                                      <div><Text strong>{item.program_name}</Text> · IAF {item.iaf_code ?? "—"}</div>
+                                      <Tag color={item.result === "CAPABLE" ? "green" : item.result === "NOT_CAPABLE" ? "red" : "orange"}>
+                                        {item.result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : item.result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}
+                                      </Tag>
+                                      <Text type="secondary">{item.reason}</Text>
+                                    </div>
+                                  ))}
+                                </div>
+                                <Alert
+                                  message={`Kết luận năng lực tổ chức: ${capabilityEvaluation.overall_result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}`}
+                                  showIcon
+                                  type={capabilityEvaluation.overall_result === "CAPABLE" ? "success" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "error" : "warning"}
+                                />
+                                {canEditReviewDraft ? (
+                                  <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()}>
+                                    Kiểm tra lại năng lực tổ chức
+                                  </Button>
+                                ) : null}
                               </Space>
-                            </Card>
-                          )}
+                            ) : (
+                              <Alert message="Chưa thể đối chiếu năng lực tổ chức" showIcon type="warning" />
+                            )}
+                          </Card>
                         </div>
                       </div>
                     </Card>
@@ -4112,8 +4444,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                       {isIntegratedAudit && (
                         <Card className="ims-configuration-card" size="small" title="Thiết lập giảm thời gian đánh giá tích hợp theo IAF MD11">
                           <Alert
-                            description="Danh sách dưới đây chỉ là đoàn dự kiến để tính khả năng thực hiện đánh giá kết hợp theo công thức IAF MD11. Việc chỉ định đoàn chính thức được thực hiện ở phân hệ Lịch & nguồn lực."
-                            message="Tách biệt với kiểm tra khả năng đáp ứng mã ngành ở phía trên"
+                            description="Đây là giả định phục vụ tính man-day tích hợp, không phải quyết định phân công đoàn chính thức. Phân công đoàn thực hiện tại Lịch & nguồn lực."
+                            message="Chuyên gia dự kiến dùng để xác định khả năng đánh giá kết hợp theo IAF MD11"
                             showIcon
                             style={{ marginBottom: 12 }}
                             type="info"
@@ -4121,7 +4453,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                           <Form.Item
                             label="Đoàn chuyên gia dự kiến dùng để tính IAF MD11"
                             name="proposed_auditor_ids"
-                            rules={[{ required: true, message: "Chọn ít nhất một chuyên gia dự kiến" }]}
+                            rules={[{ required: true, message: "Chọn ít nhất một chuyên gia dự kiến để tính IAF MD11" }]}
                           >
                             <Select
                               mode="multiple"
@@ -4313,6 +4645,118 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                         </Card>
                       )}
 
+                      <Alert
+                        message="Trình tự tính man-day"
+                        description="Hoàn thiện mức rủi ro/độ phức tạp, chuyên gia dự kiến cho IAF MD11 (nếu có) và toàn bộ yếu tố tăng/giảm trước. Sau đó bấm Tính đề xuất; kiểm tra kết quả rồi bấm Áp dụng đề xuất để lưu vào biểu mẫu."
+                        showIcon
+                        type="info"
+                        style={{ marginBottom: 12 }}
+                      />
+
+                      <Divider orientation="left" plain>Yếu tố tăng/giảm và căn cứ</Divider>
+                      <Form.List name="manday_adjustments">
+                        {(fields, { add, remove }) => (
+                          <div className="manday-adjustment-list">
+                            {fields.length === 0 && (
+                              <Empty
+                                description="Chưa có yếu tố điều chỉnh. MD cuối cùng đang bằng MD cơ sở sau hệ số rủi ro/tích hợp."
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                              />
+                            )}
+                            {fields.map((field, index) => (
+                              <div className="manday-adjustment-row" key={field.key}>
+                                <span className="manday-adjustment-row__number">{index + 1}</span>
+                                <Form.Item
+                                  label="Loại điều chỉnh"
+                                  name={[field.name, "adjustment_type"]}
+                                  rules={[{ required: true, message: "Chọn loại" }]}
+                                >
+                                  <Select
+                                    onChange={(value: MandayAdjustmentForm["adjustment_type"]) => {
+                                      setMandayCalculationDirty(true);
+                                      const options = getMandayFactorOptions(value, isIntegratedAudit);
+                                      wizardForm.setFieldValue(
+                                        ["manday_adjustments", field.name, "factor_code"],
+                                        options[0]?.value,
+                                      );
+                                      wizardForm.setFieldValue(
+                                        ["manday_adjustments", field.name, "percentage"],
+                                        10,
+                                      );
+                                    }}
+                                    options={[
+                                      { value: "increase", label: "Tăng ngày công" },
+                                      { value: "reduction", label: "Giảm theo MD5" },
+                                    ]}
+                                  />
+                                </Form.Item>
+                                <Form.Item
+                                  noStyle
+                                  shouldUpdate={(previous, current) => (
+                                    previous?.manday_adjustments?.[field.name]?.adjustment_type !==
+                                    current?.manday_adjustments?.[field.name]?.adjustment_type
+                                  )}
+                                >
+                                  {() => {
+                                    const adjustmentType = wizardForm.getFieldValue([
+                                      "manday_adjustments",
+                                      field.name,
+                                      "adjustment_type",
+                                    ]) as MandayAdjustmentForm["adjustment_type"] | undefined;
+                                    return (
+                                      <Form.Item
+                                        label="Yếu tố"
+                                        name={[field.name, "factor_code"]}
+                                        rules={[{ required: true, message: "Chọn yếu tố đúng loại điều chỉnh" }]}
+                                      >
+                                        <Select
+                                          onChange={() => setMandayCalculationDirty(true)}
+                                          optionFilterProp="label"
+                                          options={getMandayFactorOptions(adjustmentType, isIntegratedAudit)}
+                                          popupMatchSelectWidth={620}
+                                          showSearch
+                                        />
+                                      </Form.Item>
+                                    );
+                                  }}
+                                </Form.Item>
+                                <Form.Item
+                                  label="Tỷ lệ (%)"
+                                  name={[field.name, "percentage"]}
+                                  rules={[
+                                    { required: true, message: "Nhập tỷ lệ" },
+                                    { type: "number", min: 0.01, max: 100, message: "Tỷ lệ phải lớn hơn 0" },
+                                  ]}
+                                >
+                                  <InputNumber min={0.01} max={100} precision={2} style={{ width: "100%" }} />
+                                </Form.Item>
+                                <Form.Item
+                                  className="manday-adjustment-row__reason"
+                                  label="Lý do/căn cứ áp dụng"
+                                  name={[field.name, "reason"]}
+                                  rules={[{ required: true, message: "Nhập lý do/căn cứ" }]}
+                                >
+                                  <Input placeholder="Nêu điều kiện thực tế, tài liệu kiểm tra và căn cứ tăng/giảm" />
+                                </Form.Item>
+                                <Button danger onClick={() => { remove(field.name); setMandayCalculationDirty(true); }} type="text">Xóa</Button>
+                              </div>
+                            ))}
+                            <Button
+                              block
+                              onClick={() => add({
+                                adjustment_type: "increase",
+                                factor_code: increaseMandayFactorOptions[0].value,
+                                percentage: 10,
+                                reason: "",
+                              })}
+                              type="dashed"
+                            >
+                              <PlusOutlined /> Thêm yếu tố tăng/giảm
+                            </Button>
+                          </div>
+                        )}
+                      </Form.List>
+
                       {mandaySuggestion ? (
                         <Alert
                           className="manday-suggestion-alert"
@@ -4343,7 +4787,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                                 loading={mandayEngineLoading}
                                 onClick={() => void calculateMandaysNow()}
                               >
-                                Tính lại đề xuất
+                                {mandayCalculationDirty ? "Tính lại sau khi hoàn tất thông tin" : "Tính lại đề xuất"}
                               </Button>
                               <Button
                                 disabled={mandayCalculationDirty || (isIntegratedAudit && !imsConfigurationReady)}
@@ -4437,120 +4881,21 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                         </Form.Item>
                       </div>
 
-                      <Divider orientation="left" plain>Yếu tố tăng/giảm và căn cứ</Divider>
-                      <Form.List name="manday_adjustments">
-                        {(fields, { add, remove }) => (
-                          <div className="manday-adjustment-list">
-                            {fields.length === 0 && (
-                              <Empty
-                                description="Chưa có yếu tố điều chỉnh. MD cuối cùng đang bằng MD cơ sở sau hệ số rủi ro/tích hợp."
-                                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                              />
-                            )}
-                            {fields.map((field, index) => (
-                              <div className="manday-adjustment-row" key={field.key}>
-                                <span className="manday-adjustment-row__number">{index + 1}</span>
-                                <Form.Item
-                                  label="Loại điều chỉnh"
-                                  name={[field.name, "adjustment_type"]}
-                                  rules={[{ required: true, message: "Chọn loại" }]}
-                                >
-                                  <Select
-                                    onChange={(value: MandayAdjustmentForm["adjustment_type"]) => {
-                                      const options = getMandayFactorOptions(value, isIntegratedAudit);
-                                      wizardForm.setFieldValue(
-                                        ["manday_adjustments", field.name, "factor_code"],
-                                        options[0]?.value,
-                                      );
-                                      wizardForm.setFieldValue(
-                                        ["manday_adjustments", field.name, "percentage"],
-                                        value === "ims_reduction"
-                                          ? Math.max(5, Number(integrationReductionPercent || 0))
-                                          : 10,
-                                      );
-                                    }}
-                                    options={[
-                                      { value: "increase", label: "Tăng ngày công" },
-                                      { value: "reduction", label: "Giảm theo MD5" },
-                                      ...(isIntegratedAudit
-                                        ? [{ value: "ims_reduction", label: "Giảm do tích hợp IAF MD11" }]
-                                        : []),
-                                    ]}
-                                  />
-                                </Form.Item>
-                                <Form.Item
-                                  noStyle
-                                  shouldUpdate={(previous, current) => (
-                                    previous?.manday_adjustments?.[field.name]?.adjustment_type !==
-                                    current?.manday_adjustments?.[field.name]?.adjustment_type
-                                  )}
-                                >
-                                  {() => {
-                                    const adjustmentType = wizardForm.getFieldValue([
-                                      "manday_adjustments",
-                                      field.name,
-                                      "adjustment_type",
-                                    ]) as MandayAdjustmentForm["adjustment_type"] | undefined;
-                                    return (
-                                      <Form.Item
-                                        label="Yếu tố"
-                                        name={[field.name, "factor_code"]}
-                                        rules={[{ required: true, message: "Chọn yếu tố đúng loại điều chỉnh" }]}
-                                      >
-                                        <Select
-                                          optionFilterProp="label"
-                                          options={getMandayFactorOptions(adjustmentType, isIntegratedAudit)}
-                                          popupMatchSelectWidth={620}
-                                          showSearch
-                                        />
-                                      </Form.Item>
-                                    );
-                                  }}
-                                </Form.Item>
-                                <Form.Item
-                                  label="Tỷ lệ (%)"
-                                  name={[field.name, "percentage"]}
-                                  rules={[
-                                    { required: true, message: "Nhập tỷ lệ" },
-                                    { type: "number", min: 0.01, max: 100, message: "Tỷ lệ phải lớn hơn 0" },
-                                  ]}
-                                >
-                                  <InputNumber min={0.01} max={100} precision={2} style={{ width: "100%" }} />
-                                </Form.Item>
-                                <Form.Item
-                                  className="manday-adjustment-row__reason"
-                                  label="Lý do/căn cứ áp dụng"
-                                  name={[field.name, "reason"]}
-                                  rules={[{ required: true, message: "Nhập lý do/căn cứ" }]}
-                                >
-                                  <Input placeholder="Nêu điều kiện thực tế, tài liệu kiểm tra và căn cứ tăng/giảm" />
-                                </Form.Item>
-                                <Button danger onClick={() => remove(field.name)} type="text">Xóa</Button>
-                              </div>
-                            ))}
-                            <Button
-                              block
-                              onClick={() => add({
-                                adjustment_type: "increase",
-                                factor_code: increaseMandayFactorOptions[0].value,
-                                percentage: 10,
-                                reason: "",
-                              })}
-                              type="dashed"
-                            >
-                              <PlusOutlined /> Thêm yếu tố tăng/giảm
-                            </Button>
-                          </div>
-                        )}
-                      </Form.List>
 
                       <Divider orientation="left" plain>Phân bổ và thời gian đánh giá</Divider>
+                      <Alert
+                        action={<Button onClick={() => suggestCertificationCycleMonths(wizardForm.getFieldValue("stage2_proposed_date"), true)} size="small">Gợi ý lại từ GĐ2</Button>}
+                        description="Chọn tháng GĐ2 để hệ thống tự gợi ý GS1 = +12 tháng, GS2 = +24 tháng và tái chứng nhận = +36 tháng. Có thể chỉnh thủ công."
+                        showIcon
+                        style={{ marginBottom: 12 }}
+                        type="info"
+                      />
                       <div className="project-creation-grid manday-grid">
-                        <Form.Item label="Dự kiến giai đoạn 1" name="stage1_proposed_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Dự kiến giai đoạn 2" name="stage2_proposed_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Giám sát lần 1" name="surveillance1_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Giám sát lần 2" name="surveillance2_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Tái chứng nhận" name="recertification_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Dự kiến giai đoạn 1" name="stage1_proposed_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Dự kiến giai đoạn 2" name="stage2_proposed_date"><DatePicker className="notranslate" onChange={(value) => suggestCertificationCycleMonths(value)} popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Giám sát lần 1" name="surveillance1_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Giám sát lần 2" name="surveillance2_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Tái chứng nhận" name="recertification_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                       </div>
                     </Card>
 
@@ -4563,22 +4908,22 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             { value: "REJECTED", label: "Không chấp nhận" },
                           ]} />
                         </Form.Item>
-                        <Form.Item label="Mã khách hàng" name="client_code"><Input /></Form.Item>
+                        <Form.Item label="Mã khách hàng" name="client_code"><Input readOnly /></Form.Item>
                         <Form.Item className="span-2" label="Kết luận" name="conclusion" rules={[{ required: true, message: "Nhập kết luận" }]}><TextArea autoSize={{ minRows: 3, maxRows: 6 }} /></Form.Item>
                         <Form.Item
-                          label="Đánh giá viên kiểm tra/xác nhận"
-                          name="checker_user_id"
-                          rules={[{ required: true, message: "Chọn đánh giá viên kiểm tra/xác nhận" }]}
+                          label="Reviewer"
+                          name="reviewer_id"
+                          rules={[{ required: true, message: "Chọn một reviewer" }]}
                         >
                           <Select
                             allowClear
                             loading={reviewAssigneesQuery.isLoading}
                             optionFilterProp="label"
-                            options={reviewAssignees.checkers.map((user) => ({
+                            options={reviewAssignees.reviewers.map((user) => ({
                               value: user.id,
                               label: `${user.full_name?.trim() || user.username} · ${user.roles?.join(", ") || "Tài khoản nội bộ"}`,
                             }))}
-                            placeholder="Chọn đánh giá viên có thẩm quyền xem xét"
+                            placeholder="Chọn đánh giá viên/chuyên gia khác coordinator"
                             showSearch
                           />
                         </Form.Item>
@@ -4629,10 +4974,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                     {contractMode === "new" && (
                       <div className="project-creation-grid compact">
                         <Form.Item className="span-2" label="Số hợp đồng" name="contract_number" rules={[{ required: true, message: "Nhập số hợp đồng" }]}><Input maxLength={50} /></Form.Item>
-                        <Form.Item label="Ngày ký" name="contract_sign_date" rules={[{ required: true, message: "Chọn ngày ký" }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Ngày hiệu lực" name="contract_start_date" rules={[{ required: true, message: "Chọn ngày hiệu lực" }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Ngày kết thúc" name="contract_end_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                        <Form.Item label="Giá trị hợp đồng" name="contract_total_value"><InputNumber addonAfter="VND" min={0} precision={0} style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Ngày ký" name="contract_sign_date" rules={[{ required: true, message: "Chọn ngày ký" }]}><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Ngày hiệu lực" name="contract_start_date" rules={[{ required: true, message: "Chọn ngày hiệu lực" }]}><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Ngày kết thúc" name="contract_end_date"><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Giá trị hợp đồng" name="contract_total_value"><InputNumber min={0} precision={0} style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item label="Tiền tệ" name="contract_currency"><Select options={["VND", "USD", "EUR"].map((value) => ({ value, label: value }))} /></Form.Item>
                       </div>
                     )}
                     {contractMode !== "none" && (
@@ -4655,7 +5001,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             extra="PDF, Word, JPG hoặc PNG; tối đa 20 MB. Tải lại cùng loại sẽ tự tạo phiên bản mới."
                           >
                             <Upload
-                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.rar"
                               beforeUpload={(file) => {
                                 if (file.size > 20 * 1024 * 1024) {
                                   message.error("Tệp hợp đồng không được vượt quá 20 MB");
@@ -4705,7 +5051,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                     {agreementMode === "new" && (
                       <div className="project-creation-grid compact">
                         <Form.Item className="span-2" label="Số thỏa thuận" name="agreement_number" rules={[{ required: true, message: "Nhập số thỏa thuận" }]}><Input maxLength={50} /></Form.Item>
-                        <Form.Item className="span-2" label="Ngày ký" name="agreement_sign_date" rules={[{ required: true, message: "Chọn ngày ký" }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                        <Form.Item className="span-2" label="Ngày ký" name="agreement_sign_date" rules={[{ required: true, message: "Chọn ngày ký" }]}><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                       </div>
                     )}
                     {agreementMode !== "none" && (
@@ -4728,7 +5074,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             extra="PDF, Word, JPG hoặc PNG; tối đa 20 MB. Tải lại cùng loại sẽ tự tạo phiên bản mới."
                           >
                             <Upload
-                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.zip,.rar"
                               beforeUpload={(file) => {
                                 if (file.size > 20 * 1024 * 1024) {
                                   message.error("Tệp thỏa thuận không được vượt quá 20 MB");
@@ -4796,9 +5142,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                             ))}
                           </div>
                         </>
-                      ) : (
-                        <span>{creationError}</span>
-                      )}
+                      ) : null}
                     </div>
                   )}
                   message={creationError ?? "Dữ liệu chưa hoàn chỉnh"}
@@ -4816,7 +5160,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         onCancel={() => setIndustrySelectorOpen(false)}
         open={industrySelectorOpen}
         title="Chọn và đối chiếu mã ISIC → NACE → IAF"
-        width={1180}
+        width={1280}
         footer={[
           <Button key="cancel" onClick={() => setIndustrySelectorOpen(false)}>Hủy</Button>,
           <Button key="resolve" loading={industryResolveLoading} onClick={resolveSelectedIndustryCodes}>Tra cứu NACE / IAF</Button>,
@@ -4824,12 +5168,18 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         ]}
       >
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <Alert message="Chọn một hoặc nhiều mã ISIC" description="Hệ thống chỉ đề xuất từ ánh xạ đã phê duyệt; người xem xét phải xác nhận NACE và IAF." showIcon type="info" />
+          <Alert
+            message="Chọn một hoặc nhiều mã ISIC"
+            description="Có thể tra nhiều ISIC cùng lúc. Mỗi ISIC được đối chiếu NACE → IAF; kết quả sau đó áp dụng cho các chương trình quản lý đã chọn."
+            showIcon
+            type="info"
+          />
           <div className="project-creation-grid wide">
             <div className="span-2">
               <Text strong>Mã ISIC đăng ký</Text>
               <Select
                 mode="multiple"
+                maxTagCount="responsive"
                 showSearch
                 virtual
                 listHeight={360}
@@ -4856,7 +5206,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
             </div>
           </div>
           {industryResolutionRows.length > 0 && (
-            <Table
+            <>
+              <Alert
+                message={`${new Set(industryResolutionRows.map((row) => row.response.source.id)).size} mã ISIC · ${industryResolutionRows.length} dòng đối chiếu theo chương trình`}
+                description="Một hoạt động/ISIC dùng cùng lựa chọn NACE → IAF cho các chương trình áp dụng; hệ thống tự đồng bộ lựa chọn giữa các dòng cùng ISIC."
+                showIcon
+                type="success"
+              />
+              <Table
               dataSource={industryResolutionRows}
               pagination={false}
               virtual
@@ -4864,11 +5221,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
               scroll={{ x: 1080, y: 430 }}
               columns={[
                 { title: "ISIC / hệ thống", width: 220, render: (_, row) => <div><strong>{row.response.source.code}</strong> · {managementSystemLabels[row.response.management_system]}<br /><Text type="secondary">{row.response.source.title_vi ?? row.response.source.title_en}</Text></div> },
-                { title: "NACE đề xuất", width: 270, render: (_, row) => <Select value={row.selected_nace_mapping_id} onChange={(value) => updateIndustryResolutionRow(row.key, { selected_nace_mapping_id: value })} style={{ width: "100%" }} optionFilterProp="label" options={row.response.nace_candidates.map((candidate) => ({ value: candidate.mapping_id, label: `${candidate.nace.code} · ${candidate.nace.title_vi ?? candidate.nace.title_en} · ${candidate.mapping_type}` }))} /> },
-                { title: "IAF đề xuất", width: 250, render: (_, row) => { const nace = row.response.nace_candidates.find((candidate) => candidate.mapping_id === row.selected_nace_mapping_id); return <Select value={row.selected_iaf_mapping_id} onChange={(value) => updateIndustryResolutionRow(row.key, { selected_iaf_mapping_id: value })} style={{ width: "100%" }} optionFilterProp="label" options={(nace?.iaf_candidates ?? []).map((candidate) => ({ value: candidate.mapping_id, label: `IAF ${candidate.iaf_code} · ${candidate.iaf_name}` }))} />; } },
+                { title: "NACE đề xuất", width: 270, render: (_, row) => <Select className="industry-resolution-select" popupMatchSelectWidth={480} value={row.selected_nace_mapping_id} onChange={(value) => updateIndustryResolutionRow(row.key, { selected_nace_mapping_id: value })} style={{ width: "100%" }} optionFilterProp="label" options={row.response.nace_candidates.map((candidate) => ({ value: candidate.mapping_id, label: `${candidate.nace.code} · ${candidate.nace.title_vi ?? candidate.nace.title_en} · ${candidate.mapping_type}` }))} /> },
+                { title: "IAF đề xuất", width: 250, render: (_, row) => { const nace = row.response.nace_candidates.find((candidate) => candidate.mapping_id === row.selected_nace_mapping_id); return <Select className="industry-resolution-select" popupMatchSelectWidth={420} value={row.selected_iaf_mapping_id} onChange={(value) => updateIndustryResolutionRow(row.key, { selected_iaf_mapping_id: value })} style={{ width: "100%" }} optionFilterProp="label" options={(nace?.iaf_candidates ?? []).map((candidate) => ({ value: candidate.mapping_id, label: `IAF ${candidate.iaf_code} · ${candidate.iaf_name}` }))} />; } },
                 { title: "Phạm vi/hoạt động áp dụng", render: (_, row) => <Input value={row.scope_description} onChange={(event) => updateIndustryResolutionRow(row.key, { scope_description: event.target.value })} placeholder="Mô tả hoạt động tương ứng" /> },
               ]}
-            />
+              />
+            </>
           )}
         </Space>
       </Modal>
@@ -4983,7 +5341,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
             <Space direction="vertical" size={12} style={{ width: "100%" }}>
               <Alert
                 message="Ma trận giảm thời gian đánh giá tích hợp"
-                description="Dòng là mức độ tích hợp của hệ thống; cột là khả năng thực hiện đánh giá kết hợp của đoàn. Bấm vào tỷ lệ giảm để áp dụng."
+                description="Dòng là mức độ tích hợp của hệ thống; cột là khả năng thực hiện đánh giá kết hợp của đoàn. Bảng chỉ dùng để đối chiếu; tỷ lệ giảm được hệ thống tính tự động từ dữ liệu đã chọn."
                 type="warning"
                 showIcon
               />
@@ -5003,14 +5361,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
                     align: "center" as const,
                     render: (_: unknown, record: { integration: number; values: number[] }) => {
                       const value = record.values[columnIndex] ?? 0;
-                      return (
-                        <Button
-                          type="link"
-                          onClick={() => applyImsReferenceReduction(value, record.integration, capability)}
-                        >
-                          <strong>{value}%</strong>
-                        </Button>
-                      );
+                      return <Text strong>{value}%</Text>;
                     },
                   })),
                 ]}

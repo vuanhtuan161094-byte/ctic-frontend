@@ -33,6 +33,7 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { CertificationBodyCapabilitiesPanel } from "./CertificationBodyCapabilitiesPanel";
 
 const { Text, Title } = Typography;
 
@@ -390,6 +391,8 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
         <Card><Statistic prefix={<LockOutlined />} title="Đã khóa" value={summary.locked} /></Card>
         <Card><Statistic prefix={<UserOutlined />} title="Ngừng hoạt động" value={summary.inactive} /></Card>
       </section>
+
+      <CertificationBodyCapabilitiesPanel />
 
       <Card className="system-admin-table-card" title="Danh sách tài khoản">
         <div className="system-admin-filter-bar">

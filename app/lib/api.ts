@@ -21,7 +21,7 @@ export interface AuthSession {
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20_000,
+  timeout: 45_000,
 });
 
 api.interceptors.request.use((config) => {
@@ -88,7 +88,7 @@ export function getErrorMessage(error: unknown) {
   }
 
   if (error.code === "ECONNABORTED") {
-    return "Backend phản hồi quá chậm. Vui lòng kiểm tra máy chủ.";
+    return "Yêu cầu mất quá 45 giây. Máy chủ hoặc SQL Server đang phản hồi chậm; dữ liệu có thể đã được xử lý, vui lòng kiểm tra danh sách trước khi gửi lại.";
   }
 
   if (!error.response) {
