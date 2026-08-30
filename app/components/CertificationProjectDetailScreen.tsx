@@ -1,27 +1,22 @@
 "use client";
 
 import {
-  AppstoreOutlined,
   ArrowLeftOutlined,
   AuditOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
   DownOutlined,
   FileDoneOutlined,
   FileOutlined,
   FilePdfOutlined,
   FileWordOutlined,
-  FolderOpenOutlined,
-  EyeInvisibleOutlined,
   EyeOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SolutionOutlined,
   UploadOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MenuProps, TableColumnsType } from "antd";
 import {
   Alert,
@@ -38,7 +33,6 @@ import {
   Progress,
   Skeleton,
   Space,
-  Statistic,
   Steps,
   Table,
   Tag,
@@ -46,24 +40,24 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { isPdfDocument, openDocumentFile, previewDocumentFile } from "../lib/document-file-client";
-import AuditProgramPanel from "./AuditProgramPanel";
+import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import CommercialDocumentsPanel from "./CommercialDocumentsPanel";
-import AuditPlanWorkspaceDrawer from "./AuditPlanWorkspaceDrawer";
+import SurveillanceInformationSnapshotModal from "./SurveillanceInformationSnapshotModal";
 import AuditExecutionWorkspaceModal, { type AuditExecutionWorkspaceMode } from "./AuditExecutionWorkspaceModal";
 import CorrectiveActionWorkspaceModal from "./CorrectiveActionWorkspaceModal";
 import TechnicalReviewWorkspaceModal from "./TechnicalReviewWorkspaceModal";
 import CertificationResultWorkspaceModal from "./CertificationResultWorkspaceModal";
 import CertificateIssuanceWorkspaceModal from "./CertificateIssuanceWorkspaceModal";
 import AuditDocumentCenterModal, {
-  type AuditDocumentCard,
   type AuditDocumentFocus,
   type AuditDocumentPreview,
   type AuditDocumentType,
 } from "./AuditDocumentCenterModal";
+import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
 
 const { Text, Title } = Typography;
 
@@ -149,90 +143,13 @@ interface ProjectAuditPlan {
   location?: string | null;
   status?: string | null;
   version_no: number;
-}
-
-interface AuditProgramSummary {
-  id: string;
-  program_code?: string | null;
-  program_year?: number | null;
-  organization_name?: string | null;
-  standard_name?: string | null;
-  certification_scope?: string | null;
-}
-
-interface AuditPlanDetail extends ProjectAuditPlan {
-  audit_scope?: string | null;
-  audit_criteria?: string | null;
-  audit_objectives?: string | null;
-  form_data?: Record<string, unknown> | null;
   audit_event?: {
     id: string;
     event_type?: string | null;
-    status?: string | null;
-    audit_programs?: AuditProgramSummary | null;
-  } | null;
-}
-
-interface AuditTeamMember {
-  id: string;
-  team_role?: string | null;
-  planned_start_date?: string | null;
-  planned_end_date?: string | null;
-  experts?: {
-    id: string;
-    full_name?: string | null;
-    email?: string | null;
-    phone?: string | null;
+    sequence_no?: number | null;
+    planned_mandays?: number | string | null;
     status?: string | null;
   } | null;
-}
-
-interface AuditTeamAppointment {
-  id: string;
-  appointment_number?: string | null;
-  appointment_date?: string | null;
-  status?: string | null;
-  approved_at?: string | null;
-  approved_by_user?: {
-    full_name?: string | null;
-    username?: string | null;
-  } | null;
-  members?: AuditTeamMember[];
-}
-
-interface AuditReport {
-  id: string;
-  report_code?: string | null;
-  version_no?: number | null;
-  report_date?: string | null;
-  audit_start_date?: string | null;
-  audit_end_date?: string | null;
-  audit_result?: string | null;
-  conclusion?: string | null;
-  status?: string | null;
-}
-
-interface AuditFinding {
-  id: string;
-  report_id: string;
-  finding_code?: string | null;
-  finding_type?: string | null;
-  clause?: string | null;
-  description?: string | null;
-  due_date?: string | null;
-  status?: string | null;
-  corrective_actions?: Array<{
-    id: string;
-    version_no?: number | null;
-    status?: string | null;
-  }>;
-}
-
-interface AuditPlanWorkspace {
-  plan: AuditPlanDetail;
-  appointment: AuditTeamAppointment | null;
-  reports: AuditReport[];
-  findings: AuditFinding[];
 }
 
 interface CertificationProjectDetail {
@@ -246,6 +163,17 @@ interface CertificationProjectDetail {
   contracts?: ProjectContract | null;
   certification_agreements?: ProjectAgreement | null;
   audit_plans: ProjectAuditPlan[];
+  audit_plan_diagnostics?: CanonicalPlanDiagnostic[];
+}
+
+interface CanonicalPlanDiagnostic {
+  code: "DUPLICATE_OPERATIONAL_AUDIT_PLANS";
+  audit_event_id: string;
+  canonical_plan_id: string;
+  canonical_plan_code?: string | null;
+  duplicate_plan_ids: string[];
+  duplicate_plan_codes: Array<string | null>;
+  message: string;
 }
 
 interface DossierItem {
@@ -257,6 +185,7 @@ interface DossierItem {
   reference_id?: string | null;
   entity_type?: string | null;
   entity_id?: string | null;
+  action_event_id?: string | null;
 }
 
 interface DossierGroup {
@@ -268,6 +197,17 @@ interface DossierGroup {
   plan_ids: string[];
   plan_codes?: Array<string | null>;
   planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  planned_mandays?: number | string | null;
+  next_action?: {
+    code: DossierNextActionCode;
+    label: string;
+    event_id?: string | null;
+    plan_id?: string | null;
+    item_key?: string | null;
+    responsible_roles?: string[];
+    responsible_label?: string | null;
+  } | null;
   summary: {
     total_items: number;
     completed_items: number;
@@ -287,6 +227,7 @@ interface DossierFile {
   original_name: string;
   file_url: string | null;
   version_no: number;
+  is_current?: boolean;
   uploaded_at: string;
 }
 
@@ -321,6 +262,7 @@ interface ApplicationReviewSource {
   approver_comment?: string | null;
   created_at?: string | null;
   prepared_by?: { full_name?: string | null; username?: string | null } | null;
+  users?: { full_name?: string | null; username?: string | null } | null;
   checker?: { full_name?: string | null; username?: string | null } | null;
   approver?: { full_name?: string | null; username?: string | null } | null;
   workflow_actions?: Array<{
@@ -359,6 +301,7 @@ interface ProjectDossier {
     application_review?: ApplicationReviewSource | null;
   };
   files: DossierFile[];
+  diagnostics?: CanonicalPlanDiagnostic[];
 }
 
 interface ProjectAlertItem {
@@ -384,9 +327,9 @@ interface ProjectAlerts {
 interface CertificationProjectDetailScreenProps {
   projectId: string;
   roles: string[];
+  initialDossierKey?: string | null;
+  initialWorkspacePath?: string | null;
   onBack: () => void;
-  onOpenAuditPlan: (planId: string) => void;
-  onOpenTeamAssignment: (projectId: string) => void;
 }
 
 interface DocumentUploadTarget {
@@ -444,21 +387,6 @@ const auditTypeLabels: Record<string, string> = {
   recertification: "Tái chứng nhận",
 };
 
-const teamRoleLabels: Record<string, string> = {
-  team_leader: "Trưởng đoàn đánh giá",
-  lead_auditor: "Trưởng đoàn đánh giá",
-  auditor: "Chuyên gia đánh giá",
-  technical_expert: "Chuyên gia kỹ thuật",
-  observer: "Quan sát viên",
-};
-
-const findingTypeLabels: Record<string, string> = {
-  major_nc: "NC nặng",
-  minor_nc: "NC nhẹ",
-  ofi: "Cơ hội cải tiến",
-  observation: "Quan sát",
-};
-
 const documentTypeLabels: Record<string, string> = {
   audit_checklist: "Bảng kiểm đánh giá",
   audit_log: "Xác nhận đánh giá và ngày công",
@@ -493,17 +421,6 @@ function readableDocumentType(value?: string | null) {
       .join(" ");
 }
 
-async function getOptionalData<T>(request: Promise<{ data: T }>): Promise<T | null> {
-  try {
-    const response = await request;
-    return response.data;
-  } catch (error) {
-    const status = (error as { response?: { status?: number } })?.response?.status;
-    if (status === 403 || status === 404) return null;
-    throw error;
-  }
-}
-
 function parseStructuredList(value?: string | null): Array<Record<string, unknown>> {
   if (!value?.trim()) return [];
   try {
@@ -536,26 +453,37 @@ function ProjectStatusTag({ status }: { status?: string | null }) {
   return <Tag color={color}>{readableStatus(status)}</Tag>;
 }
 
-function DossierStatusTag({ status }: { status: string }) {
-  const normalized = normalize(status);
-  if (normalized === "completed") {
-    return <Tag color="green" icon={<CheckCircleOutlined />}>Đủ dữ liệu</Tag>;
+function dossierBusinessStatus(item: DossierItem) {
+  const status = normalize(item.status);
+  const key = normalize(item.document_key);
+  if (status === "not_applicable") return "Không áp dụng";
+  if (status === "pending") return "Chờ thực hiện";
+  if (status === "in_progress") return "Đang thực hiện";
+  if (status !== "completed") return readableStatus(status);
+  if (["audit_team_assignment", "surveillance_information_update"].includes(key)) {
+    return "Đã xác nhận";
   }
-  if (normalized === "not_applicable") {
-    return <Tag>Không áp dụng</Tag>;
+  if (["audit_program", "stage1_audit_plan", "stage2_audit_plan", "audit_plan"].includes(key)) {
+    return "Đã lập";
   }
-  return <Tag color="orange" icon={<ClockCircleOutlined />}>Còn thiếu</Tag>;
+  return "Hoàn thành";
+}
+
+function DossierBusinessStatusTag({ item }: { item: DossierItem }) {
+  const status = normalize(item.status);
+  const color = status === "completed"
+    ? "green"
+    : status === "not_applicable"
+      ? "default"
+      : status === "in_progress"
+        ? "blue"
+        : "orange";
+  return <Tag color={color}>{dossierBusinessStatus(item)}</Tag>;
 }
 
 function cleanDocumentName(item: DossierItem) {
   if (item.document_key === "audit_log") return "Xác nhận đánh giá và ngày công";
   return item.document_name;
-}
-
-function alertIcon(severity: ProjectAlertItem["severity"]) {
-  if (severity === "critical") return <WarningOutlined />;
-  if (severity === "warning") return <ClockCircleOutlined />;
-  return <CalendarOutlined />;
 }
 
 const dossierAuditDocumentDefinitions: Record<string, {
@@ -591,10 +519,10 @@ function normalizedAuditPlanType(plan?: ProjectAuditPlan | null) {
   return normalize(plan?.audit_type).replace(/[^a-z0-9]/g, "");
 }
 
-const workflowStageDefinitions = [
+const initialWorkflowStageDefinitions = [
   {
     title: "Tiếp nhận hồ sơ",
-    keys: ["certification_application", "application_review", "business_license"],
+    keys: ["certification_application", "application_review", "business_license", "surveillance_information_update"],
   },
   {
     title: "Chuẩn bị & Giai đoạn 1",
@@ -602,48 +530,64 @@ const workflowStageDefinitions = [
   },
   {
     title: "Giai đoạn 2 & khắc phục",
-    keys: ["stage2_audit_plan", "audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap"],
+    keys: ["stage2_audit_plan", "audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap", "audit_log"],
   },
   {
     title: "Thẩm xét kỹ thuật",
     keys: ["technical_review_report"],
   },
   {
-    title: "Kết quả chứng nhận",
-    keys: ["audit_result_notification", "certification_decision"],
+    title: "Quyết định & thông báo",
+    keys: ["certification_decision", "audit_result_notification"],
   },
   {
     title: "Phát hành & lưu hồ sơ",
-    keys: ["certificate", "audit_log", "audit_monitoring"],
+    keys: ["certificate", "audit_monitoring"],
   },
 ] as const;
 
-type WorkspaceTabKey = "overview" | "dossiers" | "documents";
-type DossierSectionKey = "records" | "plans" | "review" | "documents";
+const surveillanceWorkflowStageDefinitions = [
+  {
+    title: "Tiếp nhận & cập nhật",
+    keys: ["surveillance_information_update"],
+  },
+  {
+    title: "Chuẩn bị & chỉ định đoàn",
+    keys: ["audit_team_assignment"],
+  },
+  {
+    title: "Kế hoạch & đánh giá",
+    keys: ["audit_plan", "audit_checklist", "opening_closing_attendance", "audit_report", "nc_cap", "audit_log"],
+  },
+  {
+    title: "Thẩm xét kỹ thuật",
+    keys: ["technical_review_report"],
+  },
+  {
+    title: "Quyết định & thông báo",
+    keys: ["certification_decision", "audit_result_notification"],
+  },
+  {
+    title: "Phát hành & lưu hồ sơ",
+    keys: ["certificate"],
+  },
+] as const;
 
-const workspaceTabAccess: Record<string, WorkspaceTabKey[]> = {
-  admin: ["overview", "dossiers", "documents"],
-  staff: ["overview", "dossiers", "documents"],
-  coordinator: ["overview", "dossiers", "documents"],
-  auditor: ["overview", "dossiers", "documents"],
-  lead_auditor: ["overview", "dossiers", "documents"],
-  technical_reviewer: ["overview", "dossiers", "documents"],
-  decision_maker: ["overview", "dossiers", "documents"],
-  sales: ["overview", "documents"],
-  customer: ["overview", "documents"],
+type WorkflowStageDefinition = {
+  readonly title: string;
+  readonly keys: readonly string[];
 };
 
-function buildWorkflowStages(items: DossierItem[]) {
-  const stages = workflowStageDefinitions.map((definition) => {
+function buildWorkflowStages(items: DossierItem[], definitions: readonly WorkflowStageDefinition[]) {
+  const stages = definitions.map((definition) => {
     const stageItems = items.filter((item) => definition.keys.some((key) => key === item.document_key));
-    const applicableItems = stageItems.filter((item) => normalize(item.status) !== "not_applicable");
-    const completedItems = applicableItems.filter((item) => normalize(item.status) === "completed");
-    const isComplete = applicableItems.length > 0 && completedItems.length === applicableItems.length;
+    const satisfiedItems = stageItems.filter((item) => ["completed", "not_applicable"].includes(normalize(item.status)));
+    const isComplete = stageItems.length > 0 && satisfiedItems.length === stageItems.length;
 
     return {
       title: definition.title,
-      completed: completedItems.length,
-      total: applicableItems.length,
+      completed: satisfiedItems.length,
+      total: stageItems.length,
       isComplete,
     };
   });
@@ -661,6 +605,126 @@ function buildWorkflowStages(items: DossierItem[]) {
   }));
 }
 
+function dossierCycleIdentity(group: DossierGroup) {
+  const value = `${group.dossier_key} ${group.dossier_type}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (value.includes("recert")) return "recertification";
+  if (value.includes("surveillance2") || value.includes("surveillanceyear2")) return "surveillance_2";
+  if (value.includes("surveillance1") || value.includes("surveillanceyear1")) return "surveillance_1";
+  if (value.includes("initial")) return "initial_certification";
+  return null;
+}
+
+function normalizeCycleDossiers(
+  groups: DossierGroup[],
+  plans: ProjectAuditPlan[],
+  diagnostics: CanonicalPlanDiagnostic[],
+) {
+  const canonical = [
+    { key: "initial_certification", type: "initial", label: "Hồ sơ chứng nhận lần đầu" },
+    { key: "surveillance_1", type: "surveillance1", label: "Hồ sơ giám sát lần 1" },
+    { key: "surveillance_2", type: "surveillance2", label: "Hồ sơ giám sát lần 2" },
+    { key: "recertification", type: "recertification", label: "Hồ sơ tái chứng nhận" },
+  ] as const;
+
+  return canonical.flatMap((cycle, index) => {
+    const matches = groups.filter((group) => dossierCycleIdentity(group) === cycle.key);
+    if (!matches.length) return [];
+    const preferred = matches.find((group) => group.dossier_key === cycle.key) ?? matches[0];
+    const candidateIds = new Set(matches.flatMap((group) => group.plan_ids ?? []));
+    for (const diagnostic of diagnostics) {
+      if (diagnostic.duplicate_plan_ids.some((id) => candidateIds.has(id))) {
+        candidateIds.add(diagnostic.canonical_plan_id);
+      }
+      for (const duplicateId of diagnostic.duplicate_plan_ids) candidateIds.delete(duplicateId);
+    }
+    const canonicalPlans = plans.filter((plan) => (
+      candidateIds.has(plan.id)
+      && !["cancelled", "canceled"].includes(normalize(plan.status))
+    ));
+    return [{
+      ...preferred,
+      dossier_key: cycle.key,
+      dossier_type: cycle.type,
+      dossier_label: cycle.label,
+      sequence_no: index + 1,
+      plan_ids: canonicalPlans.map((plan) => plan.id),
+      plan_codes: canonicalPlans.map((plan) => plan.plan_code).filter(Boolean),
+    }];
+  });
+}
+
+type DossierNextActionCode =
+  | "UPDATE_INFORMATION"
+  | "REVIEW_CHANGE"
+  | "APPOINT_TEAM"
+  | "PLAN_AUDIT"
+  | "EXECUTE_AUDIT"
+  | "COMPLETE_NC_CAP"
+  | "TECHNICAL_REVIEW"
+  | "MAKE_DECISION"
+  | "NOTIFY_RESULT"
+  | "ISSUE_CERTIFICATE";
+
+interface EffectiveNextAction {
+  code: DossierNextActionCode;
+  label: string;
+  itemKey: string;
+  responsibleRoles: string[];
+  responsibleLabel: string;
+}
+
+const nextActionDefinitions: Record<DossierNextActionCode, Omit<EffectiveNextAction, "code">> = {
+  UPDATE_INFORMATION: { label: "Cập nhật thông tin", itemKey: "surveillance_information_update", responsibleRoles: ["admin", "staff", "coordinator"], responsibleLabel: "Điều phối viên" },
+  REVIEW_CHANGE: { label: "Xem xét thay đổi", itemKey: "surveillance_information_update", responsibleRoles: ["admin", "staff", "coordinator"], responsibleLabel: "Điều phối viên" },
+  APPOINT_TEAM: { label: "Chỉ định đoàn đánh giá", itemKey: "audit_team_assignment", responsibleRoles: ["admin", "coordinator"], responsibleLabel: "Điều phối viên" },
+  PLAN_AUDIT: { label: "Lập kế hoạch", itemKey: "audit_plan", responsibleRoles: ["admin", "lead_auditor"], responsibleLabel: "Trưởng đoàn đánh giá" },
+  EXECUTE_AUDIT: { label: "Thực hiện đánh giá", itemKey: "audit_report", responsibleRoles: ["admin", "lead_auditor", "auditor"], responsibleLabel: "Đoàn đánh giá" },
+  COMPLETE_NC_CAP: { label: "Hoàn thiện NC/CAP", itemKey: "nc_cap", responsibleRoles: ["admin", "lead_auditor", "auditor"], responsibleLabel: "Trưởng đoàn đánh giá" },
+  TECHNICAL_REVIEW: { label: "Thẩm xét kỹ thuật", itemKey: "technical_review_report", responsibleRoles: ["technical_reviewer"], responsibleLabel: "Chuyên gia thẩm xét kỹ thuật" },
+  MAKE_DECISION: { label: "Ra quyết định", itemKey: "certification_decision", responsibleRoles: ["decision_maker"], responsibleLabel: "Người ra quyết định chứng nhận" },
+  NOTIFY_RESULT: { label: "Thông báo kết quả", itemKey: "audit_result_notification", responsibleRoles: ["admin", "decision_maker"], responsibleLabel: "Bộ phận thông báo kết quả" },
+  ISSUE_CERTIFICATE: { label: "Phát hành chứng chỉ", itemKey: "certificate", responsibleRoles: ["decision_maker"], responsibleLabel: "Người ra quyết định chứng nhận" },
+};
+
+function findPendingItem(group: DossierGroup, keys: string[]) {
+  return group.items.find((item) => (
+    keys.includes(normalize(item.document_key))
+    && !["completed", "not_applicable"].includes(normalize(item.status))
+  ));
+}
+
+function effectiveNextAction(group: DossierGroup): EffectiveNextAction | null {
+  if (group.next_action) {
+    const definition = nextActionDefinitions[group.next_action.code];
+    return {
+      code: group.next_action.code,
+      label: group.next_action.label || definition.label,
+      itemKey: group.next_action.item_key || definition.itemKey,
+      responsibleRoles: group.next_action.responsible_roles ?? definition.responsibleRoles,
+      responsibleLabel: group.next_action.responsible_label ?? definition.responsibleLabel,
+    };
+  }
+
+  const ordered: Array<[DossierNextActionCode, string[]]> = [
+    ["UPDATE_INFORMATION", ["surveillance_information_update"]],
+    ["APPOINT_TEAM", ["audit_team_assignment"]],
+    ["PLAN_AUDIT", ["stage1_audit_plan", "stage2_audit_plan", "audit_plan"]],
+    ["EXECUTE_AUDIT", ["audit_checklist", "opening_closing_attendance", "stage1_audit_report", "stage2_audit_report", "audit_report", "audit_log"]],
+    ["COMPLETE_NC_CAP", ["nc_cap"]],
+    ["TECHNICAL_REVIEW", ["technical_review_report"]],
+    ["MAKE_DECISION", ["certification_decision"]],
+    ["NOTIFY_RESULT", ["audit_result_notification"]],
+    ["ISSUE_CERTIFICATE", ["certificate"]],
+  ];
+  for (const [code, keys] of ordered) {
+    const item = findPendingItem(group, keys);
+    if (!item) continue;
+    const definition = nextActionDefinitions[code];
+    return { ...definition, code, itemKey: normalize(item.document_key) };
+  }
+  return null;
+}
+
 
 function legacyDossierGroups(items: DossierItem[], plans: ProjectAuditPlan[]): DossierGroup[] {
   const auditItems = items.filter((item) => item.item_no >= 4);
@@ -670,16 +734,16 @@ function legacyDossierGroups(items: DossierItem[], plans: ProjectAuditPlan[]): D
   const surveillancePlans = plans.filter((plan) => normalize(plan.audit_type).includes("surveillance"));
 
   const makeSummary = (groupItems: DossierItem[]) => {
-    const applicable = groupItems.filter((item) => normalize(item.status) !== "not_applicable");
-    const completed = applicable.filter((item) => normalize(item.status) === "completed");
+    const satisfied = groupItems.filter((item) => ["completed", "not_applicable"].includes(normalize(item.status)));
+    const pending = groupItems.filter((item) => normalize(item.status) === "pending");
     return {
-      total_items: applicable.length,
-      completed_items: completed.length,
-      pending_items: applicable.length - completed.length,
-      completion_percentage: applicable.length ? Math.round((completed.length / applicable.length) * 100) : 0,
-      dossier_status: completed.length === applicable.length && applicable.length
+      total_items: groupItems.length,
+      completed_items: satisfied.length,
+      pending_items: pending.length,
+      completion_percentage: groupItems.length ? Math.round((satisfied.length / groupItems.length) * 100) : 0,
+      dossier_status: satisfied.length === groupItems.length && groupItems.length
         ? "completed"
-        : completed.length ? "in_progress" : "not_started",
+        : satisfied.length ? "in_progress" : "not_started",
     };
   };
 
@@ -737,15 +801,22 @@ function dossierStatusTag(group: DossierGroup) {
 export function CertificationProjectDetailScreen({
   projectId,
   roles,
+  initialDossierKey,
+  initialWorkspacePath,
   onBack,
-  onOpenAuditPlan,
-  onOpenTeamAssignment,
 }: CertificationProjectDetailScreenProps) {
-  const [alertsVisible, setAlertsVisible] = useState(true);
-  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<WorkspaceTabKey>("overview");
-  const [activeDossierSection, setActiveDossierSection] = useState<DossierSectionKey>("records");
-  const [selectedDossierKey, setSelectedDossierKey] = useState<string | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const dossierSelectionContext = `${projectId}:${initialDossierKey ?? ""}`;
+  const [dossierSelection, setDossierSelection] = useState<{
+    context: string;
+    dossierKey: string | null;
+  } | null>(null);
+  const selectedDossierKey = dossierSelection?.context === dossierSelectionContext
+    ? dossierSelection.dossierKey
+    : initialDossierKey ?? null;
+  const setSelectedDossierKey = (dossierKey: string | null) => {
+    setDossierSelection({ context: dossierSelectionContext, dossierKey });
+  };
+  const [coordinationTarget, setCoordinationTarget] = useState<string | null>(null);
   const [focusedExecutionWorkspace, setFocusedExecutionWorkspace] = useState<{
     planId: string;
     mode: AuditExecutionWorkspaceMode;
@@ -755,10 +826,13 @@ export function CertificationProjectDetailScreen({
     focus: AuditDocumentFocus;
   } | null>(null);
   const [correctiveActionWorkspacePlanId, setCorrectiveActionWorkspacePlanId] = useState<string | null>(null);
+  const [correctiveActionFindingId, setCorrectiveActionFindingId] = useState<string | null>(null);
   const [technicalReviewWorkspacePlanId, setTechnicalReviewWorkspacePlanId] = useState<string | null>(null);
+  const [surveillanceInformationEventId, setSurveillanceInformationEventId] = useState<string | null>(null);
   const [certificationResultWorkspace, setCertificationResultWorkspace] = useState<{
     planId: string;
     focus: "overview" | "decision" | "notification";
+    preferredDecisionType?: "SUSPEND" | "RESTORE" | "WITHDRAW";
   } | null>(null);
   const [certificateIssuancePlanId, setCertificateIssuancePlanId] = useState<string | null>(null);
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
@@ -771,7 +845,10 @@ export function CertificationProjectDetailScreen({
   const [uploadNote, setUploadNote] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const handledInitialWorkspaceRef = useRef<string | null>(null);
+  const queryClient = useQueryClient();
   const canManageDocuments = roles.some((role) => documentManageRoles.has(normalize(role)));
+  const canManageSurveillanceInformation = roles.some((role) => ["admin", "staff", "coordinator"].includes(normalize(role)));
   const detailQuery = useQuery({
     queryKey: ["certification-project", projectId, "workspace"],
     queryFn: async () => {
@@ -789,12 +866,89 @@ export function CertificationProjectDetailScreen({
     },
   });
 
+  useEffect(() => {
+    if (!initialWorkspacePath || !detailQuery.data) return;
+    if (handledInitialWorkspaceRef.current === initialWorkspacePath) return;
+
+    let url: URL;
+    try {
+      url = new URL(initialWorkspacePath, window.location.origin);
+    } catch {
+      return;
+    }
+
+    const workspace = normalize(url.searchParams.get("workspace"));
+    const planId = url.searchParams.get("audit_plan_id");
+    const eventId = url.searchParams.get("audit_event_id");
+    const findingId = url.searchParams.get("finding_id");
+
+    if (["audit-team", "audit-plan", "audit-execution", "cap", "technical-review", "certification-decision", "certificate-issue"].includes(workspace) && !planId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (handledInitialWorkspaceRef.current === initialWorkspacePath) return;
+      handledInitialWorkspaceRef.current = initialWorkspacePath;
+      setDocumentActionError(null);
+
+      if (workspace === "audit-team" && planId) {
+        setCoordinationTarget(`appointment:${planId}`);
+        return;
+      }
+
+      if (workspace === "audit-plan" && planId) {
+        setAuditDocumentWorkspace({
+          planId,
+          focus: { documentType: "audit_plan_f05", title: "Kế hoạch đánh giá" },
+        });
+        return;
+      }
+
+      if (workspace === "audit-execution" && planId) {
+        setFocusedExecutionWorkspace({ planId, mode: "full" });
+        return;
+      }
+
+      if (workspace === "cap" && planId) {
+        setCorrectiveActionFindingId(findingId);
+        setCorrectiveActionWorkspacePlanId(planId);
+        return;
+      }
+
+      if (workspace === "technical-review" && planId) {
+        setTechnicalReviewWorkspacePlanId(planId);
+        return;
+      }
+
+      if (workspace === "certification-decision" && planId) {
+        setCertificationResultWorkspace({ planId, focus: "decision" });
+        return;
+      }
+
+      if (workspace === "certificate-issue" && planId) {
+        setCertificateIssuancePlanId(planId);
+        return;
+      }
+
+      if (workspace === "surveillance-change" && eventId) {
+        setSurveillanceInformationEventId(eventId);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [detailQuery.data, initialWorkspacePath]);
+
   const dossierForDocumentSummary = (() => {
     const data = detailQuery.data;
     if (!data) return null;
-    const groups = data.dossier.dossiers?.length
+    const sourceGroups = data.dossier.dossiers?.length
       ? [...data.dossier.dossiers].sort((left, right) => left.sequence_no - right.sequence_no)
       : legacyDossierGroups(data.dossier.items, data.project.audit_plans);
+    const groups = normalizeCycleDossiers(
+      sourceGroups,
+      data.project.audit_plans,
+      data.dossier.diagnostics ?? data.project.audit_plan_diagnostics ?? [],
+    );
     return groups.find((group) => group.dossier_key === selectedDossierKey)
       ?? groups.find((group) => group.dossier_key === data.dossier.current_dossier_key)
       ?? groups[0]
@@ -982,30 +1136,6 @@ export function CertificationProjectDetailScreen({
     return stage1 ?? stage2 ?? candidates[0] ?? null;
   };
 
-  const documentCardsForDossierItem = (record: DossierItem): AuditDocumentCard[] => {
-    const definition = dossierAuditDocumentDefinition(record.document_key);
-    const plan = resolvePlanForDossierItem(record);
-    if (!definition || !plan) return [];
-    const preview = dossierDocumentSummaryQuery.data?.find((item) => item.plan.id === plan.id);
-    return preview?.documents.filter((document) => document.document_type === definition.documentType) ?? [];
-  };
-
-  const resultFilesForDossierItem = (record: DossierItem): DossierFile[] => {
-    if (!record.reference_id) return [];
-    const key = normalize(record.document_key);
-    const expectedType = key === "certification_decision"
-      ? "certification_decision_f13"
-      : key === "audit_result_notification"
-        ? "audit_result_notification_f12"
-        : key === "certificate"
-          ? "certificate_pdf"
-          : null;
-    if (!expectedType) return [];
-    return (detailQuery.data?.dossier.files ?? [])
-      .filter((file) => file.entity_id === record.reference_id && normalize(file.document_type) === expectedType)
-      .sort((left, right) => right.version_no - left.version_no);
-  };
-
   const dossierFilesForItem = (record: DossierItem): DossierFile[] => {
     const key = normalize(record.document_key);
     const plan = resolvePlanForDossierItem(record);
@@ -1066,7 +1196,6 @@ export function CertificationProjectDetailScreen({
       });
   };
 
-  const latestDossierFile = (record: DossierItem) => dossierFilesForItem(record)[0] ?? null;
   const signedDossierFile = (record: DossierItem) => dossierFilesForItem(record)
     .find((file) => file.file_kind === "signed_scan" && file.original_name.toLowerCase().endsWith(".pdf")) ?? null;
 
@@ -1089,9 +1218,80 @@ export function CertificationProjectDetailScreen({
     return true;
   };
 
+  const ensureOperationalPlanForDossierItem = async (record: DossierItem) => {
+    const existingPlan = resolvePlanForDossierItem(record);
+    if (existingPlan) return existingPlan;
+
+    const canCreatePlan = roles.some((role) => ["admin", "coordinator"].includes(normalize(role)));
+    if (!canCreatePlan) {
+      setDocumentActionError("Kỳ đánh giá chưa có PLAN. Vui lòng chờ Điều phối viên tạo PLAN trước khi tiếp tục.");
+      return null;
+    }
+
+    if (!record.action_event_id) {
+      setDocumentActionError("Kỳ đánh giá chưa có audit event để khởi tạo PLAN nghiệp vụ.");
+      return null;
+    }
+
+    try {
+      const response = await api.post<ProjectAuditPlan>("/audit-plans", {
+        project_id: projectId,
+        audit_event_id: record.action_event_id,
+        audit_type: dossierForDocumentSummary?.dossier_type ?? "audit",
+        status: "draft",
+      });
+      setDocumentActionError(null);
+      await detailQuery.refetch();
+      return response.data;
+    } catch (error) {
+      setDocumentActionError(getErrorMessage(error));
+      return null;
+    }
+  };
+
   const openDossierItem = async (record: DossierItem) => {
     const sourceDossier = detailQuery.data?.dossier;
     const normalizedKey = normalize(record.document_key);
+
+    if (normalizedKey === "surveillance_information_update") {
+      const eventId = record.entity_id ?? record.reference_id;
+      if (!eventId) {
+        setDocumentActionError("Kỳ giám sát chưa có audit event để lập phiếu cập nhật thông tin.");
+        return;
+      }
+      setDocumentActionError(null);
+      setSurveillanceInformationEventId(eventId);
+      return;
+    }
+
+    if (normalizedKey === "audit_team_assignment") {
+      const dossierType = normalize(dossierForDocumentSummary?.dossier_type);
+      if (["initial", "initialcertification"].includes(dossierType)) {
+        setDocumentActionError(null);
+        setCoordinationTarget(`project:${projectId}`);
+        return;
+      }
+      const plan = await ensureOperationalPlanForDossierItem(record);
+      if (!plan) return;
+      setCoordinationTarget(`appointment:${plan.id}`);
+      return;
+    }
+
+    if (["stage1_audit_plan", "stage2_audit_plan", "audit_plan"].includes(normalizedKey)) {
+      const plan = await ensureOperationalPlanForDossierItem(record);
+      if (!plan) return;
+      const definition = dossierAuditDocumentDefinition(record.document_key);
+      if (!definition) {
+        setDocumentActionError("Không xác định được biểu kế hoạch đánh giá F.05.");
+        return;
+      }
+      setDocumentActionError(null);
+      setAuditDocumentWorkspace({
+        planId: plan.id,
+        focus: { documentType: definition.documentType, title: definition.title },
+      });
+      return;
+    }
 
     if (["stage1_audit_report", "stage2_audit_report", "audit_report"].includes(normalizedKey)) {
       const plan = resolvePlanForDossierItem(record);
@@ -1115,6 +1315,7 @@ export function CertificationProjectDetailScreen({
         return;
       }
       setDocumentActionError(null);
+      setCorrectiveActionFindingId(null);
       setCorrectiveActionWorkspacePlanId(plan.id);
       return;
     }
@@ -1163,16 +1364,6 @@ export function CertificationProjectDetailScreen({
       return;
     }
 
-    if (normalizedKey === "audit_team_assignment") {
-      onOpenTeamAssignment(projectId);
-      return;
-    }
-
-    if (["stage1_audit_plan", "stage2_audit_plan", "audit_plan"].includes(normalizedKey) && record.reference_id) {
-      onOpenAuditPlan(record.reference_id);
-      return;
-    }
-
     if (record.storage_type === "uploaded_file") {
       const matchingFiles = (sourceDossier?.files ?? [])
         .filter((file) => {
@@ -1199,7 +1390,7 @@ export function CertificationProjectDetailScreen({
     );
   };
 
-  const dossierColumns = useMemo<TableColumnsType<DossierItem>>(() => {
+  const dossierColumns: TableColumnsType<DossierItem> = (() => {
     const columns: TableColumnsType<DossierItem> = [{
       title: "STT",
       dataIndex: "item_no",
@@ -1230,65 +1421,41 @@ export function CertificationProjectDetailScreen({
       },
     },
     {
-      title: "Nguồn dữ liệu",
-      dataIndex: "storage_type",
-      key: "storage_type",
-      responsive: ["lg"],
-      width: 150,
-      render: (value: string, record) => dossierFormCode(record.document_key)
-        ? "Biểu mẫu hệ thống"
-        : value === "uploaded_file" ? "Tệp tải lên" : "Dữ liệu hệ thống",
-    },
-    {
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 150,
-      render: (value: string, record) => {
-        const cards = documentCardsForDossierItem(record);
-        const generated = cards.filter((card) => card.history.length > 0);
-        const resultFiles = resultFilesForDossierItem(record);
-        return (
-          <Space direction="vertical" size={2}>
-            <DossierStatusTag status={value} />
-            {cards.length ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                {generated.length}/{cards.length} biểu đã sinh
-              </Text>
-            ) : resultFiles.length ? (
-              <Text type="secondary" style={{ fontSize: 12 }}>Đã sinh Word/PDF</Text>
-            ) : null}
-          </Space>
-        );
-      },
+      width: 142,
+      render: (_value: string, record) => <DossierBusinessStatusTag item={record} />,
     },
     {
-      title: "Phiên bản hiện hành",
+      title: "Phiên bản / tài liệu",
       key: "current_version",
       responsive: ["md"],
-      width: 165,
+      width: 190,
       render: (_, record) => {
-        const cards = documentCardsForDossierItem(record);
-        const cardFiles = cards.flatMap((card) => card.history.filter((file) => file.is_current));
-        const resultFiles = resultFilesForDossierItem(record);
-        const uploadedFiles = dossierFilesForItem(record);
+        if (normalize(record.document_key) === "surveillance_information_update") {
+          return <Text type="secondary">Dữ liệu nghiệp vụ</Text>;
+        }
+        const currentFiles = dossierFilesForItem(record).filter((file) => file.is_current !== false);
         const officialPdf = signedDossierFile(record);
-        const currentFiles = cards.length
-          ? cardFiles
-          : resultFiles.length
-            ? resultFiles
-            : uploadedFiles;
-        if (!currentFiles.length && !officialPdf) return <Tag>Chưa có tệp</Tag>;
-        const latestVersion = currentFiles.length
-          ? Math.max(...currentFiles.map((file) => Number(file.version_no ?? 1)))
-          : Number(officialPdf?.version_no ?? 1);
+        const currentWord = currentFiles.find((file) => (
+          file.file_kind === "generated_docx" || /\.docx?$/i.test(file.original_name)
+        ));
+        const currentGeneratedPdf = currentFiles.find((file) => file.file_kind === "generated_pdf");
+        const hasDocumentControl = Boolean(dossierFormCode(record.document_key))
+          || currentFiles.length > 0
+          || record.storage_type === "uploaded_file";
+        if (!hasDocumentControl) return <Text type="secondary">—</Text>;
         return (
-          <Space size={4} wrap>
-            {officialPdf ? <Tag color="green">PDF chính thức</Tag> : <Tag color="orange">Chưa có PDF chính thức</Tag>}
-            <Tag>v{officialPdf?.version_no ?? latestVersion}</Tag>
-            {officialPdf || currentFiles.some((file) => file.file_kind === "generated_pdf") ? <FilePdfOutlined /> : null}
-            {!officialPdf && currentFiles.some((file) => file.file_kind !== "generated_pdf") ? <FileWordOutlined /> : null}
-            {cards.length > 1 ? <Text type="secondary">{cards.length} biểu</Text> : null}
+          <Space direction="vertical" size={2}>
+            {currentWord
+              ? <Tag icon={<FileWordOutlined />}>Word v{currentWord.version_no}</Tag>
+              : <Tag>Chưa sinh Word</Tag>}
+            {officialPdf
+              ? <Tag color="green" icon={<FilePdfOutlined />}>PDF chính thức v{officialPdf.version_no}</Tag>
+              : currentGeneratedPdf
+                ? <Tag icon={<FilePdfOutlined />}>PDF nháp v{currentGeneratedPdf.version_no}</Tag>
+                : <Tag color="orange">Chưa có PDF chính thức</Tag>}
           </Space>
         );
       },
@@ -1309,53 +1476,86 @@ export function CertificationProjectDetailScreen({
           file.file_kind === "generated_docx" || /\.docx?$/i.test(file.original_name)
         )) ?? null;
         const canUploadOfficialPdf = canManageDocuments
-          && key !== "certificate"
+          && !["certificate", "surveillance_information_update"].includes(key)
           && normalize(record.status) !== "not_applicable";
         const uploadDisabled = !record.entity_type || !record.entity_id;
-        let primaryAction = <></>;
+        let businessAction = <></>;
 
-        if (["stage1_audit_report", "stage2_audit_report", "audit_report"].includes(key)) {
-          primaryAction = (
-            <Button icon={<FileDoneOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
+        if (key === "surveillance_information_update") {
+          const surveillanceAction = dossierForDocumentSummary?.next_action;
+          businessAction = (
+            <Button className="dossier-row-action" icon={<SolutionOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {surveillanceAction?.code === "REVIEW_CHANGE"
+                ? "Xem xét thay đổi"
+                : normalize(record.status) === "completed" ? "Xem cập nhật" : "Cập nhật"}
+            </Button>
+          );
+        } else if (key === "audit_team_assignment") {
+          businessAction = (
+            <Button className="dossier-row-action" icon={<SolutionOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {normalize(record.status) === "completed" ? "Mở chỉ định" : "Chỉ định đoàn"}
+            </Button>
+          );
+        } else if (["stage1_audit_plan", "stage2_audit_plan", "audit_plan"].includes(key)) {
+          businessAction = (
+            <Button className="dossier-row-action" icon={<CalendarOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {normalize(record.status) === "completed" ? "Mở kế hoạch" : "Lập kế hoạch"}
+            </Button>
+          );
+        } else if (["stage1_audit_report", "stage2_audit_report", "audit_report"].includes(key)) {
+          businessAction = (
+            <Button className="dossier-row-action" icon={<FileDoneOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
               Mở báo cáo
             </Button>
           );
         } else if (key === "nc_cap") {
-          primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
+          businessAction = (
+            <Button className="dossier-row-action" icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
               Mở NC/CAP
             </Button>
           );
         } else if (key === "technical_review_report") {
-          primaryAction = (
-            <Button icon={<AuditOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
-              Mở thẩm xét
+          businessAction = (
+            <Button className="dossier-row-action" icon={<AuditOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              Thẩm xét
             </Button>
           );
-        } else if (["certification_decision", "audit_result_notification"].includes(key)) {
-          primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
-              Mở kết quả
+        } else if (key === "audit_result_notification") {
+          businessAction = (
+            <Button className="dossier-row-action" icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {normalize(record.status) === "completed" ? "Xem thông báo" : "Thông báo kết quả"}
+            </Button>
+          );
+        } else if (key === "certification_decision") {
+          businessAction = (
+            <Button className="dossier-row-action" icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {normalize(record.status) === "completed" ? "Xem quyết định" : "Ra quyết định"}
             </Button>
           );
         } else if (key === "certificate") {
-          primaryAction = (
-            <Button icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }} type="primary">
-              Mở chứng chỉ
+          businessAction = normalize(record.status) === "not_applicable" ? (
+            <Tag>Không áp dụng</Tag>
+          ) : (
+            <Button className="dossier-row-action" icon={<SafetyCertificateOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+              {normalize(record.status) === "completed" ? "Xem chứng chỉ" : "Mở chứng chỉ"}
             </Button>
           );
         } else if (dossierAuditDocumentDefinition(record.document_key)) {
-          primaryAction = (
-            <Button icon={<FileDoneOutlined />} onClick={() => openAuditDocumentWorkspace(record)} size="small" style={{ minWidth: 108 }} type="primary">
+          businessAction = (
+            <Button className="dossier-row-action" icon={<FileDoneOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
               Mở biểu
             </Button>
           );
         } else {
-          primaryAction = (
-            <Button icon={<EyeOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
+          businessAction = (
+            <Button className="dossier-row-action" icon={<EyeOutlined />} onClick={() => void openDossierItem(record)} size="small" style={{ minWidth: 108 }}>
               Xem dữ liệu
             </Button>
           );
+        }
+
+        if (key === "surveillance_information_update") {
+          return <Space size={6} style={{ justifyContent: "flex-end", whiteSpace: "nowrap" }}>{businessAction}</Space>;
         }
 
         const documentMenuItems: MenuProps["items"] = [
@@ -1395,7 +1595,7 @@ export function CertificationProjectDetailScreen({
 
         return (
           <Space size={6} style={{ justifyContent: "flex-end", whiteSpace: "nowrap" }}>
-            {primaryAction}
+            {businessAction}
             <Dropdown
               disabled={!documentMenuItems.length}
               menu={{ items: documentMenuItems, onClick: handleDocumentMenuClick }}
@@ -1412,60 +1612,7 @@ export function CertificationProjectDetailScreen({
     }];
 
     return columns;
-  }, [
-    canManageDocuments,
-    detailQuery.data?.dossier.files,
-    dossierDocumentSummaryQuery.data,
-    dossierForDocumentSummary,
-    openingFileId,
-  ]);
-
-  const planColumns = useMemo<TableColumnsType<ProjectAuditPlan>>(() => [
-    {
-      title: "Mã kế hoạch",
-      dataIndex: "plan_code",
-      key: "plan_code",
-      render: (value: string | null | undefined, record) => (
-        <Button
-          className="project-detail-code-button"
-          onClick={() => setSelectedPlanId(record.id)}
-          type="link"
-        >
-          {value || "Chưa cấp mã"}
-        </Button>
-      ),
-    },
-    {
-      title: "Loại đánh giá",
-      dataIndex: "audit_type",
-      key: "audit_type",
-      responsive: ["md"],
-      render: (value?: string | null) => auditTypeLabels[normalize(value)] ?? readableStatus(value),
-    },
-    {
-      title: "Thời gian",
-      key: "planned_date",
-      render: (_, record) => `${formatDate(record.planned_start_date)}${record.planned_end_date && record.planned_end_date !== record.planned_start_date ? ` – ${formatDate(record.planned_end_date)}` : ""}`,
-    },
-    {
-      title: "Trạng thái",
-      dataIndex: "status",
-      key: "status",
-      width: 135,
-      render: (value?: string | null) => <ProjectStatusTag status={value} />,
-    },
-    {
-      title: "",
-      key: "action",
-      align: "right",
-      width: 92,
-      render: (_, record) => (
-        <Button icon={<EyeOutlined />} onClick={() => setSelectedPlanId(record.id)} size="small">
-          Chi tiết
-        </Button>
-      ),
-    },
-  ], []);
+  })();
 
   if (detailQuery.isLoading) {
     return <Card className="project-detail-loading"><Skeleton active paragraph={{ rows: 16 }} /></Card>;
@@ -1486,44 +1633,30 @@ export function CertificationProjectDetailScreen({
   const { project, dossier, alerts } = detailQuery.data;
   const application = project.certification_applications;
   const customer = application?.customers;
-  const allDossierGroups = dossier.dossiers?.length
+  const sourceDossierGroups = dossier.dossiers?.length
     ? [...dossier.dossiers].sort((left, right) => left.sequence_no - right.sequence_no)
     : legacyDossierGroups(dossier.items, project.audit_plans);
-  const dossierGroups = allDossierGroups.filter((group) => {
-    const type = normalize(group.dossier_type);
-    const key = normalize(group.dossier_key);
-    return !type.includes("recertification") && !key.includes("recertification");
-  });
+  const planDiagnostics = dossier.diagnostics ?? project.audit_plan_diagnostics ?? [];
+  const dossierGroups = normalizeCycleDossiers(
+    sourceDossierGroups,
+    project.audit_plans,
+    planDiagnostics,
+  );
+  const allDossierGroups = dossierGroups;
   const commonDossierItems = dossier.common_items
     ?? dossier.items.filter((item) => item.item_no <= 3);
   const selectedDossier = dossierGroups.find((group) => group.dossier_key === selectedDossierKey)
     ?? dossierGroups.find((group) => group.dossier_key === dossier.current_dossier_key)
     ?? dossierGroups[0]
     ?? null;
-  const workflowStages = selectedDossier ? buildWorkflowStages(selectedDossier.items) : [];
-  const primaryRole = normalize(roles[0] ?? "staff");
-  const accessibleTabs = workspaceTabAccess[primaryRole] ?? workspaceTabAccess.staff;
-  const workspaceTabs = [
-    { key: "overview" as const, label: "Tổng quan chung", icon: <AppstoreOutlined /> },
-    { key: "dossiers" as const, label: "Hồ sơ theo kỳ", icon: <FolderOpenOutlined /> },
-    { key: "documents" as const, label: "Tài liệu chung", icon: <SafetyCertificateOutlined /> },
-  ].filter((tab) => accessibleTabs.includes(tab.key));
-  const selectedPlanIds = new Set(selectedDossier?.plan_ids ?? []);
+  const selectedWorkflowStageDefinitions = selectedDossier
+    && normalize(selectedDossier.dossier_type) !== "initial"
+    ? surveillanceWorkflowStageDefinitions
+    : initialWorkflowStageDefinitions;
+  const workflowStages = selectedDossier
+    ? buildWorkflowStages(selectedDossier.items, selectedWorkflowStageDefinitions)
+    : [];
   const allDossierPlanIds = new Set(allDossierGroups.flatMap((group) => group.plan_ids));
-  const selectedAuditPlans = project.audit_plans.filter((plan) => selectedPlanIds.has(plan.id));
-  const selectedReviewItems = selectedDossier?.items.filter((item) => [
-    "technical_review_report",
-    "audit_result_notification",
-    "certification_decision",
-    "certificate",
-  ].includes(item.document_key)) ?? [];
-  const selectedDocumentItems = selectedDossier?.items.filter((item) => [
-    "audit_checklist",
-    "opening_closing_attendance",
-    "certificate",
-    "audit_log",
-  ].includes(item.document_key)) ?? [];
-  const selectedDossierFiles = dossier.files.filter((file) => selectedPlanIds.has(file.entity_id));
   const commonFiles = dossier.files.filter((file) => !allDossierPlanIds.has(file.entity_id));
   const sourceApplication = dossier.source_records?.application ?? application ?? null;
   const sourceReview = dossier.source_records?.application_review ?? null;
@@ -1576,17 +1709,41 @@ export function CertificationProjectDetailScreen({
     completion_percentage: 0,
     dossier_status: "not_started",
   };
-  const dossierSectionTabs = [
-    { key: "records" as const, label: "Thành phần hồ sơ", icon: <FolderOpenOutlined /> },
-    { key: "plans" as const, label: "Kế hoạch & đánh giá", icon: <AuditOutlined /> },
-    { key: "review" as const, label: "Thẩm xét & kết quả", icon: <SolutionOutlined /> },
-    { key: "documents" as const, label: "Tài liệu kỳ", icon: <FileDoneOutlined /> },
-  ];
-
-  const openDossier = (group: DossierGroup, section: DossierSectionKey = "records") => {
+  const selectedPlans = project.audit_plans.filter((plan) => selectedDossier?.plan_ids.includes(plan.id));
+  const selectedPrimaryPlan = selectedPlans[0] ?? null;
+  const selectedStartDate = selectedPlans
+    .map((plan) => plan.planned_start_date)
+    .filter((value): value is string => Boolean(value))
+    .sort()[0] ?? selectedDossier?.planned_start_date ?? null;
+  const selectedEndDate = selectedPlans
+    .map((plan) => plan.planned_end_date ?? plan.planned_start_date)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1) ?? selectedDossier?.planned_end_date ?? selectedStartDate;
+  const selectedMandays = selectedPrimaryPlan?.audit_event?.planned_mandays
+    ?? selectedDossier?.planned_mandays;
+  const selectedNextAction = selectedDossier ? effectiveNextAction(selectedDossier) : null;
+  const canPerformNextAction = Boolean(selectedNextAction?.responsibleRoles.some((requiredRole) => (
+    roles.some((role) => normalize(role) === normalize(requiredRole))
+  )));
+  const canSeePlanDiagnostics = roles.some((role) => normalize(role) === "admin");
+  const openDossier = (group: DossierGroup) => {
     setSelectedDossierKey(group.dossier_key);
-    setActiveDossierSection(section);
-    setActiveWorkspaceTab("dossiers");
+  };
+
+  const nextActionDossierItem = (group: DossierGroup) => {
+    const action = effectiveNextAction(group);
+    if (!action) return null;
+    return group.items.find((item) => normalize(item.document_key) === action.itemKey) ?? null;
+  };
+
+  const openDossierNextAction = async (group: DossierGroup) => {
+    const item = nextActionDossierItem(group);
+    if (item) {
+      await openDossierItem(item);
+      return;
+    }
+    setDocumentActionError("Không tìm thấy thành phần hồ sơ tương ứng với việc cần làm tiếp theo.");
   };
 
   const pendingLabel = (items: DossierItem[]) => {
@@ -1605,19 +1762,13 @@ export function CertificationProjectDetailScreen({
           <div className="project-detail-title-line">
             <Title level={2}>{project.project_code}</Title>
             <ProjectStatusTag status={project.status} />
-            {activeWorkspaceTab === "dossiers" && selectedDossier ? <Tag color="geekblue">{selectedDossier.dossier_label}</Tag> : null}
+            {selectedDossier ? <Tag color="geekblue">{selectedDossier.dossier_label}</Tag> : null}
           </div>
           <Text type="secondary">
             {customer?.company_name ?? "Chưa xác định khách hàng"} · {project.standard_name}
           </Text>
         </div>
         <Space wrap>
-          {activeWorkspaceTab === "overview" ? <Button
-              icon={alertsVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-              onClick={() => setAlertsVisible((visible) => !visible)}
-            >
-              {alertsVisible ? "Ẩn cảnh báo" : "Hiện cảnh báo"}
-            </Button> : null}
           <Button
             aria-label="Làm mới hồ sơ"
             icon={<ReloadOutlined />}
@@ -1629,115 +1780,10 @@ export function CertificationProjectDetailScreen({
         </Space>
       </div>
 
-      <Tabs
-        activeKey={activeWorkspaceTab}
-        className="project-workspace-tabs"
-        items={workspaceTabs}
-        onChange={(key) => setActiveWorkspaceTab(key as WorkspaceTabKey)}
-      />
-
-      {activeWorkspaceTab === "overview" ? <>
-      <section className="project-detail-summary-grid" aria-label="Tiến độ hồ sơ đang theo dõi">
-        <Card className="completion-card">
-          <div className="completion-stat">
-            <Progress
-              percent={selectedSummary.completion_percentage}
-              size={68}
-              strokeColor="#1768bd"
-              type="circle"
-            />
-            <div>
-              <span>{selectedDossier?.dossier_label ?? "Hồ sơ hiện tại"}</span>
-              <strong>{selectedSummary.completed_items}/{selectedSummary.total_items} thành phần</strong>
-            </div>
-          </div>
-        </Card>
-        <Card><Statistic prefix={<CheckCircleOutlined />} title="Đã có trong hồ sơ này" value={selectedSummary.completed_items} /></Card>
-        <Card><Statistic prefix={<FolderOpenOutlined />} title="Còn thiếu trong hồ sơ này" value={selectedSummary.pending_items} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Cảnh báo toàn dự án" value={alerts.summary.total} /></Card>
-      </section>
-
-      <section className={`project-detail-primary-grid${alertsVisible ? "" : " project-detail-primary-grid-wide"}`}>
-        <Card className="project-info-card" title="Thông tin xuyên suốt của dự án">
-          <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small">
-            <Descriptions.Item label="Khách hàng">{customer?.company_name ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="Mã khách hàng">{customer?.customer_code ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="Mã số thuế">{customer?.tax_code ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="Đơn đăng ký">{application?.application_code ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="Loại chứng nhận">{auditTypeLabels[normalize(application?.certification_type)] ?? readableStatus(application?.certification_type)}</Descriptions.Item>
-            <Descriptions.Item label="Tiêu chuẩn">{project.standard_name}</Descriptions.Item>
-            <Descriptions.Item label="Phạm vi" span={3}>{application?.certification_scope ?? "Chưa cập nhật"}</Descriptions.Item>
-            <Descriptions.Item label="Hợp đồng">{project.contracts?.contract_number ?? "Chưa có"}</Descriptions.Item>
-            <Descriptions.Item label="Thỏa thuận">{project.certification_agreements?.agreement_number ?? "Chưa có"}</Descriptions.Item>
-            <Descriptions.Item label="Cập nhật gần nhất">{formatDate(project.updated_at)}</Descriptions.Item>
-          </Descriptions>
-        </Card>
-
-        {alertsVisible ? <Card className="project-alert-card" title="Công việc & cảnh báo" extra={<Tag color={alerts.summary.critical ? "red" : alerts.summary.total ? "orange" : "green"}>{alerts.summary.total}</Tag>}>
-          <List<ProjectAlertItem>
-            dataSource={alerts.alerts.slice(0, 8)}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hồ sơ chưa có cảnh báo" /> }}
-            renderItem={(item) => (
-              <List.Item>
-                <div className={`project-alert-item project-alert-${item.severity}`}>
-                  <span>{alertIcon(item.severity)}</span>
-                  <div>
-                    <strong>{item.message}</strong>
-                    {item.due_date ? <small>Hạn: {formatDate(item.due_date)}</small> : <small>Cần bổ sung vào hồ sơ</small>}
-                  </div>
-                </div>
-              </List.Item>
-            )}
-          />
-        </Card> : null}
-      </section>
-
-      <Card
-        className="project-detail-card dossier-cycle-overview"
-        extra={<Text type="secondary">Chọn một kỳ để mở đúng bộ hồ sơ nghiệp vụ</Text>}
-        title="Các kỳ đánh giá trong chu kỳ chứng nhận"
-      >
-        <div className="dossier-cycle-grid">
-          {dossierGroups.map((group) => (
-            <button
-              className={`dossier-cycle-card${selectedDossier?.dossier_key === group.dossier_key ? " dossier-cycle-card-active" : ""}`}
-              key={group.dossier_key}
-              onClick={() => openDossier(group)}
-              type="button"
-            >
-              <div className="dossier-cycle-card-heading">
-                <strong>{group.dossier_label}</strong>
-                {dossierStatusTag(group)}
-              </div>
-              <span>{group.dossier_description}</span>
-              <Progress percent={group.summary.completion_percentage} showInfo={false} size="small" />
-              <small>
-                {group.summary.completed_items}/{group.summary.total_items} thành phần
-                {group.plan_codes?.length ? ` · ${group.plan_codes.join(", ")}` : " · Chưa có kế hoạch"}
-              </small>
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      <AuditProgramPanel
-        application={application}
-        auditPlans={project.audit_plans}
-        onChanged={() => detailQuery.refetch().then(() => undefined)}
-        onOpenTeamAssignment={onOpenTeamAssignment}
-        onOpenAuditPlan={onOpenAuditPlan}
-        onOpenPlanWorkspace={(planId) => setSelectedPlanId(planId)}
-        projectCreatedAt={project.created_at}
-        projectId={project.id}
-        roles={roles}
-      />
-      </> : null}
-
-      {activeWorkspaceTab === "dossiers" ? <>
       <Card
         className="project-detail-card dossier-selector-card dossier-workspace-selector"
         extra={selectedDossier ? dossierStatusTag(selectedDossier) : null}
-        title="Chọn kỳ đánh giá"
+        title="Chu kỳ chứng nhận"
       >
         <Tabs
           activeKey={selectedDossier?.dossier_key}
@@ -1751,8 +1797,8 @@ export function CertificationProjectDetailScreen({
             ),
           }))}
           onChange={(key) => {
-            setSelectedDossierKey(key);
-            setActiveDossierSection("records");
+            const group = dossierGroups.find((item) => item.dossier_key === key);
+            if (group) openDossier(group);
           }}
           size="small"
         />
@@ -1763,37 +1809,71 @@ export function CertificationProjectDetailScreen({
         title={(
           <div className="dossier-workspace-title">
             <div>
-              <strong>{selectedDossier.dossier_label}</strong>
+              <strong>
+                {normalize(selectedDossier.dossier_type) === "surveillance1"
+                  ? "GS1"
+                  : normalize(selectedDossier.dossier_type) === "surveillance2"
+                    ? "GS2"
+                    : normalize(selectedDossier.dossier_type) === "recertification"
+                      ? "TCC"
+                      : "CN lần đầu"}
+                {" · "}{auditTypeLabels[normalize(selectedDossier.dossier_type)] ?? selectedDossier.dossier_label}
+              </strong>
               <span>{selectedDossier.dossier_description}</span>
             </div>
             <div className="dossier-workspace-meta">
-              <span>Kế hoạch: {selectedDossier.plan_codes?.length ? selectedDossier.plan_codes.join(", ") : "Chưa lập"}</span>
-              <span>Thời gian: {formatDate(selectedDossier.planned_start_date)}</span>
-              <span>{selectedDossier.summary.completed_items}/{selectedDossier.summary.total_items} thành phần</span>
+              <span>{formatDate(selectedStartDate)} – {formatDate(selectedEndDate)}</span>
+              <span>{selectedMandays == null ? "Chưa xác định MD" : `${selectedMandays} MD`}</span>
+              <span>{readableStatus(selectedPrimaryPlan?.status ?? selectedDossier.summary.dossier_status)}</span>
             </div>
           </div>
         )}
       >
-        <Tabs
-          activeKey={activeDossierSection}
-          className="dossier-inner-tabs"
-          items={dossierSectionTabs}
-          onChange={(key) => setActiveDossierSection(key as DossierSectionKey)}
-          size="small"
-        />
-
+        <div className="dossier-cycle-progress">
+          <Progress percent={selectedSummary.completion_percentage} size="small" />
+          <Text>{selectedSummary.completed_items}/{selectedSummary.total_items} thành phần đã thỏa mãn</Text>
+          {alerts.summary.total ? <Tag color="orange">{alerts.summary.total} cảnh báo dự án</Tag> : <Tag color="green">Không có cảnh báo</Tag>}
+        </div>
         {documentActionMessage ? <Alert closable message={documentActionMessage} onClose={() => setDocumentActionMessage(null)} showIcon type="success" /> : null}
         {documentActionError ? <Alert closable message="Không thể thực hiện thao tác tài liệu" description={documentActionError} onClose={() => setDocumentActionError(null)} showIcon type="error" /> : null}
 
-        {activeDossierSection === "records" ? <>
+        {canSeePlanDiagnostics ? planDiagnostics.map((diagnostic) => (
+          <Alert
+            description={`Đang dùng ${diagnostic.canonical_plan_code ?? "PLAN canonical"}; các PLAN trùng chỉ được giữ trong cảnh báo quản trị cho đến khi dữ liệu được xử lý.`}
+            key={`${diagnostic.audit_event_id}-${diagnostic.canonical_plan_id}`}
+            message="Phát hiện PLAN vận hành trùng"
+            showIcon
+            type="warning"
+          />
+        )) : null}
+
+        {selectedNextAction ? (
+          <Alert
+            action={(
+              <Button className="dossier-next-action-button" disabled={!canPerformNextAction} onClick={() => void openDossierNextAction(selectedDossier)} type="primary">
+                {selectedNextAction.label}
+              </Button>
+            )}
+            className="dossier-next-action"
+            description={canPerformNextAction
+              ? `Phụ trách: ${selectedNextAction.responsibleLabel}. Thao tác mở trực tiếp đúng thành phần hồ sơ của kỳ này.`
+              : `Phụ trách: ${selectedNextAction.responsibleLabel}. Vai trò hiện tại chỉ có thể theo dõi trạng thái.`}
+            message={<span>VIỆC CẦN LÀM TIẾP THEO <strong>{selectedNextAction.label}</strong></span>}
+            showIcon
+            style={{ marginBottom: 16 }}
+            type={selectedNextAction.code === "REVIEW_CHANGE" ? "warning" : "info"}
+          />
+        ) : null}
+
+        <div>
           <Card className="project-workflow-card dossier-workflow-card" title="Tiến trình của kỳ đánh giá này">
             <Steps items={workflowStages} responsive size="small" />
           </Card>
           <div className="dossier-form-stage-list">
-            {workflowStageDefinitions.map((stage, stageIndex) => {
+            {selectedWorkflowStageDefinitions.map((stage, stageIndex) => {
               const stageItems = selectedDossier.items.filter((item) => stage.keys.some((key) => key === item.document_key));
               if (!stageItems.length) return null;
-              const completed = stageItems.filter((item) => normalize(item.status) === "completed").length;
+              const completed = stageItems.filter((item) => ["completed", "not_applicable"].includes(normalize(item.status))).length;
               return (
                 <Card
                   className="dossier-form-stage-card"
@@ -1806,69 +1886,22 @@ export function CertificationProjectDetailScreen({
                     columns={dossierColumns}
                     dataSource={stageItems}
                     pagination={false}
+                    rowClassName={(record) => (
+                      selectedNextAction?.itemKey === normalize(record.document_key)
+                        ? "dossier-row-next-action"
+                        : ""
+                    )}
                     rowKey={(record) => `${selectedDossier.dossier_key}-${record.document_key}-${record.item_no}`}
-                    size="middle"
+                    size="small"
                   />
                 </Card>
               );
             })}
           </div>
-        </> : null}
+        </div>
 
-        {activeDossierSection === "plans" ? <Table
-          columns={planColumns}
-          dataSource={selectedAuditPlans}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Kỳ này chưa có kế hoạch đánh giá" /> }}
-          pagination={false}
-          rowKey="id"
-          size="middle"
-        /> : null}
-
-        {activeDossierSection === "review" ? <Table
-          columns={dossierColumns}
-          dataSource={selectedReviewItems}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Kỳ này chưa phát sinh nội dung thẩm xét và kết quả" /> }}
-          pagination={false}
-          rowKey={(record) => `${selectedDossier.dossier_key}-review-${record.document_key}`}
-          size="middle"
-        /> : null}
-
-        {activeDossierSection === "documents" ? <div className="dossier-document-workspace">
-          <Table
-            columns={dossierColumns}
-            dataSource={selectedDocumentItems}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Kỳ này chưa có yêu cầu tài liệu riêng" /> }}
-            pagination={false}
-            rowKey={(record) => `${selectedDossier.dossier_key}-document-${record.document_key}`}
-            size="middle"
-          />
-          <Divider orientation="left">Tệp đã lưu cho kỳ này</Divider>
-          <List<DossierFile>
-            dataSource={selectedDossierFiles}
-            grid={{ gutter: 12, xs: 1, sm: 1, md: 2, lg: 3 }}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tệp gắn trực tiếp với kế hoạch của kỳ này" /> }}
-            renderItem={(file) => (
-              <List.Item>
-                <div className="project-file-item">
-                  <FileDoneOutlined />
-                  <div className="project-file-details">
-                    <strong title={file.original_name}>{file.original_name}</strong>
-                    <span>{readableDocumentType(file.document_type)}</span>
-                    <span>Phiên bản {file.version_no} · {formatDate(file.uploaded_at)}</span>
-                  </div>
-                  <Space size={6}>
-                    <Button icon={<EyeOutlined />} loading={openingFileId === file.id} onClick={() => void openDossierFile(file)} size="small">Mở tệp</Button>
-                    {canManageDocuments ? <Button icon={<UploadOutlined />} onClick={() => startDocumentVersionUpload(file)} size="small">Bản mới</Button> : null}
-                  </Space>
-                </div>
-              </List.Item>
-            )}
-          />
-        </div> : null}
       </Card> : null}
-      </> : null}
 
-      {activeWorkspaceTab === "documents" ? <>
       <CommercialDocumentsPanel
         agreement={project.certification_agreements ? {
           id: project.certification_agreements.id,
@@ -1886,14 +1919,14 @@ export function CertificationProjectDetailScreen({
       <Card
         className="project-detail-card dossier-card"
         extra={<Text type="secondary">{pendingLabel(commonDossierItems)}</Text>}
-        title="Hồ sơ và tài liệu dùng chung cho toàn chu kỳ"
+        title="Hồ sơ dùng chung / xuyên chu kỳ"
       >
         <Table
           columns={dossierColumns}
           dataSource={commonDossierItems}
           pagination={false}
           rowKey={(record) => `common-${record.document_key}-${record.item_no}`}
-          size="middle"
+          size="small"
         />
       </Card>
 
@@ -1922,7 +1955,6 @@ export function CertificationProjectDetailScreen({
           )}
         />
       </Card>
-      </> : null}
 
       <footer className="project-detail-footer">
         <SafetyCertificateOutlined /> Dữ liệu hồ sơ được tổng hợp trực tiếp từ các nghiệp vụ đã hoàn thành trong hệ thống.
@@ -2026,7 +2058,7 @@ export function CertificationProjectDetailScreen({
               <Descriptions.Item label="Kết quả"><ProjectStatusTag status={sourceReview.result} /></Descriptions.Item>
               <Descriptions.Item label="Trạng thái quy trình"><ProjectStatusTag status={sourceReview.workflow_status} /></Descriptions.Item>
               <Descriptions.Item label="Người lập">{displayUser(sourceReview.prepared_by)}</Descriptions.Item>
-              <Descriptions.Item label="Người kiểm tra">{displayUser(sourceReview.checker) || sourceReview.checked_by_name || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Reviewer">{displayUser(sourceReview.users) || displayUser(sourceReview.checker) || sourceReview.checked_by_name || "—"}</Descriptions.Item>
               <Descriptions.Item label="Lĩnh vực đánh giá" span={2}>{sourceReview.audit_field ?? "—"}</Descriptions.Item>
               <Descriptions.Item label="Mã IAF">{sourceReview.iaf_code ?? "—"}</Descriptions.Item>
               <Descriptions.Item label="Mã ISIC">{sourceReview.isic_code ?? "—"}</Descriptions.Item>
@@ -2123,15 +2155,32 @@ export function CertificationProjectDetailScreen({
         ) : null}
       </Drawer>
 
+      <SurveillanceInformationSnapshotModal
+        canEdit={canManageSurveillanceInformation}
+        eventId={surveillanceInformationEventId}
+        onClose={() => {
+          setSurveillanceInformationEventId(null);
+          void detailQuery.refetch();
+        }}
+        onUpdated={() => {
+          void detailQuery.refetch();
+        }}
+        open={Boolean(surveillanceInformationEventId)}
+        projectId={projectId}
+      />
+
       <CorrectiveActionWorkspaceModal
+        initialFindingId={correctiveActionFindingId}
         onChanged={async () => {
           await Promise.all([
             detailQuery.refetch(),
             dossierDocumentSummaryQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
         }}
         onClose={() => {
           setCorrectiveActionWorkspacePlanId(null);
+          setCorrectiveActionFindingId(null);
           void dossierDocumentSummaryQuery.refetch();
           void detailQuery.refetch();
         }}
@@ -2146,6 +2195,7 @@ export function CertificationProjectDetailScreen({
           await Promise.all([
             detailQuery.refetch(),
             dossierDocumentSummaryQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
         }}
         onClose={() => {
@@ -2163,12 +2213,22 @@ export function CertificationProjectDetailScreen({
           await Promise.all([
             detailQuery.refetch(),
             dossierDocumentSummaryQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
         }}
         onClose={() => {
           setCertificateIssuancePlanId(null);
           void dossierDocumentSummaryQuery.refetch();
           void detailQuery.refetch();
+        }}
+        onStartStatusDecision={(preferredDecisionType) => {
+          if (!certificateIssuancePlanId) return;
+          setCertificateIssuancePlanId(null);
+          setCertificationResultWorkspace({
+            planId: certificateIssuancePlanId,
+            focus: "decision",
+            preferredDecisionType,
+          });
         }}
         open={Boolean(certificateIssuancePlanId)}
         planId={certificateIssuancePlanId}
@@ -2177,10 +2237,12 @@ export function CertificationProjectDetailScreen({
 
       <CertificationResultWorkspaceModal
         focus={certificationResultWorkspace?.focus ?? "overview"}
+        preferredDecisionType={certificationResultWorkspace?.preferredDecisionType}
         onChanged={async () => {
           await Promise.all([
             detailQuery.refetch(),
             dossierDocumentSummaryQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
         }}
         onClose={() => {
@@ -2195,10 +2257,12 @@ export function CertificationProjectDetailScreen({
 
       <AuditDocumentCenterModal
         focus={auditDocumentWorkspace?.focus ?? null}
+        readOnly={!roles.some((role) => ["admin", "staff", "coordinator", "lead_auditor", "auditor"].includes(normalize(role)))}
         onChanged={async () => {
           await Promise.all([
             detailQuery.refetch(),
             dossierDocumentSummaryQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
         }}
         onClose={() => {
@@ -2264,20 +2328,30 @@ export function CertificationProjectDetailScreen({
 
       <AuditExecutionWorkspaceModal
         mode={focusedExecutionWorkspace?.mode ?? "report"}
-        onChanged={() => detailQuery.refetch().then(() => undefined)}
+        onChanged={async () => {
+          await Promise.all([
+            detailQuery.refetch(),
+            invalidatePersonalWorkflowQueries(queryClient),
+          ]);
+        }}
         onClose={() => setFocusedExecutionWorkspace(null)}
         open={Boolean(focusedExecutionWorkspace)}
         planId={focusedExecutionWorkspace?.planId ?? null}
         roles={roles}
       />
 
-      <AuditPlanWorkspaceDrawer
-        onChanged={() => detailQuery.refetch().then(() => undefined)}
-        onClose={() => setSelectedPlanId(null)}
-        onOpenScheduling={onOpenAuditPlan}
-        planId={selectedPlanId}
-        roles={roles}
-      />
+      {coordinationTarget ? (
+        <ScheduleResourcesScreen
+          appointmentEditorOnly
+          initialPlanId={coordinationTarget}
+          onEditorClose={() => {
+            setCoordinationTarget(null);
+            void detailQuery.refetch();
+          }}
+          onOpenProject={() => undefined}
+          roles={roles}
+        />
+      ) : null}
     </div>
   );
 }

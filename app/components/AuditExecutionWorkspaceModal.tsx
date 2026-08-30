@@ -50,6 +50,7 @@ const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
 
 export type AuditExecutionWorkspaceMode = "full" | "report" | "findings" | "complete";
+type AuditExecutionTab = "overview" | Exclude<AuditExecutionWorkspaceMode, "full">;
 
 interface AuditExecutionWorkspaceModalProps {
   open: boolean;
@@ -371,22 +372,32 @@ export default function AuditExecutionWorkspaceModal({
   const [reportForm] = Form.useForm<ReportFormValues>();
   const [findingForm] = Form.useForm<FindingFormValues>();
   const [completeForm] = Form.useForm<CompleteFormValues>();
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [reportSelection, setReportSelection] = useState<{
+    planId: string | null;
+    reportId: string | null;
+  } | null>(null);
   const [findingOpen, setFindingOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
   const [documentPreview, setDocumentPreview] = useState<ReportDocumentPreview | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "report" | "findings" | "complete">("overview");
+  const [tabSelection, setTabSelection] = useState<{
+    context: string;
+    tab: AuditExecutionTab;
+  } | null>(null);
 
   const focusedTab = mode === "full" ? null : mode;
-  useEffect(() => {
-    if (!open) return;
-    setActiveTab(focusedTab ?? "overview");
-  }, [focusedTab, open, planId]);
+  const defaultTab: AuditExecutionTab = focusedTab ?? "overview";
+  const tabContext = `${planId ?? ""}:${defaultTab}`;
+  const activeTab = tabSelection?.context === tabContext
+    ? tabSelection.tab
+    : defaultTab;
+  const setActiveTab = (tab: AuditExecutionTab) => {
+    setTabSelection({ context: tabContext, tab });
+  };
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
   const canExecute = normalizedRoles.some((role) =>
-    ["admin", "staff", "auditor", "lead_auditor"].includes(role),
+    ["auditor", "lead_auditor"].includes(role),
   );
 
   const workspaceQuery = useQuery<ExecutionWorkspace>({
@@ -414,6 +425,13 @@ export default function AuditExecutionWorkspaceModal({
   const stage2LifecycleGate = plan?.stage2_lifecycle_gate ?? null;
   const appointment = workspace?.appointment;
   const reports = workspace?.reports ?? [];
+  const selectedReportId = reportSelection?.planId === planId
+    && reports.some((item) => item.id === reportSelection.reportId)
+    ? reportSelection.reportId
+    : reports[0]?.id ?? null;
+  const setSelectedReportId = (reportId: string | null) => {
+    setReportSelection({ planId, reportId });
+  };
   const selectedReport = reports.find((item) => item.id === selectedReportId) ?? reports[0] ?? null;
 
   const findingsQuery = useQuery<AuditFinding[]>({
@@ -456,16 +474,6 @@ export default function AuditExecutionWorkspaceModal({
     && normalize(plan?.status) === "in_progress"
     && Boolean(selectedReport)
     && !reportLocked;
-
-  useEffect(() => {
-    if (!reports.length) {
-      setSelectedReportId(null);
-      return;
-    }
-    if (!selectedReportId || !reports.some((item) => item.id === selectedReportId)) {
-      setSelectedReportId(reports[0].id);
-    }
-  }, [reports, selectedReportId]);
 
   useEffect(() => {
     if (!selectedReport) {
@@ -789,7 +797,7 @@ export default function AuditExecutionWorkspaceModal({
   ) : (
     <Tabs
       activeKey={focusedTab ?? activeTab}
-      onChange={(key) => setActiveTab(key as "overview" | "report" | "findings" | "complete")}
+      onChange={(key) => setActiveTab(key as AuditExecutionTab)}
       tabBarStyle={focusedTab ? { display: "none", margin: 0 } : undefined}
       items={[
         {
@@ -1319,7 +1327,10 @@ export default function AuditExecutionWorkspaceModal({
         destroyOnHidden
         footer={null}
         maskClosable={false}
-        onCancel={onClose}
+        onCancel={() => {
+          setTabSelection(null);
+          onClose();
+        }}
         open={open}
         title={(
           <div>

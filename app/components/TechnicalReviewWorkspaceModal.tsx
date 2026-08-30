@@ -10,7 +10,6 @@ import {
   ReloadOutlined,
   SaveOutlined,
   SafetyCertificateOutlined,
-  SendOutlined,
   SyncOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
@@ -40,7 +39,7 @@ import {
   Typography,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type SetStateAction } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile, previewDocumentFile } from "../lib/document-file-client";
@@ -146,6 +145,14 @@ interface TechnicalReviewWorkspace {
     status?: string | null;
   } | null;
   can_start: boolean;
+  can_assign: boolean;
+  can_perform: boolean;
+  assignment_status: "UNASSIGNED" | "ASSIGNED";
+  current_assignment?: {
+    id: string;
+    due_at?: string | null;
+    note?: string | null;
+  } | null;
   eligibility_errors: string[];
   review: TechnicalReviewRecord | null;
   document_history: GeneratedDocumentFile[];
@@ -153,6 +160,23 @@ interface TechnicalReviewWorkspace {
     preliminary: CriterionDefinition[];
     technical: CriterionDefinition[];
   };
+}
+
+interface ReviewerCandidate {
+  id: string;
+  username: string;
+  full_name?: string | null;
+  email?: string | null;
+  eligible: boolean;
+  independent: boolean;
+}
+
+interface AssignmentFormValues {
+  reviewer_id: string;
+  due_at?: Dayjs;
+  note?: string;
+  reason?: string;
+  admin_override_reason?: string;
 }
 
 interface WorkspaceFormValues {
@@ -244,6 +268,34 @@ function createRows(
   });
 }
 
+interface TechnicalReviewDraft {
+  source: TechnicalReviewWorkspace;
+  preliminaryRows: CriterionRow[];
+  technicalRows: CriterionRow[];
+  itemComments: Record<string, string>;
+}
+
+function createTechnicalReviewDraft(workspace: TechnicalReviewWorkspace): TechnicalReviewDraft {
+  const current = workspace.review?.form_data?.f11;
+  return {
+    source: workspace,
+    preliminaryRows: createRows(workspace.criteria.preliminary, current?.preliminary_criteria),
+    technicalRows: createRows(workspace.criteria.technical, current?.technical_criteria),
+    itemComments: Object.fromEntries(
+      (workspace.review?.form_data?.review_items ?? []).map((item) => [
+        item.document_key,
+        item.reviewer_comment ?? "",
+      ]),
+    ),
+  };
+}
+
+function resolveStateAction<T>(next: SetStateAction<T>, current: T): T {
+  return typeof next === "function"
+    ? (next as (value: T) => T)(current)
+    : next;
+}
+
 export default function TechnicalReviewWorkspaceModal({
   open,
   planId,
@@ -253,15 +305,15 @@ export default function TechnicalReviewWorkspaceModal({
 }: TechnicalReviewWorkspaceModalProps) {
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<WorkspaceFormValues>();
-  const [preliminaryRows, setPreliminaryRows] = useState<CriterionRow[]>([]);
-  const [technicalRows, setTechnicalRows] = useState<CriterionRow[]>([]);
-  const [itemComments, setItemComments] = useState<Record<string, string>>({});
+  const [assignmentForm] = Form.useForm<AssignmentFormValues>();
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [reviewDraft, setReviewDraft] = useState<TechnicalReviewDraft | null>(null);
   const [itemPreview, setItemPreview] = useState<ReviewItemPreview | null>(null);
   const [itemPreviewOpen, setItemPreviewOpen] = useState(false);
   const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canPerform = normalizedRoles.some((role) => ["admin", "technical_reviewer"].includes(role));
+  const canAssign = normalizedRoles.some((role) => ["admin", "coordinator"].includes(role));
 
   const workspaceQuery = useQuery<TechnicalReviewWorkspace>({
     enabled: open && Boolean(planId),
@@ -273,9 +325,49 @@ export default function TechnicalReviewWorkspaceModal({
   });
 
   const workspace = workspaceQuery.data;
+  const canPerform = Boolean(workspace?.can_perform);
   const review = workspace?.review ?? null;
-  const f11 = review?.form_data?.f11;
   const reviewItems = review?.form_data?.review_items ?? [];
+  const initialReviewDraft = useMemo(
+    () => workspace ? createTechnicalReviewDraft(workspace) : null,
+    [workspace],
+  );
+  const activeReviewDraft = reviewDraft?.source === workspace
+    ? reviewDraft
+    : initialReviewDraft;
+  const preliminaryRows = activeReviewDraft?.preliminaryRows ?? [];
+  const technicalRows = activeReviewDraft?.technicalRows ?? [];
+  const itemComments = activeReviewDraft?.itemComments ?? {};
+  const updateReviewDraft = (
+    updater: (current: TechnicalReviewDraft) => TechnicalReviewDraft,
+  ) => {
+    if (!workspace) return;
+    setReviewDraft((current) => updater(
+      current?.source === workspace ? current : createTechnicalReviewDraft(workspace),
+    ));
+  };
+  const setPreliminaryRows = (next: SetStateAction<CriterionRow[]>) => {
+    updateReviewDraft((current) => ({
+      ...current,
+      preliminaryRows: resolveStateAction(next, current.preliminaryRows),
+    }));
+  };
+  const setTechnicalRows = (next: SetStateAction<CriterionRow[]>) => {
+    updateReviewDraft((current) => ({
+      ...current,
+      technicalRows: resolveStateAction(next, current.technicalRows),
+    }));
+  };
+  const setItemComments = (next: SetStateAction<Record<string, string>>) => {
+    updateReviewDraft((current) => ({
+      ...current,
+      itemComments: resolveStateAction(next, current.itemComments),
+    }));
+  };
+  const handleClose = () => {
+    setReviewDraft(null);
+    onClose();
+  };
 
   useEffect(() => {
     if (!open || !workspace) return;
@@ -289,14 +381,6 @@ export default function TechnicalReviewWorkspaceModal({
       recommendation_comment: current?.recommendation_comment || "",
       conditions: current?.conditions || "",
     });
-    setPreliminaryRows(createRows(workspace.criteria.preliminary, current?.preliminary_criteria));
-    setTechnicalRows(createRows(workspace.criteria.technical, current?.technical_criteria));
-    setItemComments(Object.fromEntries(
-      (workspace.review?.form_data?.review_items ?? []).map((item) => [
-        item.document_key,
-        item.reviewer_comment ?? "",
-      ]),
-    ));
   }, [form, open, workspace]);
 
   const refresh = async () => {
@@ -306,13 +390,33 @@ export default function TechnicalReviewWorkspaceModal({
     ]);
   };
 
-  const ensureMutation = useMutation({
-    mutationFn: async () => {
+  const candidatesQuery = useQuery<ReviewerCandidate[]>({
+    enabled: open && Boolean(planId) && canAssign && Boolean(workspace?.can_start),
+    queryKey: ["technical-review-candidates", planId],
+    queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
-      return (await api.post<TechnicalReviewWorkspace>(`/technical-reviews/plan/${planId}/ensure`)).data;
+      return (await api.get<ReviewerCandidate[]>(`/technical-reviews/plan/${planId}/candidates`)).data;
+    },
+  });
+
+  const assignmentMutation = useMutation({
+    mutationFn: async (values: AssignmentFormValues) => {
+      if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
+      const payload = {
+        reviewer_id: values.reviewer_id,
+        due_at: values.due_at?.toISOString(),
+        note: values.note?.trim() || undefined,
+        reason: values.reason?.trim() || undefined,
+        admin_override_reason: values.admin_override_reason?.trim() || undefined,
+      };
+      return review
+        ? (await api.patch(`/technical-reviews/${review.id}/reassign`, payload)).data
+        : (await api.post<TechnicalReviewWorkspace>(`/technical-reviews/plan/${planId}/assign`, payload)).data;
     },
     onSuccess: async () => {
-      message.success("Đã mở hồ sơ thẩm xét kỹ thuật");
+      message.success(review ? "Đã phân công lại người thẩm xét" : "Đã phân công người thẩm xét");
+      setAssignmentOpen(false);
+      assignmentForm.resetFields();
       await refresh();
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -722,7 +826,7 @@ export default function TechnicalReviewWorkspaceModal({
       cancelText="Đóng"
       destroyOnHidden
       footer={[
-        <Button key="close" onClick={onClose}>Đóng</Button>,
+        <Button key="close" onClick={handleClose}>Đóng</Button>,
         ...(review && canPerform && normalize(review.status) !== "completed" ? [
           <Button
             icon={<SaveOutlined />}
@@ -751,7 +855,7 @@ export default function TechnicalReviewWorkspaceModal({
         ] : []),
       ]}
       maskClosable={false}
-      onCancel={onClose}
+      onCancel={handleClose}
       open={open}
       title={(
         <Space direction="vertical" size={0}>
@@ -780,6 +884,7 @@ export default function TechnicalReviewWorkspaceModal({
               <Descriptions.Item label="Hồ sơ">{workspace.plan.project_code || "—"}</Descriptions.Item>
               <Descriptions.Item label="Báo cáo">{workspace.report?.report_code || "Chưa có"}</Descriptions.Item>
               <Descriptions.Item label="Người thẩm xét">{reviewerName(review)}</Descriptions.Item>
+              <Descriptions.Item label="Hạn hoàn thành">{formatDate(workspace.current_assignment?.due_at)}</Descriptions.Item>
               <Descriptions.Item label="Tiêu chuẩn" span={2}>{workspace.plan.standard_name || "—"}</Descriptions.Item>
               <Descriptions.Item label="Thời gian đánh giá">
                 {formatDate(workspace.plan.planned_start_date)} – {formatDate(workspace.plan.planned_end_date)}
@@ -792,26 +897,35 @@ export default function TechnicalReviewWorkspaceModal({
 
           {!review ? (
             <Alert
-              action={canPerform ? (
+              action={canAssign ? (
                 <Button
                   disabled={!workspace.can_start}
                   icon={<FileSearchOutlined />}
-                  loading={ensureMutation.isPending}
-                  onClick={() => ensureMutation.mutate()}
+                  onClick={() => setAssignmentOpen(true)}
                   type="primary"
                 >
-                  Bắt đầu thẩm xét
+                  Phân công người thẩm xét
                 </Button>
               ) : undefined}
               description={workspace.eligibility_errors.length
                 ? workspace.eligibility_errors.join("\n")
-                : "Báo cáo và hồ sơ đã đủ điều kiện để bắt đầu thẩm xét kỹ thuật."}
-              message={workspace.can_start ? "Sẵn sàng thẩm xét" : "Chưa đủ điều kiện thẩm xét"}
+                : "Báo cáo và hồ sơ đã đủ điều kiện để Điều phối viên phân công người thẩm xét độc lập."}
+              message={workspace.can_start ? "Chờ phân công thẩm xét" : "Chưa đủ điều kiện thẩm xét"}
               showIcon
               type={workspace.can_start ? "info" : "warning"}
             />
           ) : (
             <>
+              {canAssign && normalize(review.status) === "pending" ? (
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button onClick={() => {
+                    assignmentForm.setFieldsValue({ reviewer_id: review.reviewer_id });
+                    setAssignmentOpen(true);
+                  }}>
+                    Phân công lại
+                  </Button>
+                </div>
+              ) : null}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
                 <Card size="small"><Statistic title="Hạng mục hồ sơ" value={`${acceptedCount}/${reviewItems.length}`} /></Card>
                 <Card size="small"><Statistic title="Tiêu chí F.11" value={`${answeredCount}/${criteriaTotal}`} /></Card>
@@ -1095,6 +1209,44 @@ export default function TechnicalReviewWorkspaceModal({
             ) : <Empty description="Chưa có tệp đính kèm/biểu mẫu đã sinh" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
         </Space>
+      </Modal>
+      <Modal
+        cancelText="Hủy"
+        confirmLoading={assignmentMutation.isPending}
+        okText={review ? "Phân công lại" : "Phân công"}
+        onCancel={() => setAssignmentOpen(false)}
+        onOk={() => void assignmentForm.validateFields().then((values) => assignmentMutation.mutate(values))}
+        open={assignmentOpen}
+        title={review ? "Phân công lại người thẩm xét" : "Phân công người thẩm xét"}
+      >
+        <Form form={assignmentForm} layout="vertical">
+          <Form.Item label="Người thẩm xét" name="reviewer_id" rules={[{ required: true, message: "Chọn người thẩm xét" }]}>
+            <Select
+              loading={candidatesQuery.isLoading}
+              options={(candidatesQuery.data ?? []).map((candidate) => ({
+                value: candidate.id,
+                label: `${candidate.full_name || candidate.username} · Đủ điều kiện · Độc lập`,
+              }))}
+              optionFilterProp="label"
+              placeholder="Chọn người đủ điều kiện và độc lập"
+              showSearch
+            />
+          </Form.Item>
+          <Form.Item label="Hạn hoàn thành" name="due_at">
+            <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+          </Form.Item>
+          {review ? (
+            <Form.Item label="Lý do phân công lại" name="reason" rules={[{ required: true, min: 3, message: "Nhập lý do phân công lại" }]}>
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          ) : null}
+          <Form.Item label="Ghi chú giao việc" name="note"><Input.TextArea rows={3} /></Form.Item>
+          {normalizedRoles.includes("admin") && !normalizedRoles.includes("coordinator") ? (
+            <Form.Item label="Lý do ADMIN override" name="admin_override_reason" rules={[{ required: true, message: "Nhập lý do override" }]}>
+              <Input.TextArea rows={3} />
+            </Form.Item>
+          ) : null}
+        </Form>
       </Modal>
     </Modal>
   );

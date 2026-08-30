@@ -12,10 +12,13 @@ import {
   StopOutlined,
   UndoOutlined,
   TeamOutlined,
+  UserAddOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -39,6 +42,7 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
 
 const { Text, Title } = Typography;
 
@@ -106,6 +110,35 @@ interface CertificationProject {
   } | null;
 }
 
+
+interface CustomerUserAccess {
+  id: string;
+  user_id: string;
+  customer_id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    full_name: string | null;
+    status: string | null;
+  };
+}
+
+interface PortalPasswordResetResult {
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    full_name: string | null;
+    status: string | null;
+  };
+  temporary_password: string;
+  note: string;
+}
+
 interface CustomersScreenProps {
   onOpenProject: (projectId: string) => void;
   roles: string[];
@@ -137,7 +170,7 @@ function CustomerStatusTag({ status }: { status?: string | null }) {
 }
 
 export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CustomerFormValues>();
   const [searchTerm, setSearchTerm] = useState("");
@@ -146,9 +179,11 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const [formOpen, setFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [countryChoice, setCountryChoice] = useState("VN");
+  const [portalAccountOpen, setPortalAccountOpen] = useState(false);
+  const formCountryCode = Form.useWatch("country_code", form);
   const watchedCountryCode = countryChoice === "OTHER"
     ? "OT"
-    : (Form.useWatch("country_code", form) ?? editingCustomer?.country_code ?? "VN");
+    : (formCountryCode ?? editingCustomer?.country_code ?? "VN");
 
   const normalizedRoles = roles.map((role) => normalize(role));
   const canManage = normalizedRoles.some((role) => ["admin", "staff", "sales"].includes(role));
@@ -164,9 +199,17 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
     queryFn: async () => (await api.get<CertificationProject[]>("/certification-projects")).data,
   });
 
-  const customers = customersQuery.data ?? [];
-  const projects = projectsQuery.data ?? [];
+  const customers = useMemo(() => customersQuery.data ?? [], [customersQuery.data]);
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const selectedCustomer = customers.find((item) => item.id === selectedCustomerId) ?? null;
+  const customerAccessQuery = useQuery({
+    enabled: Boolean(selectedCustomerId && isAdmin),
+    queryKey: ["customers", selectedCustomerId, "user-access"],
+    queryFn: async () => (await api.get<CustomerUserAccess[]>(`/customers/${selectedCustomerId}/user-access`)).data,
+  });
+
+  const customerAccess = customerAccessQuery.data ?? [];
+  const activePortalAccessCount = customerAccess.filter((item) => normalize(item.status) === "active").length;
 
   const projectsByCustomer = useMemo(() => {
     const grouped = new Map<string, CertificationProject[]>();
@@ -236,6 +279,47 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
       message.success("Đã khôi phục hoạt động khách hàng trên hồ sơ cũ");
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const customerAccessMutation = useMutation({
+    mutationFn: async ({ userId, action }: { userId: string; action: "reactivate" | "revoke" }) => {
+      if (!selectedCustomerId) throw new Error("Chưa chọn khách hàng");
+      if (action === "reactivate") {
+        return (await api.put(`/customers/${selectedCustomerId}/user-access/${userId}`)).data;
+      }
+      return (await api.delete(`/customers/${selectedCustomerId}/user-access/${userId}`)).data;
+    },
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["customers", selectedCustomerId, "user-access"] });
+      message.success(variables.action === "reactivate" ? "Đã khôi phục quyền Portal" : "Đã ngừng quyền Portal");
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const resetPortalPasswordMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      if (!selectedCustomerId) throw new Error("Chưa chọn khách hàng");
+      return (await api.post<PortalPasswordResetResult>(
+        `/customers/${selectedCustomerId}/portal-users/${userId}/reset-password`,
+      )).data;
+    },
+    onSuccess: (data) => {
+      modal.success({
+        title: "Đã tạo mật khẩu mới",
+        width: 560,
+        content: (
+          <Space direction="vertical" size="middle" style={{ width: "100%", marginTop: 12 }}>
+            <Text>Mật khẩu mới chỉ hiển thị ở lần này. Sao chép để gửi cho khách hàng.</Text>
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Tên đăng nhập"><Text copyable>{data.user.username}</Text></Descriptions.Item>
+              <Descriptions.Item label="Email"><Text copyable>{data.user.email}</Text></Descriptions.Item>
+              <Descriptions.Item label="Mật khẩu ban đầu"><Text copyable strong>{data.temporary_password}</Text></Descriptions.Item>
+            </Descriptions>
+          </Space>
+        ),
+      });
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
@@ -435,6 +519,86 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
               </Descriptions>
             </Card>
 
+            {isAdmin ? (
+              <Card
+                title="Tài khoản khách hàng"
+                extra={
+                  <Button
+                    icon={<UserAddOutlined />}
+                    onClick={() => setPortalAccountOpen(true)}
+                    type="primary"
+                    disabled={normalize(selectedCustomer.status || "active") !== "active"}
+                  >
+                    Tạo tài khoản khách hàng
+                  </Button>
+                }
+              >
+                <Alert
+                  showIcon
+                  type="info"
+                  message="Mỗi người liên hệ có thể có một tài khoản Portal riêng"
+                  description="Tài khoản được tạo tại đây chỉ có vai trò Khách hàng và chỉ truy cập dữ liệu của tổ chức này."
+                  style={{ marginBottom: 12 }}
+                />
+                <List
+                  loading={customerAccessQuery.isLoading}
+                  dataSource={customerAccess}
+                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tài khoản khách hàng" /> }}
+                  renderItem={(access) => {
+                    const active = normalize(access.status) === "active";
+                    const accountActive = normalize(access.user.status || "active") === "active";
+                    const blockLastRevoke = active && activePortalAccessCount <= 1;
+                    return (
+                      <List.Item
+                        actions={[
+                          <Button
+                            key="password"
+                            icon={<KeyOutlined />}
+                            size="small"
+                            disabled={!accountActive}
+                            loading={resetPortalPasswordMutation.isPending}
+                            onClick={() => resetPortalPasswordMutation.mutate(access.user_id)}
+                          >
+                            Mật khẩu mới
+                          </Button>,
+                          active ? (
+                            <Popconfirm
+                              key="revoke"
+                              title="Ngừng quyền Portal của tài khoản này?"
+                              description={blockLastRevoke
+                                ? "Đây là tài khoản Portal hoạt động cuối cùng của khách hàng; hệ thống giữ lại ít nhất một tài khoản hoạt động."
+                                : "Tài khoản vẫn được giữ, chỉ ngừng liên kết truy cập với khách hàng này."}
+                              okText="Ngừng quyền"
+                              cancelText="Hủy"
+                              disabled={blockLastRevoke}
+                              onConfirm={() => customerAccessMutation.mutate({ userId: access.user_id, action: "revoke" })}
+                            >
+                              <Button danger size="small" disabled={blockLastRevoke}>Ngừng quyền</Button>
+                            </Popconfirm>
+                          ) : (
+                            <Button
+                              key="reactivate"
+                              size="small"
+                              disabled={!accountActive}
+                              onClick={() => customerAccessMutation.mutate({ userId: access.user_id, action: "reactivate" })}
+                            >
+                              Khôi phục quyền
+                            </Button>
+                          ),
+                        ]}
+                      >
+                        <List.Item.Meta
+                          avatar={<span className="customer-project-icon"><TeamOutlined /></span>}
+                          title={<Space wrap><strong>{access.user.full_name || access.user.username}</strong><Tag color={active ? "green" : "default"}>{active ? "Đang truy cập" : "Đã ngừng quyền"}</Tag></Space>}
+                          description={<><Text type="secondary">@{access.user.username} · {access.user.email}</Text>{!accountActive ? <><br /><Text type="danger">Tài khoản đang bị khóa/ngừng hoạt động</Text></> : null}</>}
+                        />
+                      </List.Item>
+                    );
+                  }}
+                />
+              </Card>
+            ) : null}
+
             <Card title="Hồ sơ chứng nhận" extra={<Tag>{selectedProjects.length} hồ sơ</Tag>}>
               <List
                 dataSource={selectedProjects}
@@ -473,6 +637,18 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
           </div>
         ) : null}
       </Drawer>
+
+      <CustomerPortalAccountModal
+        open={portalAccountOpen}
+        customerId={selectedCustomer?.id}
+        customerCode={selectedCustomer?.customer_code}
+        customerName={selectedCustomer?.company_name}
+        onClose={() => setPortalAccountOpen(false)}
+        onSuccess={async () => {
+          await queryClient.invalidateQueries({ queryKey: ["customers", selectedCustomerId, "user-access"] });
+          await queryClient.invalidateQueries({ queryKey: ["system-governance", "customer-access"] });
+        }}
+      />
 
       <Modal
         cancelText="Hủy"

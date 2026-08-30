@@ -160,6 +160,7 @@ interface AuditDocumentCenterModalProps {
   open: boolean;
   planId: string | null;
   focus?: AuditDocumentFocus | null;
+  readOnly?: boolean;
   onChanged?: () => void | Promise<void>;
   onClose: () => void;
 }
@@ -174,6 +175,7 @@ export default function AuditDocumentCenterModal({
   open,
   planId,
   focus = null,
+  readOnly = false,
   onChanged,
   onClose,
 }: AuditDocumentCenterModalProps) {
@@ -365,17 +367,20 @@ export default function AuditDocumentCenterModal({
       ) : previewQuery.data ? (
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
           <Alert
-            description={focus
-              ? "Không gian này chỉ hiển thị dữ liệu, tài liệu và lịch sử phiên bản của biểu mẫu đang chọn."
-              : "Hệ thống sinh F.03, F.04, F.05, F.06, F.07, F.10, F.15 và F.17 từ dữ liệu hồ sơ."}
-            message={focus ? "Không gian biểu mẫu riêng" : "Trung tâm hồ sơ Word/PDF"}
+            description={readOnly
+              ? "Bạn đang xem hồ sơ ở chế độ chỉ đọc. Dữ liệu, tài liệu và lịch sử phiên bản vẫn có thể được xem/tải, nhưng không thể lưu hoặc sinh phiên bản mới."
+              : focus
+                ? "Không gian này hiển thị dữ liệu, tài liệu và lịch sử phiên bản của biểu mẫu đang chọn."
+                : "Hệ thống sinh F.03, F.04, F.05, F.06, F.07, F.10, F.15 và F.17 từ dữ liệu hồ sơ."}
+            message={readOnly ? "Chế độ chỉ đọc" : focus ? "Không gian biểu mẫu riêng" : "Trung tâm hồ sơ Word/PDF"}
             showIcon
-            type="info"
+            type={readOnly ? "warning" : "info"}
           />
 
           <Card
             extra={(
               <Button
+                disabled={readOnly}
                 icon={<SaveOutlined />}
                 loading={saveMutation.isPending}
                 onClick={() => form.submit()}
@@ -388,9 +393,10 @@ export default function AuditDocumentCenterModal({
             title={focus ? `Dữ liệu biểu mẫu - ${workspaceTitle}` : "Dữ liệu bổ sung cho F.05, F.06 và F.07"}
           >
             <Form<DocumentDataFormValues>
+              disabled={readOnly}
               form={form}
               layout="vertical"
-              onFinish={(values) => saveMutation.mutate(values)}
+              onFinish={(values) => { if (!readOnly) saveMutation.mutate(values); }}
             >
               <Row gutter={12}>
                 <Col md={12} xs={24}>
@@ -749,7 +755,7 @@ export default function AuditDocumentCenterModal({
 
                     <Space wrap>
                       <Button
-                        disabled={!document.can_generate}
+                        disabled={readOnly || !document.can_generate}
                         icon={<FileWordOutlined />}
                         loading={isGenerating(document.document_type, "docx", document.member_id, document.program_key, document.finding_id)}
                         onClick={() => generateMutation.mutate({ documentType: document.document_type, format: "docx", memberId: document.member_id, programKey: document.program_key, findingId: document.finding_id })}
@@ -758,7 +764,7 @@ export default function AuditDocumentCenterModal({
                         Xuất Word
                       </Button>
                       <Button
-                        disabled={!document.can_generate}
+                        disabled={readOnly || !document.can_generate}
                         icon={<FilePdfOutlined />}
                         loading={isGenerating(document.document_type, "pdf", document.member_id, document.program_key, document.finding_id)}
                         onClick={() => generateMutation.mutate({ documentType: document.document_type, format: "pdf", memberId: document.member_id, programKey: document.program_key, findingId: document.finding_id })}

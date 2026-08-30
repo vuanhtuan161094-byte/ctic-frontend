@@ -20,11 +20,12 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, type SetStateAction } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
 const { Text } = Typography;
+const EMPTY_NUMBER_MAP: Record<string, number> = {};
 
 interface AllocationProgram {
   program_key: string;
@@ -113,6 +114,35 @@ function cellKey(memberId: string, programKey: string) {
   return `${memberId}::${programKey}`;
 }
 
+interface AllocationDraft {
+  source: AllocationResponse;
+  manualValues: Record<string, number>;
+  weights: Record<string, number>;
+}
+
+function createAllocationDraft(data: AllocationResponse): AllocationDraft {
+  return {
+    source: data,
+    weights: Object.fromEntries(
+      data.programs.map((program) => [program.program_key, program.pre_ims_mandays ?? 0]),
+    ),
+    manualValues: Object.fromEntries(
+      data.members.flatMap((member) =>
+        data.programs.map((program) => [
+          cellKey(member.member_id, program.program_key),
+          member.program_allocations[program.program_key] ?? 0,
+        ] as const),
+      ),
+    ),
+  };
+}
+
+function resolveStateAction<T>(next: SetStateAction<T>, current: T): T {
+  return typeof next === "function"
+    ? (next as (value: T) => T)(current)
+    : next;
+}
+
 export function IntegratedMandayAllocationPanel({
   appointmentId,
   onChanged,
@@ -120,9 +150,8 @@ export function IntegratedMandayAllocationPanel({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [manualMode, setManualMode] = useState(false);
-  const [manualValues, setManualValues] = useState<Record<string, number>>({});
   const [changeReason, setChangeReason] = useState("");
-  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [allocationDraft, setAllocationDraft] = useState<AllocationDraft | null>(null);
 
   const allocationQuery = useQuery({
     queryKey: ["audit-team-manday-allocation", appointmentId],
@@ -135,21 +164,30 @@ export function IntegratedMandayAllocationPanel({
   });
 
   const data = allocationQuery.data;
-
-  useEffect(() => {
+  const initialDraft = useMemo(() => data ? createAllocationDraft(data) : null, [data]);
+  const activeDraft = allocationDraft?.source === data ? allocationDraft : initialDraft;
+  const manualValues = activeDraft?.manualValues ?? EMPTY_NUMBER_MAP;
+  const weights = activeDraft?.weights ?? EMPTY_NUMBER_MAP;
+  const setManualValues = (next: SetStateAction<Record<string, number>>) => {
     if (!data) return;
-    setWeights(Object.fromEntries(
-      data.programs.map((program) => [program.program_key, program.pre_ims_mandays ?? 0]),
-    ));
-    setManualValues(Object.fromEntries(
-      data.members.flatMap((member) =>
-        data.programs.map((program) => [
-          cellKey(member.member_id, program.program_key),
-          member.program_allocations[program.program_key] ?? 0,
-        ] as const),
-      ),
-    ));
-  }, [data]);
+    setAllocationDraft((current) => {
+      const base = current?.source === data ? current : createAllocationDraft(data);
+      return {
+        ...base,
+        manualValues: resolveStateAction(next, base.manualValues),
+      };
+    });
+  };
+  const setWeights = (next: SetStateAction<Record<string, number>>) => {
+    if (!data) return;
+    setAllocationDraft((current) => {
+      const base = current?.source === data ? current : createAllocationDraft(data);
+      return {
+        ...base,
+        weights: resolveStateAction(next, base.weights),
+      };
+    });
+  };
 
   const invalidate = async () => {
     await allocationQuery.refetch();

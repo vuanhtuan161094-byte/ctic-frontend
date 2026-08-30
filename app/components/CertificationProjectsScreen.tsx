@@ -18,7 +18,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TableColumnsType, UploadFile } from "antd";
 import {
   Alert,
-  AutoComplete,
   Button,
   Card,
   Checkbox,
@@ -46,11 +45,12 @@ import {
   message,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, getErrorMessage, SESSION_STORAGE_KEY, type AuthSession } from "../lib/api";
 import { downloadDocumentFile, isBrowserPreviewableDocument, openDocumentFile } from "../lib/document-file-client";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
+import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -254,6 +254,8 @@ interface CertificationProject {
   certification_agreements?: ProjectAgreement | null;
 }
 
+type CertificationWorkspaceRow = CertificationProject | ProjectApplication;
+
 interface ExpertCompetencyOption {
   approval_status: string;
   expiry_date?: string | null;
@@ -271,13 +273,6 @@ interface ExpertOption {
   status?: string | null;
   profile_status?: string | null;
   competencies?: ExpertCompetencyOption[];
-}
-
-interface IafScopeOption {
-  id: string;
-  iaf_code: string;
-  iaf_name: string;
-  is_active?: boolean;
 }
 
 interface IndustryCodeOption {
@@ -540,6 +535,7 @@ interface ProjectCreationValues {
 interface CertificationProjectsScreenProps {
   onOpenProject: (projectId: string) => void;
   mode?: "projects" | "applications";
+  initialReviewId?: string | null;
 }
 
 const statusLabels: Record<string, string> = {
@@ -942,27 +938,6 @@ function parseJsonStringArray(value?: string | null) {
   }
 }
 
-function parseAssociatedDocumentList(value?: string | null) {
-  if (!value) return [] as string[];
-
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-  } catch {
-    // Dữ liệu cũ có thể là chuỗi phân cách bằng dòng mới hoặc dấu chấm phẩy.
-  }
-
-  return value
-    .split(/\r?\n|;/)
-    .map((item) => item.trim().replace(/^[-•]\s*/, ""))
-    .filter(Boolean);
-}
-
 function parseIndustryScopes(value?: string | null): IndustryScopeSelection[] {
   if (!value) return [];
   try {
@@ -1064,14 +1039,6 @@ function approvedActiveCompetencies(expert: ExpertOption) {
     if (!competency.expiry_date) return true;
     return dayjs(competency.expiry_date).endOf("day").isAfter(dayjs());
   });
-}
-
-function expertMatchesIaf(expert: ExpertOption, iafCode?: string | null) {
-  const required = String(iafCode ?? "").trim().replace(/^IAF\s*/i, "");
-  if (!required) return false;
-  return approvedActiveCompetencies(expert).some(
-    (competency) => String(competency.iaf_code ?? "").trim().replace(/^IAF\s*/i, "") === required,
-  );
 }
 
 function expertSupportedStandardLabels(expert: ExpertOption, standards: string[]) {
@@ -1208,7 +1175,7 @@ function ProjectStatusTag({ status }: { status: string }) {
   );
 }
 
-export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }: CertificationProjectsScreenProps) {
+export function CertificationProjectsScreen({ onOpenProject, mode = "projects", initialReviewId = null }: CertificationProjectsScreenProps) {
   const isApplicationWorkspace = mode === "applications";
   const currentWizardSteps = isApplicationWorkspace ? applicationWizardSteps : projectWizardSteps;
   const queryClient = useQueryClient();
@@ -1247,6 +1214,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const lastMandayCalculationSignatureRef = useRef<string | null>(null);
   const [workflowActionSubmitting, setWorkflowActionSubmitting] = useState(false);
   const [workflowComment, setWorkflowComment] = useState("");
+  const openedInitialReviewRef = useRef<string | null>(null);
 
   const currentSession = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -1260,7 +1228,6 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   }, []);
   const currentUserId = currentSession?.user.id ?? "";
   const currentRoles = (currentSession?.user.roles ?? []).map((role) => role.trim().toUpperCase());
-  const isAdmin = currentRoles.includes("ADMIN");
   const canManageApplications = currentRoles.some((role) => ["ADMIN", "STAFF", "SALES", "COORDINATOR"].includes(role));
 
   const projectsQuery = useQuery({
@@ -1374,14 +1341,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     retry: false,
   });
 
-  const projects = projectsQuery.data ?? [];
+  const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const customers = customersQuery.data ?? [];
-  const applications = applicationsQuery.data ?? [];
-  const contracts = contractsQuery.data ?? [];
-  const agreements = agreementsQuery.data ?? [];
-  const experts = expertsQuery.data ?? [];
+  const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
+  const contracts = useMemo(() => contractsQuery.data ?? [], [contractsQuery.data]);
+  const agreements = useMemo(() => agreementsQuery.data ?? [], [agreementsQuery.data]);
+  const experts = useMemo(() => expertsQuery.data ?? [], [expertsQuery.data]);
   const reviewAssignees = reviewAssigneesQuery.data ?? { reviewers: [] };
-  const isicCodes = isicCodesQuery.data ?? [];
+  const isicCodes = useMemo(() => isicCodesQuery.data ?? [], [isicCodesQuery.data]);
   const isicSelectOptions = useMemo(
     () => isicCodes.map((code) => ({
       value: code.id,
@@ -1399,12 +1366,13 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const contractMode = Form.useWatch("contract_mode", wizardForm) ?? "new";
   const agreementMode = Form.useWatch("agreement_mode", wizardForm) ?? "new";
   const certificationType = Form.useWatch("certification_type", wizardForm);
-  const standardNames = Form.useWatch("standard_names", wizardForm) ?? [];
+  const watchedStandardNames = Form.useWatch("standard_names", wizardForm);
+  const standardNames = useMemo(() => watchedStandardNames ?? [], [watchedStandardNames]);
   const effectivePersonnel = Form.useWatch("employee_count", wizardForm) ?? 1;
-  const plannedAuditorIds = Form.useWatch("proposed_auditor_ids", wizardForm) ?? [];
+  const watchedPlannedAuditorIds = Form.useWatch("proposed_auditor_ids", wizardForm);
+  const plannedAuditorIds = useMemo(() => watchedPlannedAuditorIds ?? [], [watchedPlannedAuditorIds]);
   const imsIntegrationCriteria = Form.useWatch("ims_integration_criteria", wizardForm) ?? [];
   const riskLevel = Form.useWatch("risk_level", wizardForm);
-  const selectedIafCode = Form.useWatch("iaf_code", wizardForm) ?? "";
   const selectedIndustryScopes = Form.useWatch("industry_scopes", wizardForm) ?? [];
   const emsComplexity = Form.useWatch("ems_complexity", wizardForm) ?? "MEDIUM";
   const ohsmsComplexity = Form.useWatch("ohsms_complexity", wizardForm) ?? "MEDIUM";
@@ -1430,7 +1398,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     enabled: Boolean(reviewApplication?.id),
     retry: false,
   });
-  const applicationDocumentFiles = applicationDocumentFilesQuery.data ?? [];
+  const applicationDocumentFiles = useMemo(() => applicationDocumentFilesQuery.data ?? [], [applicationDocumentFilesQuery.data]);
   const reviewWorkflowStatus = String(latestWorkflowReview?.workflow_status ?? "").toUpperCase();
   const latestInvalidationAction = reviewWorkflowStatus === "RETURNED"
     ? latestWorkflowReview?.workflow_actions?.find(
@@ -1465,7 +1433,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       return reviewApplication.standard_name.split(" + ").map((item) => item.trim()).filter(Boolean);
     }
     return standardNames;
-  }, [actualCreationStep, reviewApplication?.standard_name, standardNames]);
+  }, [actualCreationStep, reviewApplication, standardNames]);
   const supportedCalculationStandards = useMemo(
     () => calculationStandardNames.filter((standard) => /9001|14001|45001/i.test(standard)),
     [calculationStandardNames],
@@ -1912,7 +1880,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
   const moreInfoApplications = applications.filter((item) => normalizeStatus(item.status) === "need_more_info").length;
   const acceptedApplicationCount = applications.filter((item) => normalizeStatus(item.status) === "accepted").length;
 
-  const applyApplicationToForm = (application: ProjectApplication) => {
+  const applyApplicationToForm = useCallback((application: ProjectApplication) => {
     const latestReview = application.application_reviews?.[0];
     const plannedAuditorIds = parseJsonStringArray(latestReview?.proposed_auditors_json);
     const savedIntegrationCriteria = parseJsonStringArray(latestReview?.ims_integration_criteria_json);
@@ -2013,7 +1981,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       ohsms_complexity: (latestReview?.ohsms_complexity as ProjectCreationValues["ohsms_complexity"]) ?? ((latestReview?.risk_level && latestReview.risk_level !== "LIMITED") ? latestReview.risk_level as ProjectCreationValues["ohsms_complexity"] : "MEDIUM"),
       manday_adjustments: parseSavedMandayAdjustments(latestReview),
     });
-  };
+  }, [isApplicationWorkspace, wizardForm]);
 
   const openApplicationView = (application: ProjectApplication) => {
     setApplicationDialogMode("view");
@@ -2047,7 +2015,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
     }, 0);
   };
 
-  const openApplicationReview = (application: ProjectApplication) => {
+  const openApplicationReview = useCallback((application: ProjectApplication) => {
     setApplicationDialogMode("review");
     setCreationStep(1);
     setCreatedProjectId(null);
@@ -2066,7 +2034,26 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       wizardForm.resetFields();
       applyApplicationToForm(application);
     }, 0);
-  };
+  }, [applyApplicationToForm, wizardForm]);
+
+  useEffect(() => {
+    if (!isApplicationWorkspace || !initialReviewId || !applicationsQuery.data) return;
+    if (openedInitialReviewRef.current === initialReviewId) return;
+
+    const application = applicationsQuery.data.find((item) =>
+      item.application_reviews?.some((review) => review.id === initialReviewId),
+    );
+
+    if (!application) return;
+
+    const timer = window.setTimeout(() => {
+      if (openedInitialReviewRef.current === initialReviewId) return;
+      openedInitialReviewRef.current = initialReviewId;
+      openApplicationReview(application);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [applicationsQuery.data, initialReviewId, isApplicationWorkspace, openApplicationReview]);
 
   const openApplicationStatus = (application: ProjectApplication) => {
     setApplicationDialogMode("status");
@@ -2510,14 +2497,6 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       }))
   );
 
-  const summarizeMandayAdjustments = (
-    adjustments: ReturnType<typeof normalizeMandayAdjustments>,
-    adjustmentType: MandayAdjustmentForm["adjustment_type"],
-  ) => adjustments
-    .filter((adjustment) => adjustment.adjustment_type === adjustmentType)
-    .map((adjustment) => `${adjustment.factor_code}: ${adjustment.percentage}% - ${adjustment.reason}`)
-    .join("\n");
-
   const buildApplicationPayload = (values: ProjectCreationValues) => ({
     customer_id: values.customer_id,
     application_code: values.application_code?.trim(),
@@ -2701,7 +2680,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
-        queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
+        invalidatePersonalWorkflowQueries(queryClient),
       ]);
       message.success(`Đã gửi bản xem xét đơn ${application.application_code} tới reviewer`);
       closeCreationWizard();
@@ -2749,7 +2728,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
-        queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
+        invalidatePersonalWorkflowQueries(queryClient),
         queryClient.invalidateQueries({ queryKey: ["notifications"] }),
       ]);
       const successMessages: Record<string, string> = {
@@ -3144,7 +3123,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
         queryClient.invalidateQueries({ queryKey: ["certification-agreements"] }),
         queryClient.invalidateQueries({ queryKey: ["document-files"] }),
         queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
-        queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
+        invalidatePersonalWorkflowQueries(queryClient),
       ]);
 
       setCreatedProjectId(projectResponse.data.id);
@@ -3188,7 +3167,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
             queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
-            queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
+            invalidatePersonalWorkflowQueries(queryClient),
           ]);
           message.success(`Đã xóa đơn ${application.application_code}`);
         } catch (error) {
@@ -3485,8 +3464,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects" }
           )}
         </div>
 
-        <Table<any>
-          columns={(isApplicationWorkspace ? applicationColumns : columns) as TableColumnsType<any>}
+        <Table<CertificationWorkspaceRow>
+          columns={(isApplicationWorkspace ? applicationColumns : columns) as TableColumnsType<CertificationWorkspaceRow>}
           dataSource={isApplicationWorkspace ? filteredApplications : filteredProjects}
           locale={{
             emptyText: (

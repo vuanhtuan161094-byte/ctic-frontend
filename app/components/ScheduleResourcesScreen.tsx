@@ -10,24 +10,24 @@ import {
   EyeOutlined,
   FolderOpenOutlined,
   FileTextOutlined,
+  LeftOutlined,
   PlusOutlined,
   ReloadOutlined,
+  RightOutlined,
   SaveOutlined,
-  SearchOutlined,
   SendOutlined,
   SyncOutlined,
-  TeamOutlined,
   UserOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TableColumnsType } from "antd";
 import {
   Alert,
   App,
   Button,
   Calendar,
   Card,
+  ConfigProvider,
   DatePicker,
   Descriptions,
   Divider,
@@ -39,6 +39,7 @@ import {
   Modal,
   Popconfirm,
   Select,
+  Segmented,
   Skeleton,
   Space,
   Statistic,
@@ -50,11 +51,24 @@ import {
 } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import "dayjs/locale/vi";
+import viVN from "antd/locale/vi_VN";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { openDocumentFile } from "../lib/document-file-client";
+import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import { IntegratedMandayAllocationPanel } from "./IntegratedMandayAllocationPanel";
+
+dayjs.locale("vi");
+
+function useLatestCallback(callback: () => void) {
+  const callbackRef = useRef(callback);
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+  return useCallback(() => callbackRef.current(), []);
+}
 
 const { Text, Title } = Typography;
 const { RangePicker } = DatePicker;
@@ -99,8 +113,10 @@ interface AuditPlan {
   audit_criteria?: string | null;
   audit_objectives?: string | null;
   status?: string | null;
+  created_at?: string | null;
   certification_projects?: CertificationProjectSummary | null;
   audit_event?: {
+    sequence_no?: number | null;
     planned_mandays?: number | string | null;
     event_type?: string | null;
     audit_programs?: {
@@ -191,7 +207,42 @@ interface AuditTeamAppointment {
   note?: string | null;
   status?: string | null;
   members?: AppointmentMember[];
+  program_manday_allocations?: Array<{
+    id: string;
+    member_id: string;
+    program_key: string;
+    management_system?: string | null;
+    standard_code?: string | null;
+    manday_units: number;
+  }>;
   audit_plans?: AuditPlan | null;
+}
+
+interface AuditTeamReadiness {
+  appointment_id: string;
+  derived_at: string;
+  ready_to_issue: boolean;
+  summary: {
+    required_scopes: number;
+    covered_scopes: number;
+    required_programs: number;
+    covered_programs: number;
+    leader_qualified: boolean;
+    technical_expertise_required: boolean;
+    technical_expertise_covered: boolean;
+    manday_balanced: boolean;
+    blocking_reason_count: number;
+    warning_count: number;
+  };
+  coverage_matrix: Array<{
+    project_scope_id: string;
+    standard_code: string;
+    iaf_code: string;
+    nace_code: string;
+    status: "COVERED" | "PARTIAL" | "MISSING";
+    covered_by: Array<{ member_id: string; expert_name: string; team_role: string }>;
+  }>;
+  reasons: Array<{ code: string; severity: "BLOCK" | "WARNING"; message: string }>;
 }
 
 interface AppointmentFormMember {
@@ -391,9 +442,29 @@ interface ProjectBriefDossier {
 }
 
 interface ScheduleResourcesScreenProps {
+  appointmentEditorOnly?: boolean;
   initialPlanId?: string | null;
-  onOpenProject: (projectId: string) => void;
+  onEditorClose?: () => void;
+  onOpenProject: (projectId: string, dossierKey?: string | null) => void;
   roles: string[];
+}
+
+const vietnameseWeekdayLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const;
+
+function dossierKeyForAuditPlan(plan: AuditPlan) {
+  const auditType = normalize(plan.audit_event?.event_type ?? plan.audit_type);
+  if (["stage1", "stage2", "initial", "initialcertification"].includes(auditType)) {
+    return "initial_certification";
+  }
+  if (["surveillance1", "surveillance_1", "gs1"].includes(auditType)) return "surveillance_1";
+  if (["surveillance2", "surveillance_2", "gs2"].includes(auditType)) return "surveillance_2";
+  if (auditType === "surveillance") {
+    return Number(plan.audit_event?.sequence_no) >= 4
+      ? "surveillance_2"
+      : "surveillance_1";
+  }
+  if (["recertification", "re_certification", "tcc"].includes(auditType)) return "recertification";
+  return null;
 }
 
 const auditTypeLabels: Record<string, string> = {
@@ -810,39 +881,48 @@ function BusyDateRangePicker({
   );
 }
 
-export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }: ScheduleResourcesScreenProps) {
+export function ScheduleResourcesScreen({
+  appointmentEditorOnly = false,
+  initialPlanId,
+  onEditorClose,
+  onOpenProject,
+  roles,
+}: ScheduleResourcesScreenProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [appointmentForm] = Form.useForm<AppointmentFormValues>();
-  const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState("all");
   const [customerFilter, setCustomerFilter] = useState("all");
   const [auditTypeFilter, setAuditTypeFilter] = useState("all");
-  const [workspaceTab, setWorkspaceTab] = useState("projects");
+  const [workspaceTab, setWorkspaceTab] = useState("calendar");
   const [calendarMonth, setCalendarMonth] = useState(dayjs().startOf("month"));
-  const watchedMembers = Form.useWatch("members", appointmentForm) ?? [];
-  const requestedProjectId = initialPlanId?.startsWith("project:")
+  const [calendarMode, setCalendarMode] = useState<"month" | "year">("month");
+  const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
+  const watchedMembersValue = Form.useWatch("members", appointmentForm);
+  const watchedMembers = useMemo(() => watchedMembersValue ?? [], [watchedMembersValue]);
+  const requestedProjectId = appointmentEditorOnly && initialPlanId?.startsWith("project:")
     ? initialPlanId.slice("project:".length)
     : null;
-  const requestedPlanId = initialPlanId && !requestedProjectId
-    ? initialPlanId
+  const requestedAppointmentPlanId = appointmentEditorOnly && initialPlanId?.startsWith("appointment:")
+    ? initialPlanId.slice("appointment:".length)
     : null;
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(requestedPlanId);
+  const requestedPlanId = appointmentEditorOnly && initialPlanId && !requestedProjectId
+    ? requestedAppointmentPlanId ?? initialPlanId
+    : null;
+  const planSelectionContext = `${appointmentEditorOnly}:${initialPlanId ?? ""}`;
+  const [planSelection, setPlanSelection] = useState<{
+    context: string;
+    planId: string | null;
+  } | null>(null);
+  const appointmentLaunchRef = useRef<string | null>(null);
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [planDateEditorOpen, setPlanDateEditorOpen] = useState(false);
   const [planDateRange, setPlanDateRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [appointmentFormErrors, setAppointmentFormErrors] = useState<AppointmentFormErrorItem[]>([]);
-  const [openingProjectId, setOpeningProjectId] = useState<string | null>(null);
   const [projectSourceRecord, setProjectSourceRecord] = useState<"application" | "review" | null>(null);
   const [projectSourceTab, setProjectSourceTab] = useState<"system" | "scan">("system");
   const [openingSourceFileId, setOpeningSourceFileId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!initialPlanId?.startsWith("project:")) {
-      setSelectedPlanId(initialPlanId ?? null);
-    }
-  }, [initialPlanId]);
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
   const canReadExperts = normalizedRoles.some((role) =>
@@ -875,6 +955,15 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     ).data,
     retry: false,
   });
+  const selectedPlanId = planSelection?.context === planSelectionContext
+    ? planSelection.planId
+    : projectContextQuery.data?.id ?? requestedPlanId;
+  const setSelectedPlanId = (planId: string | null) => {
+    setPlanSelection({ context: planSelectionContext, planId });
+  };
+  const openPlanDossier = (record: AuditPlan) => {
+    onOpenProject(record.project_id, dossierKeyForAuditPlan(record));
+  };
 
   const expertsQuery = useQuery({
     enabled: canReadExperts,
@@ -902,7 +991,6 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         return [projectContextQuery.data!, ...current];
       },
     );
-    setSelectedPlanId(projectContextQuery.data.id);
   }, [projectContextQuery.data, queryClient]);
 
   const appointmentsByPlan = useMemo(() => {
@@ -917,7 +1005,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     return map;
   }, [appointmentsQuery.data]);
 
-  const allPlans = plansQuery.data ?? [];
+  const allPlans = useMemo(() => plansQuery.data ?? [], [plansQuery.data]);
   const projectAppointmentsByProject = useMemo(() => {
     const map = new Map<string, AuditTeamAppointment>();
     for (const appointment of appointmentsQuery.data ?? []) {
@@ -934,9 +1022,31 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     return map;
   }, [appointmentsQuery.data]);
 
-  const plans = allPlans.filter((plan) => normalize(plan.audit_type) !== "project_team");
-  const projects = projectsQuery.data ?? [];
-  const today = dayjs().startOf("day");
+  const plans = useMemo(() => {
+    const candidates = allPlans.filter((plan) => (
+      normalize(plan.audit_type) !== "project_team"
+      && !["cancelled", "canceled"].includes(normalize(plan.status))
+    ));
+    const byBusinessEvent = new Map<string, AuditPlan[]>();
+    for (const plan of candidates) {
+      const businessKey = plan.audit_event_id ?? plan.id;
+      byBusinessEvent.set(businessKey, [...(byBusinessEvent.get(businessKey) ?? []), plan]);
+    }
+    return [...byBusinessEvent.values()].map((eventPlans) => (
+      [...eventPlans].sort((left, right) => {
+        const appointmentPriority = (plan: AuditPlan) => {
+          const appointment = appointmentsByPlan.get(plan.id);
+          if (normalize(appointment?.status) === "issued") return 2;
+          return appointment ? 1 : 0;
+        };
+        return appointmentPriority(right) - appointmentPriority(left)
+          || Number(left.version_no ?? 0) - Number(right.version_no ?? 0)
+          || String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""))
+          || left.id.localeCompare(right.id);
+      })[0]
+    ));
+  }, [allPlans, appointmentsByPlan]);
+  const today = useMemo(() => dayjs().startOf("day"), []);
   const upcomingPlans = useMemo(
     () => plans.filter((plan) => {
       const status = normalize(plan.status);
@@ -944,7 +1054,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         && !["cancelled", "completed"].includes(status)
         && !dayjs(plan.planned_start_date).isBefore(today);
     }),
-    [plans],
+    [plans, today],
   );
   const unassignedPlans = useMemo(
     () => plans.filter((plan) => {
@@ -994,20 +1104,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
   }, [plans]);
 
   const filteredPlans = useMemo(() => {
-    const term = normalize(searchTerm);
     return plans.filter((plan) => {
       const project = plan.certification_projects;
       const customer = project?.certification_applications?.customers;
       const appointment = appointmentsByPlan.get(plan.id);
-      const matchesSearch = !term || [
-        plan.plan_code,
-        plan.audit_type,
-        project?.project_code,
-        project?.standard_name,
-        customer?.customer_code,
-        customer?.company_name,
-        appointment?.appointment_number,
-      ].some((value) => normalize(value).includes(term));
       const customerValue = customer?.id ?? customer?.company_name ?? "";
       const matchesCustomer = customerFilter === "all" || customerValue === customerFilter;
       const matchesAuditType = auditTypeFilter === "all" || normalize(plan.audit_type) === auditTypeFilter;
@@ -1018,23 +1118,89 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         || (periodFilter === "upcoming" && Boolean(start) && !start!.isBefore(today) && !["completed", "cancelled"].includes(status))
         || (periodFilter === "completed" && status === "completed")
         || (periodFilter === "unassigned" && !["completed", "cancelled"].includes(status) && !(appointment?.members?.length));
-      return matchesSearch && matchesCustomer && matchesAuditType && matchesStatus && matchesPeriod;
+      return matchesCustomer && matchesAuditType && matchesStatus && matchesPeriod;
     });
-  }, [appointmentsByPlan, auditTypeFilter, customerFilter, periodFilter, plans, searchTerm, statusFilter]);
+  }, [appointmentsByPlan, auditTypeFilter, customerFilter, periodFilter, plans, statusFilter, today]);
 
   const monthPlans = useMemo(() => {
     const monthStart = calendarMonth.startOf("month");
     const monthEnd = calendarMonth.endOf("month");
-    return plans.filter((plan) => {
+    return filteredPlans.filter((plan) => {
       if (!plan.planned_start_date) return false;
       const start = dayjs(plan.planned_start_date).startOf("day");
       const end = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
       return !end.isBefore(monthStart) && !start.isAfter(monthEnd);
     });
-  }, [calendarMonth, plans]);
+  }, [calendarMonth, filteredPlans]);
+
+  const expertScheduleRows = useMemo(() => {
+    const monthStart = calendarMonth.startOf("month");
+    const monthEnd = calendarMonth.endOf("month");
+    return activeExperts.map((expert) => {
+      const assignments = (appointmentsQuery.data ?? []).flatMap((appointment) => {
+        if (normalize(appointment.status) === "cancelled") return [];
+        const plan = plans.find((candidate) => candidate.id === appointment.audit_plan_id);
+        if (!plan) return [];
+        return (appointment.members ?? [])
+          .filter((member) => (member.experts?.id ?? member.expert_id) === expert.id)
+          .map((member) => ({ appointment, member, plan }));
+      }).filter(({ member, plan }) => {
+        const start = dayjs(member.planned_start_date ?? plan.planned_start_date).startOf("day");
+        const end = dayjs(member.planned_end_date ?? plan.planned_end_date ?? plan.planned_start_date).startOf("day");
+        return start.isValid() && end.isValid() && !end.isBefore(monthStart) && !start.isAfter(monthEnd);
+      });
+      const occupiedDays = new Set<string>();
+      for (const { member, plan } of assignments) {
+        let cursor = dayjs(member.planned_start_date ?? plan.planned_start_date).startOf("day");
+        const end = dayjs(member.planned_end_date ?? plan.planned_end_date ?? plan.planned_start_date).startOf("day");
+        if (cursor.isBefore(monthStart)) cursor = monthStart;
+        const boundedEnd = end.isAfter(monthEnd) ? monthEnd : end;
+        while (!cursor.isAfter(boundedEnd)) {
+          occupiedDays.add(cursor.format("YYYY-MM-DD"));
+          cursor = cursor.add(1, "day");
+        }
+      }
+      let conflicts = 0;
+      for (let left = 0; left < assignments.length; left += 1) {
+        for (let right = left + 1; right < assignments.length; right += 1) {
+          const leftStart = dayjs(assignments[left].member.planned_start_date ?? assignments[left].plan.planned_start_date);
+          const leftEnd = dayjs(assignments[left].member.planned_end_date ?? assignments[left].plan.planned_end_date ?? assignments[left].plan.planned_start_date);
+          const rightStart = dayjs(assignments[right].member.planned_start_date ?? assignments[right].plan.planned_start_date);
+          const rightEnd = dayjs(assignments[right].member.planned_end_date ?? assignments[right].plan.planned_end_date ?? assignments[right].plan.planned_start_date);
+          if (!leftEnd.isBefore(rightStart, "day") && !rightEnd.isBefore(leftStart, "day")) conflicts += 1;
+        }
+      }
+      const allocatedMandays = assignments.reduce(
+        (sum, { member }) => sum + (countsTowardMandays(member.team_role) ? parseNumber(member.planned_mandays) ?? 0 : 0),
+        0,
+      );
+      return {
+        expert,
+        assignments,
+        allocatedMandays,
+        auditCount: new Set(assignments.map(({ plan }) => plan.id)).size,
+        occupiedDays: occupiedDays.size,
+        conflicts,
+        utilization: Math.round((occupiedDays.size / Math.max(1, calendarMonth.daysInMonth())) * 100),
+      };
+    });
+  }, [activeExperts, appointmentsQuery.data, calendarMonth, plans]);
+
+  const selectedExpertSchedule = expertScheduleRows.find((row) => row.expert.id === selectedExpertId) ?? null;
+  const selectedExpertPlanRoles = useMemo(() => new Map(
+    (selectedExpertSchedule?.assignments ?? []).map(({ member, plan }) => [
+      plan.id,
+      labelFromMap(member.team_role, roleLabels),
+    ]),
+  ), [selectedExpertSchedule]);
+  const expertMonthPlans = useMemo(() => {
+    const assignedIds = new Set((selectedExpertSchedule?.assignments ?? []).map(({ plan }) => plan.id));
+    return monthPlans.filter((plan) => assignedIds.has(plan.id));
+  }, [monthPlans, selectedExpertSchedule]);
 
   const selectedPlan = allPlans.find((plan) => plan.id === selectedPlanId) ?? null;
   const selectedAppointment = selectedPlan ? appointmentsByPlan.get(selectedPlan.id) ?? null : null;
+  const selectedAppointmentLocked = ["issued", "confirmed"].includes(normalize(selectedAppointment?.status));
   const selectedIsProjectContext = normalize(selectedPlan?.audit_type) === "project_team";
   const selectedIsStage1 = isStage1AuditType(
     selectedPlan?.audit_type,
@@ -1131,6 +1297,18 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     staleTime: 30_000,
   });
 
+  const teamReadinessQuery = useQuery({
+    enabled: Boolean(selectedAppointment?.id),
+    queryKey: ["audit-team-readiness", selectedAppointment?.id],
+    queryFn: async () => (
+      await api.get<AuditTeamReadiness>(
+        `/audit-team-appointments/${selectedAppointment!.id}/readiness`,
+      )
+    ).data,
+    retry: false,
+    staleTime: 0,
+  });
+
   const expertSuitabilityMap = useMemo(
     () => new Map(
       (projectExpertSuitabilityQuery.data?.experts ?? []).map((expert) => [expert.expert_id, expert]),
@@ -1186,7 +1364,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       });
     }
     return [...map.values()];
-  }, [projectExpertSuitabilityQuery.data?.required_programs, projectScopesQuery.data]);
+  }, [projectExpertSuitabilityQuery.data, projectScopesQuery.data]);
   const programMap = useMemo(
     () => new Map(requiredPrograms.map((program) => [program.key, program])),
     [requiredPrograms],
@@ -1282,25 +1460,35 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     let leaderQualified = false;
     let membersQualified = true;
 
-    for (const member of watchedMembers as AppointmentFormMember[]) {
-      if (!member?.expert_id) continue;
-      if (selectedInheritsProjectTeam && !projectTeamExpertIds.has(member.expert_id)) membersQualified = false;
-      const acceptedRoles = acceptedProgramRoles(member.team_role);
-      if (!acceptedRoles.length) continue;
-      const capabilities = programCapabilityMap.get(member.expert_id) ?? new Map<string, ProjectProgramCapability>();
-      const selectedPrograms = member.program_keys ?? [];
-      if (!selectedPrograms.length) membersQualified = false;
-
-      for (const programKey of selectedPrograms) {
-        const capability = capabilities.get(programKey);
-        if (capabilitySupportsRole(capability, member.team_role)) {
-          if (countsTowardMandays(member.team_role)) coveredKeys.add(programKey);
-        } else membersQualified = false;
+    if (selectedAppointmentLocked && selectedAppointment?.program_manday_allocations?.length) {
+      for (const allocation of selectedAppointment.program_manday_allocations) {
+        if (Number(allocation.manday_units) > 0) coveredKeys.add(allocation.program_key);
       }
+      const leaders = (selectedAppointment.members ?? []).filter((member) => normalize(member.team_role) === "team_leader");
+      leaderSelected = leaders.length === 1;
+      leaderQualified = leaderSelected;
+      membersQualified = true;
+    } else {
+      for (const member of watchedMembers as AppointmentFormMember[]) {
+        if (!member?.expert_id) continue;
+        if (selectedInheritsProjectTeam && !projectTeamExpertIds.has(member.expert_id)) membersQualified = false;
+        const acceptedRoles = acceptedProgramRoles(member.team_role);
+        if (!acceptedRoles.length) continue;
+        const capabilities = programCapabilityMap.get(member.expert_id) ?? new Map<string, ProjectProgramCapability>();
+        const selectedPrograms = member.program_keys ?? [];
+        if (!selectedPrograms.length) membersQualified = false;
 
-      if (member.team_role === "TEAM_LEADER") {
-        leaderSelected = true;
-        leaderQualified = selectedPrograms.some((programKey) => capabilities.get(programKey)?.can_lead);
+        for (const programKey of selectedPrograms) {
+          const capability = capabilities.get(programKey);
+          if (capabilitySupportsRole(capability, member.team_role)) {
+            if (countsTowardMandays(member.team_role)) coveredKeys.add(programKey);
+          } else membersQualified = false;
+        }
+
+        if (member.team_role === "TEAM_LEADER") {
+          leaderSelected = true;
+          leaderQualified = selectedPrograms.some((programKey) => capabilities.get(programKey)?.can_lead);
+        }
       }
     }
 
@@ -1318,7 +1506,15 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         && leaderQualified
         && membersQualified,
     };
-  }, [programCapabilityMap, projectTeamExpertIds, requiredPrograms, selectedInheritsProjectTeam, watchedMembers]);
+  }, [
+    programCapabilityMap,
+    projectTeamExpertIds,
+    requiredPrograms,
+    selectedAppointment,
+    selectedAppointmentLocked,
+    selectedInheritsProjectTeam,
+    watchedMembers,
+  ]);
 
   const projectScopeStatus = httpStatus(projectScopesQuery.error);
   const scopeAccessDenied = projectScopesQuery.isError && projectScopeStatus === 403;
@@ -1363,31 +1559,6 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     });
   };
 
-  const openProjectAssignment = async (projectId: string) => {
-    setOpeningProjectId(projectId);
-    try {
-      const context = (
-        await api.post<AuditPlan>(
-          `/audit-team-appointments/project/${projectId}/ensure-context`,
-        )
-      ).data;
-
-      queryClient.setQueryData<AuditPlan[]>(
-        ["audit-plans", "schedule-resources"],
-        (current = []) => (
-          current.some((plan) => plan.id === context.id)
-            ? current
-            : [context, ...current]
-        ),
-      );
-      setSelectedPlanId(context.id);
-    } catch (error) {
-      message.error(getErrorMessage(error));
-    } finally {
-      setOpeningProjectId(null);
-    }
-  };
-
   const refresh = async () => {
     await Promise.all([
       projectsQuery.refetch(),
@@ -1404,10 +1575,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       queryClient.invalidateQueries({ queryKey: ["audit-team-appointments"] }),
       queryClient.invalidateQueries({ queryKey: ["audit-plans"] }),
       queryClient.invalidateQueries({ queryKey: ["certification-projects"] }),
-      queryClient.invalidateQueries({ queryKey: ["my-work-tasks"] }),
-      queryClient.invalidateQueries({ queryKey: ["my-work-task-summary"] }),
+      invalidatePersonalWorkflowQueries(queryClient),
       queryClient.invalidateQueries({ queryKey: ["expert-busy-dates"] }),
       queryClient.invalidateQueries({ queryKey: ["audit-team-project-expert-suitability"] }),
+      queryClient.invalidateQueries({ queryKey: ["audit-team-readiness"] }),
     ]);
   };
 
@@ -1759,6 +1930,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       } else {
         message.success("Đã cập nhật điều phối nguồn lực.");
       }
+      onEditorClose?.();
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
@@ -1775,6 +1947,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         : selectedIsStage1
           ? "Đã xác nhận điều phối nguồn lực Giai đoạn 1"
           : "Đã xác nhận điều phối nguồn lực Giai đoạn 2");
+      if (appointmentEditorOnly) onEditorClose?.();
     },
     onError: (error) => {
       const errorMessage = getErrorMessage(error);
@@ -1807,6 +1980,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       ? sourceMembers.map((member) => {
         const expertId = member.experts?.id ?? member.expert_id ?? "";
         const teamRole = member.team_role?.toUpperCase() ?? "AUDITOR";
+        const persistedProgramKeys = (selectedAppointment?.program_manday_allocations ?? [])
+          .filter((allocation) => allocation.member_id === member.id && Number(allocation.manday_units) > 0)
+          .map((allocation) => allocation.program_key)
+          .filter((key) => programMap.has(key));
         const programKeys = Array.from(new Set(
           (member.scopes ?? [])
             .map((scope) => {
@@ -1832,7 +2009,10 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           ))
           .map((program) => program.key);
         const supportedProgramKeys = acceptedProgramRoles(teamRole).length
-          ? Array.from(new Set([...programKeys, ...compatibleRequiredProgramKeys]))
+          ? Array.from(new Set([
+            ...(persistedProgramKeys.length ? persistedProgramKeys : programKeys),
+            ...(selectedAppointment ? [] : compatibleRequiredProgramKeys),
+          ]))
           : [];
 
         return {
@@ -1898,6 +2078,30 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     });
     setAppointmentModalOpen(true);
   };
+  const openAppointmentFormFromDeepLink = () => openAppointmentForm();
+  const launchAppointmentForm = useLatestCallback(openAppointmentFormFromDeepLink);
+
+  useEffect(() => {
+    if (
+      appointmentEditorOnly
+      && initialPlanId
+      && selectedPlan?.id
+      && appointmentsQuery.isSuccess
+      && (!canReadExperts || expertsQuery.isSuccess)
+      && appointmentLaunchRef.current !== initialPlanId
+    ) {
+      appointmentLaunchRef.current = initialPlanId;
+      launchAppointmentForm();
+    }
+  }, [
+    appointmentEditorOnly,
+    appointmentsQuery.isSuccess,
+    canReadExperts,
+    expertsQuery.isSuccess,
+    initialPlanId,
+    launchAppointmentForm,
+    selectedPlan?.id,
+  ]);
 
   const balanceMandaysForMembers = () => {
     if (selectedRequiredMandays === undefined || selectedRequiredMandays <= 0) {
@@ -1956,160 +2160,6 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     }
   };
 
-  const columns: TableColumnsType<AuditPlan> = [
-    {
-      key: "plan_code",
-      title: "Kỳ đánh giá",
-      width: 180,
-      render: (_, record) => {
-        const project = record.certification_projects;
-        const isProjectContext = normalize(record.audit_type) === "project_team";
-        return (
-          <div className="schedule-code-cell">
-            <strong>{isProjectContext ? project?.project_code ?? record.plan_code : record.plan_code}</strong>
-            <span>{labelFromMap(record.audit_type, auditTypeLabels)}</span>
-          </div>
-        );
-      },
-    },
-    {
-      key: "project",
-      title: "Khách hàng & hồ sơ",
-      width: 280,
-      render: (_, record) => {
-        const project = record.certification_projects;
-        const customer = project?.certification_applications?.customers;
-        return (
-          <div className="schedule-project-cell">
-            <strong>{customer?.company_name ?? record.audit_event?.audit_programs?.organization_name ?? "Chưa xác định tổ chức"}</strong>
-            <span>{project?.project_code ?? "Chưa liên kết hồ sơ"} · {project?.standard_name ?? record.audit_event?.audit_programs?.standard_name ?? "—"}</span>
-          </div>
-        );
-      },
-    },
-    {
-      dataIndex: "planned_start_date",
-      key: "date",
-      title: "Thời gian",
-      width: 180,
-      render: (_, record) => (
-        <div className="schedule-date-cell">
-          <CalendarOutlined />
-          <span>{formatDateRange(record.planned_start_date, record.planned_end_date)}</span>
-        </div>
-      ),
-    },
-    {
-      key: "team",
-      title: "Đoàn đánh giá",
-      width: 210,
-      render: (_, record) => {
-        const appointment = appointmentsByPlan.get(record.id);
-        const count = appointment?.members?.length ?? 0;
-        return (
-          <div className={count ? "schedule-team-cell" : "schedule-team-cell schedule-team-missing"}>
-            <TeamOutlined />
-            <div>
-              <strong>{count ? `${count} thành viên` : "Chưa phân công"}</strong>
-              <span>{appointment?.appointment_number ?? "Chưa có quyết định chỉ định"}</span>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      dataIndex: "status",
-      key: "status",
-      title: "Trạng thái",
-      width: 150,
-      render: (status) => <PlanStatusTag status={status} />,
-    },
-    {
-      key: "action",
-      title: "",
-      width: 105,
-      fixed: "right",
-      render: (_, record) => <Button type="primary" ghost onClick={() => setSelectedPlanId(record.id)}>Chi tiết</Button>,
-    },
-  ];
-
-  const projectColumns: TableColumnsType<CertificationProjectSummary> = [
-    {
-      key: "project_code",
-      title: "Mã hồ sơ chứng nhận",
-      width: 190,
-      render: (_, record) => (
-        <div className="schedule-code-cell">
-          <strong>{record.project_code}</strong>
-          <span>{record.certification_applications?.application_code ?? "Hồ sơ chứng nhận"}</span>
-        </div>
-      ),
-    },
-    {
-      key: "customer",
-      title: "Khách hàng",
-      render: (_, record) => (
-        <div className="schedule-project-cell">
-          <strong>{record.certification_applications?.customers?.company_name ?? "Chưa xác định"}</strong>
-          <span>{record.standard_name ?? record.certification_applications?.standard_name ?? "—"}</span>
-        </div>
-      ),
-    },
-    {
-      key: "scope",
-      title: "Phạm vi",
-      render: (_, record) => (
-        <Text ellipsis={{ tooltip: record.certification_applications?.certification_scope ?? "Chưa cập nhật" }}>
-          {record.certification_applications?.certification_scope ?? "Chưa cập nhật"}
-        </Text>
-      ),
-    },
-    {
-      key: "team",
-      title: "Chỉ định đoàn",
-      width: 220,
-      render: (_, record) => {
-        const appointment = projectAppointmentsByProject.get(record.id);
-        const count = appointment?.members?.length ?? 0;
-        return (
-          <div className={count ? "schedule-team-cell" : "schedule-team-cell schedule-team-missing"}>
-            <TeamOutlined />
-            <div>
-              <strong>{count ? `${count} thành viên` : "Chưa chỉ định"}</strong>
-              <span>{appointment?.appointment_number ?? "Cần lập trước chương trình"}</span>
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      key: "status",
-      title: "Trạng thái",
-      width: 150,
-      render: (_, record) => {
-        const appointment = projectAppointmentsByProject.get(record.id);
-        if (!appointment) return <Tag color="default">Chưa lập</Tag>;
-        return <PlanStatusTag status={appointment.status} />;
-      },
-    },
-    {
-      key: "action",
-      title: "",
-      width: 150,
-      align: "right",
-      render: (_, record) => (
-        <Button
-          icon={<TeamOutlined />}
-          loading={openingProjectId === record.id}
-          onClick={() => void openProjectAssignment(record.id)}
-          type={projectAppointmentsByProject.has(record.id) ? "default" : "primary"}
-        >
-          {projectAppointmentsByProject.has(record.id) ? "Mở chỉ định" : "Chỉ định đoàn"}
-        </Button>
-      ),
-    },
-  ];
-
   const loading = projectsQuery.isLoading
     || plansQuery.isLoading
     || appointmentsQuery.isLoading
@@ -2121,16 +2171,164 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
     || (canReadExperts ? expertsQuery.error : null);
 
   if (loading) {
+    if (appointmentEditorOnly) {
+      return (
+        <Modal footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+          <Skeleton active paragraph={{ rows: 8 }} />
+        </Modal>
+      );
+    }
     return <div className="screen-loading"><Skeleton active paragraph={{ rows: 10 }} /></div>;
   }
 
+  if (appointmentEditorOnly && (error || projectContextQuery.isError)) {
+    return (
+      <Modal footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+        <Alert
+          action={<Button onClick={() => void refresh()}>Thử lại</Button>}
+          description={getErrorMessage(error ?? projectContextQuery.error)}
+          message="Không mở được không gian chỉ định đoàn"
+          showIcon
+          type="error"
+        />
+      </Modal>
+    );
+  }
+
+  const calendarFilters = (
+    <div className="schedule-toolbar schedule-calendar-filters">
+      <Select onChange={setCustomerFilter} options={customerOptions} showSearch value={customerFilter} />
+      <Select onChange={setAuditTypeFilter} options={auditTypeOptions} value={auditTypeFilter} />
+      <Select onChange={setStatusFilter} options={[
+        { label: "Tất cả trạng thái", value: "all" },
+        { label: "Bản nháp", value: "draft" },
+        { label: "Đã lập kế hoạch", value: "planned" },
+        { label: "Đang thực hiện", value: "in_progress" },
+        { label: "Hoàn thành", value: "completed" },
+      ]} value={statusFilter} />
+      <Select onChange={setPeriodFilter} options={[
+        { label: "Tất cả thời gian", value: "all" },
+        { label: "Lịch sắp tới", value: "upcoming" },
+        { label: "Đã hoàn thành", value: "completed" },
+        { label: "Chưa phân công đoàn", value: "unassigned" },
+      ]} value={periodFilter} />
+    </div>
+  );
+
+  const renderAuditCalendar = (
+    calendarPlans: AuditPlan[],
+    roleByPlan: Map<string, string> = new Map(),
+  ) => (
+    <div aria-label={`Lịch theo tuần ${vietnameseWeekdayLabels.join(" ")}`} className="resource-month-calendar">
+      <div className="resource-calendar-header">
+        <div>
+          <Text strong>{calendarPlans.length} đợt đánh giá trong {calendarMonth.locale("vi").format("[tháng] M [năm] YYYY")}</Text>
+          <Text type="secondary">Bấm vào đợt đánh giá để mở đúng hồ sơ chứng nhận và chu kỳ.</Text>
+        </div>
+        <Space wrap>
+          <Tag color="blue">Dự kiến/bản nháp</Tag>
+          <Tag color="gold">Đang thực hiện</Tag>
+          <Tag color="green">Hoàn thành</Tag>
+          {roleByPlan.size ? <Tag color="red">Trùng lịch được đánh dấu trong tổng hợp</Tag> : null}
+        </Space>
+      </div>
+      <ConfigProvider locale={viVN}>
+        <Calendar
+          locale={viVN.Calendar}
+          headerRender={({ value, type, onChange, onTypeChange }) => (
+            <div className="resource-calendar-toolbar">
+              <Space>
+                <Button
+                  aria-label="Tháng hoặc năm trước"
+                  icon={<LeftOutlined />}
+                  onClick={() => {
+                    const nextValue = value.subtract(1, type === "year" ? "year" : "month");
+                    setCalendarMonth(nextValue.startOf("month"));
+                    onChange(nextValue);
+                  }}
+                />
+                <Button onClick={() => {
+                  const current = dayjs();
+                  setCalendarMonth(current.startOf("month"));
+                  onChange(current);
+                }}>Hôm nay</Button>
+                <Button
+                  aria-label="Tháng hoặc năm sau"
+                  icon={<RightOutlined />}
+                  onClick={() => {
+                    const nextValue = value.add(1, type === "year" ? "year" : "month");
+                    setCalendarMonth(nextValue.startOf("month"));
+                    onChange(nextValue);
+                  }}
+                />
+              </Space>
+              <Text strong>{value.locale("vi").format(type === "year" ? "[Năm] YYYY" : "[Tháng] M [năm] YYYY")}</Text>
+              <Segmented
+                onChange={(nextMode) => {
+                  const mode = nextMode as "month" | "year";
+                  setCalendarMode(mode);
+                  onTypeChange(mode);
+                }}
+                options={[
+                  { label: "Tháng", value: "month" },
+                  { label: "Năm", value: "year" },
+                ]}
+                value={type}
+              />
+            </div>
+          )}
+          cellRender={(current, info) => {
+            if (info.type !== "date") return info.originNode;
+            const dayPlans = calendarPlans.filter((plan) => {
+              if (!plan.planned_start_date) return false;
+              const start = dayjs(plan.planned_start_date).startOf("day");
+              const endDate = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
+              return !current.startOf("day").isBefore(start) && !current.startOf("day").isAfter(endDate);
+            });
+            return (
+              <div className="resource-calendar-cell">
+                {info.originNode}
+                <div className="resource-calendar-events">
+                  {dayPlans.slice(0, 3).map((plan) => (
+                    <button
+                      className={`resource-calendar-event status-${normalize(plan.status) || "draft"}`}
+                      key={plan.id}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onOpenProject(plan.project_id, dossierKeyForAuditPlan(plan));
+                      }}
+                      type="button"
+                    >
+                      <strong>{plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng"}</strong>
+                      <span>{labelFromMap(plan.audit_type, auditTypeLabels)}{roleByPlan.get(plan.id) ? ` · ${roleByPlan.get(plan.id)}` : ""}</span>
+                      <small>{plan.plan_code || plan.certification_projects?.project_code}</small>
+                    </button>
+                  ))}
+                  {dayPlans.length > 3 ? <Text type="secondary">+{dayPlans.length - 3} đợt khác</Text> : null}
+                </div>
+              </div>
+            );
+          }}
+          mode={calendarMode}
+          onPanelChange={(value, mode) => {
+            setCalendarMonth(value.startOf("month"));
+            setCalendarMode(mode);
+          }}
+          onChange={(value) => setCalendarMonth(value.startOf("month"))}
+          value={calendarMonth}
+        />
+      </ConfigProvider>
+    </div>
+  );
+
   return (
     <div className="schedule-resources-screen">
+      {!appointmentEditorOnly ? <>
       <div className="screen-heading-row">
         <div>
-          <Text className="page-eyebrow">ĐIỀU PHỐI ĐÁNH GIÁ</Text>
+          <Text className="page-eyebrow">THEO DÕI LỊCH VÀ KHẢ DỤNG</Text>
           <Title level={1}>Lịch & nguồn lực</Title>
-          <Text type="secondary">Chỉ định đoàn theo mã hồ sơ chứng nhận; kế hoạch đánh giá là tài liệu chi tiết được lập sau chương trình.</Text>
+          <Text type="secondary">Theo dõi lịch đánh giá, lịch chuyên gia, mức sử dụng nguồn lực và xung đột.</Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>Làm mới</Button>
       </div>
@@ -2147,8 +2345,8 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       ) : null}
 
       <section className="resource-summary-grid">
-        <Card><Statistic prefix={<FolderOpenOutlined />} title="Tổng hồ sơ" value={projects.length} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Hồ sơ chưa chỉ định đoàn" value={projects.filter((project) => !projectAppointmentsByProject.has(project.id)).length} /></Card>
+        <Card><Statistic prefix={<CalendarOutlined />} title="Đợt đánh giá" value={plans.length} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Đợt chưa có đoàn" value={unassignedPlans.length} /></Card>
         <Card><Statistic prefix={<ClockCircleOutlined />} title="Kế hoạch sắp tới" value={upcomingPlans.length} /></Card>
         <Card><Statistic prefix={<UserOutlined />} title={canReadExperts ? "Chuyên gia đang hoạt động" : "Chuyên gia đã phân công"} value={activeExperts.length} /></Card>
       </section>
@@ -2158,107 +2356,76 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           activeKey={workspaceTab}
           items={[
             {
-              key: "projects",
-              label: "Theo hồ sơ chứng nhận",
-              children: (
-                <div className="schedule-workspace-panel">
-                  <Alert
-                    description="Dùng để chỉ định thành phần đoàn ở cấp hồ sơ PRJ trước khi lập chương trình. Ngày và man-day được phân bổ tại từng đợt đánh giá."
-                    message="Quản lý cuốn chiếu theo hồ sơ"
-                    showIcon
-                    type="info"
-                  />
-                  <Table
-                    columns={projectColumns}
-                    dataSource={projects}
-                    locale={{
-                      emptyText: <Empty description="Chưa có hồ sơ chứng nhận" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-                    }}
-                    pagination={{ pageSize: 8, showSizeChanger: false }}
-                    rowKey="id"
-                    scroll={{ x: 1120 }}
-                  />
-                </div>
-              ),
-            },
-            {
-              key: "plans",
-              label: "Theo đợt đánh giá",
-              children: (
-                <div className="schedule-workspace-panel">
-                  <div className="schedule-toolbar">
-                    <Input allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm mã kế hoạch, hồ sơ, khách hàng, tiêu chuẩn..." prefix={<SearchOutlined />} value={searchTerm} />
-                    <Select onChange={setCustomerFilter} options={customerOptions} showSearch value={customerFilter} />
-                    <Select onChange={setAuditTypeFilter} options={auditTypeOptions} value={auditTypeFilter} />
-                    <Select onChange={setPeriodFilter} options={[
-                      { label: "Tất cả thời gian", value: "all" },
-                      { label: "Lịch sắp tới", value: "upcoming" },
-                      { label: "Đã hoàn thành", value: "completed" },
-                      { label: "Chưa phân công đoàn", value: "unassigned" },
-                    ]} value={periodFilter} />
-                    <Select onChange={setStatusFilter} options={[
-                      { label: "Tất cả trạng thái", value: "all" },
-                      { label: "Bản nháp", value: "draft" },
-                      { label: "Đã lập kế hoạch", value: "planned" },
-                      { label: "Đang thực hiện", value: "in_progress" },
-                      { label: "Hoàn thành", value: "completed" },
-                      { label: "Đã hủy", value: "cancelled" },
-                    ]} value={statusFilter} />
-                  </div>
-                  <Table columns={columns} dataSource={filteredPlans} locale={{ emptyText: <Empty description="Không có kế hoạch phù hợp bộ lọc" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} pagination={{ pageSize: 10, showSizeChanger: false }} rowKey="id" scroll={{ x: 1120 }} />
-                </div>
-              ),
-            },
-            {
               key: "calendar",
-              label: "Lịch tháng",
+              label: "Lịch tổng hợp",
               children: (
-                <div className="resource-month-calendar">
-                  <div className="resource-calendar-header">
-                    <div>
-                      <Text strong>{monthPlans.length} đợt đánh giá trong tháng {calendarMonth.format("MM/YYYY")}</Text>
-                      <Text type="secondary">Bấm vào đợt đánh giá để mở chi tiết và phân công chuyên gia.</Text>
-                    </div>
-                    <Space wrap>
-                      <Tag color="blue">Dự kiến/bản nháp</Tag>
-                      <Tag color="gold">Đang thực hiện</Tag>
-                      <Tag color="green">Hoàn thành</Tag>
-                    </Space>
+                <div className="schedule-workspace-panel">
+                  {calendarFilters}
+                  {renderAuditCalendar(monthPlans)}
+                </div>
+              ),
+            },
+            {
+              key: "experts",
+              label: "Lịch chuyên gia",
+              children: (
+                <div className="schedule-workspace-panel expert-calendar-panel">
+                  <div className="schedule-toolbar expert-calendar-selector">
+                    <Select
+                      allowClear
+                      filterOption={(input, option) => normalize(option?.label).includes(normalize(input))}
+                      onChange={(value) => setSelectedExpertId(value ?? null)}
+                      options={activeExperts.map((expert) => ({ label: expert.full_name ?? expert.email ?? expert.id, value: expert.id }))}
+                      placeholder="Chọn hoặc tìm chuyên gia"
+                      showSearch
+                      value={selectedExpertId ?? undefined}
+                    />
+                    <Text type="secondary">Kỳ xem: {calendarMonth.locale("vi").format("[tháng] M [năm] YYYY")}</Text>
                   </div>
-                  <Calendar
-                    cellRender={(current, info) => {
-                      if (info.type !== "date") return info.originNode;
-                      const dayPlans = monthPlans.filter((plan) => {
-                        if (!plan.planned_start_date) return false;
-                        const start = dayjs(plan.planned_start_date).startOf("day");
-                        const endDate = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
-                        return !current.startOf("day").isBefore(start) && !current.startOf("day").isAfter(endDate);
-                      });
-                      return (
-                        <div className="resource-calendar-cell">
-                          {info.originNode}
-                          <div className="resource-calendar-events">
-                            {dayPlans.slice(0, 3).map((plan) => (
-                              <button
-                                className={`resource-calendar-event status-${normalize(plan.status) || "draft"}`}
-                                key={plan.id}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setSelectedPlanId(plan.id);
-                                }}
-                                type="button"
-                              >
-                                <strong>{plan.plan_code}</strong>
-                                <span>{plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng"}</span>
-                              </button>
-                            ))}
-                            {dayPlans.length > 3 ? <Text type="secondary">+{dayPlans.length - 3} đợt khác</Text> : null}
+                  {selectedExpertSchedule ? (
+                    <>
+                      <section className="expert-calendar-summary">
+                        <Card size="small"><Statistic title="MD đã phân" value={selectedExpertSchedule.allocatedMandays} precision={1} /></Card>
+                        <Card size="small"><Statistic title="Số cuộc đánh giá" value={selectedExpertSchedule.auditCount} /></Card>
+                        <Card size="small"><Statistic title="Ngày bận" value={selectedExpertSchedule.occupiedDays} /></Card>
+                        <Card size="small"><Statistic title="Khoảng trùng" value={selectedExpertSchedule.conflicts} valueStyle={selectedExpertSchedule.conflicts ? { color: "#cf1322" } : undefined} /></Card>
+                      </section>
+                      {renderAuditCalendar(expertMonthPlans, selectedExpertPlanRoles)}
+                    </>
+                  ) : <Empty description="Chọn chuyên gia để xem lịch phân công theo tháng" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                </div>
+              ),
+            },
+            {
+              key: "load",
+              label: "Tải nguồn lực",
+              children: (
+                <div className="schedule-workspace-panel">
+                  <Table
+                    columns={[
+                      {
+                        key: "expert",
+                        title: "Chuyên gia",
+                        render: (_: unknown, row: (typeof expertScheduleRows)[number]) => (
+                          <div className="schedule-project-cell">
+                            <button className="resource-expert-link" onClick={() => { setSelectedExpertId(row.expert.id); setWorkspaceTab("experts"); }} type="button">
+                              {row.expert.full_name ?? "Chưa cập nhật tên"}
+                            </button>
+                            <span>{row.expert.email ?? row.expert.phone ?? "Chưa có thông tin liên hệ"}</span>
                           </div>
-                        </div>
-                      );
-                    }}
-                    onPanelChange={(value) => setCalendarMonth(value.startOf("month"))}
-                    value={calendarMonth}
+                        ),
+                      },
+                      { dataIndex: "allocatedMandays", key: "mandays", title: "MD đã phân", width: 120, render: (value: number) => formatMandays(value) },
+                      { dataIndex: "auditCount", key: "audits", title: "Số cuộc", width: 100 },
+                      { dataIndex: "occupiedDays", key: "days", title: "Ngày bận", width: 100 },
+                      { dataIndex: "conflicts", key: "conflicts", title: "Trùng lịch", width: 110, render: (value: number) => <Tag color={value ? "red" : "green"}>{value}</Tag> },
+                      { dataIndex: "utilization", key: "utilization", title: "Mức sử dụng", width: 130, render: (value: number) => `${value}%` },
+                    ]}
+                    dataSource={expertScheduleRows}
+                    locale={{ emptyText: <Empty description="Chưa có dữ liệu chuyên gia" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                    pagination={{ pageSize: 12, showSizeChanger: false }}
+                    rowKey={(row) => row.expert.id}
+                    size="small"
                   />
                 </div>
               ),
@@ -2267,11 +2434,12 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           onChange={setWorkspaceTab}
         />
       </Card>
+      </> : <div aria-live="polite" className="appointment-editor-loading"><Skeleton active paragraph={{ rows: 4 }} /></div>}
 
       <Drawer
         destroyOnHidden
         onClose={() => setSelectedPlanId(null)}
-        open={Boolean(selectedPlan)}
+        open={!appointmentEditorOnly && Boolean(selectedPlan)}
         title={<div><Text type="secondary">{selectedIsProjectContext
           ? "Chỉ định đoàn cấp hồ sơ chứng nhận"
           : selectedIsFormalEventAppointment
@@ -2298,7 +2466,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                 <Descriptions.Item label="Phạm vi" span={2}>{selectedPlan.audit_scope ?? selectedPlan.certification_projects?.certification_applications?.certification_scope ?? "Chưa cập nhật"}</Descriptions.Item>
                 <Descriptions.Item label="Mục tiêu" span={2}>{selectedPlan.audit_objectives ?? "Chưa cập nhật"}</Descriptions.Item>
               </Descriptions>
-              {selectedPlan.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)}>Mở hồ sơ chứng nhận</Button> : null}
+              {selectedPlan.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => openPlanDossier(selectedPlan)}>Mở hồ sơ chứng nhận</Button> : null}
             </Card>
 
             {selectedIsProjectContext ? <Card className="project-assignment-brief" title="Thông tin làm căn cứ chỉ định đoàn">
@@ -2382,12 +2550,22 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                       title={selectedIsFormalAppointment ? "Ban hành chỉ định đoàn?" : "Xác nhận điều phối?"}
                     >
                       <Tooltip
-                        title={!selectedAppointmentMandaysBalanced
+                        title={teamReadinessQuery.isLoading
+                          ? "Đang kiểm tra Team Readiness"
+                          : teamReadinessQuery.isError
+                            ? "Không tải được Team Readiness; server vẫn sẽ kiểm tra khi ban hành"
+                            : !teamReadinessQuery.data?.ready_to_issue
+                              ? teamReadinessQuery.data?.reasons.find((reason) => reason.severity === "BLOCK")?.message
+                                ?? "Đoàn chưa đáp ứng đủ điều kiện ban hành"
+                              : !selectedAppointmentMandaysBalanced
                           ? `Cần bố trí đúng ${formatMandays(selectedRequiredMandays)} MD trước khi xác nhận/ban hành`
                           : undefined}
                       >
                         <Button
-                          disabled={!selectedAppointmentMandaysBalanced}
+                          disabled={!selectedAppointmentMandaysBalanced
+                            || teamReadinessQuery.isLoading
+                            || teamReadinessQuery.isError
+                            || !teamReadinessQuery.data?.ready_to_issue}
                           icon={<SendOutlined />}
                           loading={issueAppointmentMutation.isPending}
                           type="primary"
@@ -2432,6 +2610,58 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                   showIcon
                   type={selectedRequiredMandays === undefined ? "info" : selectedAppointmentMandaysBalanced ? "success" : "warning"}
                 />
+              ) : null}
+              {selectedAppointment ? (
+                <div style={{ marginTop: 12 }}>
+                  {teamReadinessQuery.isLoading ? <Skeleton active paragraph={{ rows: 2 }} />
+                    : teamReadinessQuery.isError ? (
+                      <Alert
+                        action={<Button size="small" onClick={() => void teamReadinessQuery.refetch()}>Kiểm tra lại</Button>}
+                        message="Không tải được Team Readiness"
+                        showIcon
+                        type="error"
+                      />
+                    ) : teamReadinessQuery.data ? (
+                      <Card size="small" title="Team Readiness">
+                        <Alert
+                          description={teamReadinessQuery.data.ready_to_issue
+                            ? "Coverage, vai trò, Phase 4C gates và man-day hiện đều đạt. Server sẽ kiểm tra lại ngay khi ban hành."
+                            : teamReadinessQuery.data.reasons
+                              .filter((reason) => reason.severity === "BLOCK")
+                              .map((reason) => reason.message)
+                              .join(" · ")}
+                          message={teamReadinessQuery.data.ready_to_issue
+                            ? "Sẵn sàng ban hành"
+                            : `Chưa sẵn sàng · ${teamReadinessQuery.data.summary.blocking_reason_count} điều kiện chặn`}
+                          showIcon
+                          type={teamReadinessQuery.data.ready_to_issue ? "success" : "warning"}
+                        />
+                        <Space style={{ marginTop: 10 }} wrap>
+                          <Tag color={teamReadinessQuery.data.summary.leader_qualified ? "green" : "red"}>Trưởng đoàn</Tag>
+                          <Tag color={teamReadinessQuery.data.summary.covered_scopes === teamReadinessQuery.data.summary.required_scopes ? "green" : "orange"}>
+                            Scope {teamReadinessQuery.data.summary.covered_scopes}/{teamReadinessQuery.data.summary.required_scopes}
+                          </Tag>
+                          <Tag color={teamReadinessQuery.data.summary.covered_programs === teamReadinessQuery.data.summary.required_programs ? "green" : "orange"}>
+                            Chương trình {teamReadinessQuery.data.summary.covered_programs}/{teamReadinessQuery.data.summary.required_programs}
+                          </Tag>
+                          <Tag color={teamReadinessQuery.data.summary.manday_balanced ? "green" : "red"}>Man-day</Tag>
+                          {teamReadinessQuery.data.summary.technical_expertise_required ? (
+                            <Tag color={teamReadinessQuery.data.summary.technical_expertise_covered ? "green" : "red"}>Chuyên gia kỹ thuật</Tag>
+                          ) : null}
+                        </Space>
+                        <div style={{ marginTop: 8 }}>
+                          {teamReadinessQuery.data.coverage_matrix.map((row) => (
+                            <Tag
+                              color={row.status === "COVERED" ? "green" : row.status === "PARTIAL" ? "orange" : "red"}
+                              key={row.project_scope_id}
+                            >
+                              {row.standard_code} · IAF {row.iaf_code} · NACE {row.nace_code}: {row.status}
+                            </Tag>
+                          ))}
+                        </div>
+                      </Card>
+                    ) : null}
+                </div>
               ) : null}
             </Card>
 
@@ -2597,6 +2827,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
       <Modal
         cancelText="Hủy"
         destroyOnHidden
+        footer={selectedAppointmentLocked ? null : undefined}
         maskClosable={false}
         okButtonProps={{
           disabled: scopePrerequisiteBlocked
@@ -2618,12 +2849,15 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
         onCancel={() => {
           setAppointmentModalOpen(false);
           setAppointmentFormErrors([]);
+          onEditorClose?.();
         }}
         onOk={() => appointmentForm.submit()}
         open={appointmentModalOpen}
         title={selectedAppointment
           ? selectedIsFormalAppointment
-            ? `Sửa dự thảo chỉ định ${selectedAppointment.appointment_number ?? ""}`
+            ? selectedAppointmentLocked
+              ? `Chỉ định đoàn đánh giá · Đã ban hành`
+              : `Chỉ định đoàn đánh giá — ${selectedAppointment.appointment_number ?? ""}`
             : `Điều phối ${selectedDisplayCode ?? ""}`
           : selectedIsProjectContext
             ? `Chỉ định đoàn cho hồ sơ ${selectedDisplayCode ?? ""}`
@@ -2634,6 +2868,101 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                 : `Điều phối Giai đoạn 2 — ${selectedDisplayCode ?? ""}`}
         width={920}
       >
+        {selectedAppointmentLocked && selectedAppointment ? (
+          <div className="appointment-issued-view">
+            <Alert
+              description="Quyết định đã ban hành được khóa và không thể sửa đè. Cấu trúc hiện tại chưa có phiên bản F.04 để tạo lần phát hành lại, vì vậy màn hình chỉ cho phép xem dữ liệu đã xác nhận."
+              message="F.04 đã ban hành · Chế độ chỉ xem"
+              showIcon
+              type="success"
+            />
+            <Descriptions bordered column={2} size="small">
+              <Descriptions.Item label="Số chỉ định">{selectedAppointment.appointment_number ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Ngày chỉ định">{formatDate(selectedAppointment.appointment_date)}</Descriptions.Item>
+              <Descriptions.Item label="Trạng thái"><Tag color="green">Đã ban hành</Tag></Descriptions.Item>
+              <Descriptions.Item label="Ngày công">{formatMandays(selectedAppointmentAllocatedMandays)} MD</Descriptions.Item>
+              <Descriptions.Item label="Phân công chương trình" span={2}>
+                <Tag color={planProgramCoverage.covered === planProgramCoverage.required ? "green" : "orange"}>
+                  {planProgramCoverage.covered}/{planProgramCoverage.required} chương trình
+                </Tag>
+              </Descriptions.Item>
+            </Descriptions>
+            <Table
+              columns={[
+                {
+                  key: "expert",
+                  title: "Thành viên",
+                  render: (_: unknown, member: AppointmentMember) => member.experts?.full_name ?? "—",
+                },
+                {
+                  dataIndex: "team_role",
+                  key: "role",
+                  title: "Vai trò",
+                  render: (value: string) => labelFromMap(value, roleLabels),
+                },
+                {
+                  key: "dates",
+                  title: "Thời gian",
+                  render: (_: unknown, member: AppointmentMember) => formatDateRange(member.planned_start_date, member.planned_end_date),
+                },
+                {
+                  dataIndex: "planned_mandays",
+                  key: "mandays",
+                  title: "MD",
+                  render: (value: number | string | null) => formatMandays(parseNumber(value)),
+                },
+                {
+                  key: "programs",
+                  title: "Chương trình được phân công",
+                  render: (_: unknown, member: AppointmentMember) => {
+                    const allocations = (selectedAppointment.program_manday_allocations ?? [])
+                      .filter((allocation) => allocation.member_id === member.id && Number(allocation.manday_units) > 0);
+                    return allocations.length
+                      ? <Space wrap>{allocations.map((allocation) => (
+                        <Tag key={allocation.id}>{allocation.standard_code ?? allocation.management_system ?? allocation.program_key} · {Number(allocation.manday_units) / 2} MD</Tag>
+                      ))}</Space>
+                      : <Text type="secondary">Chưa có phân bổ</Text>;
+                  },
+                },
+              ]}
+              dataSource={selectedAppointment.members ?? []}
+              pagination={false}
+              rowKey="id"
+              size="small"
+            />
+          </div>
+        ) : null}
+        {selectedAppointment
+        && normalize(selectedAppointment.status) === "draft"
+        && selectedIsFormalAppointment ? (
+          <Alert
+            action={(
+              <Popconfirm
+                cancelText="Chưa"
+                description="Sau khi ban hành, dự thảo được khóa theo quy trình hiện hành."
+                okText="Ban hành"
+                onConfirm={() => issueAppointmentMutation.mutate(selectedAppointment.id)}
+                title="Ban hành chỉ định đoàn?"
+              >
+                <Button
+                  disabled={!selectedAppointmentMandaysBalanced}
+                  icon={<SendOutlined />}
+                  loading={issueAppointmentMutation.isPending}
+                  type="primary"
+                >
+                  Ban hành chỉ định
+                </Button>
+              </Popconfirm>
+            )}
+            description={selectedAppointmentMandaysBalanced
+              ? "Có thể tiếp tục chỉnh sửa dự thảo hoặc ban hành ngay từ không gian F.04 này."
+              : `Cần bố trí đúng ${formatMandays(selectedRequiredMandays)} MD trước khi ban hành.`}
+            message="Dự thảo chỉ định đoàn"
+            showIcon
+            style={{ marginBottom: 12 }}
+            type="info"
+          />
+        ) : null}
         {selectedIsProjectContext ? <Card className="appointment-modal-project-brief" size="small" title="Hồ sơ cần chỉ định đoàn">
           {projectBriefQuery.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : projectBriefApplication ? <>
             <Descriptions column={2} size="small">
@@ -2647,12 +2976,12 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             <Space wrap>
               <Button icon={<EyeOutlined />} onClick={() => { setProjectSourceRecord("application"); setProjectSourceTab("system"); }} size="small">Phiếu đăng ký</Button>
               <Button disabled={!projectBriefReview} icon={<EyeOutlined />} onClick={() => { setProjectSourceRecord("review"); setProjectSourceTab("system"); }} size="small">Phiếu xem xét</Button>
-              {selectedPlan?.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)} size="small">Mở hồ sơ</Button> : null}
+              {!appointmentEditorOnly && selectedPlan?.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)} size="small">Mở hồ sơ</Button> : null}
             </Space>
           </> : <Alert message="Chưa tải được thông tin hồ sơ" showIcon type="warning" />}
         </Card> : null}
 
-        {!selectableExperts.length ? (
+        {!selectedAppointmentLocked && !selectableExperts.length ? (
           <Alert
             description={selectedIsProjectContext || selectedIsFormalEventAppointment
               ? "Hãy tạo/kích hoạt hồ sơ chuyên gia và phê duyệt năng lực phù hợp trước khi chỉ định đoàn."
@@ -2662,7 +2991,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
             type="warning"
           />
         ) : null}
-        {projectScopesQuery.isLoading ? (
+        {!selectedAppointmentLocked && projectScopesQuery.isLoading ? (
           <Alert
             className="appointment-scope-alert"
             message="Đang kiểm tra điều kiện phân công đoàn..."
@@ -2671,11 +3000,11 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           />
         ) : null}
 
-        {scopeAccessDenied ? (
+        {!selectedAppointmentLocked && scopeAccessDenied ? (
           <Alert
             action={(
               <Space wrap>
-                {selectedPlan?.project_id ? (
+                {!appointmentEditorOnly && selectedPlan?.project_id ? (
                   <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)}>
                     Mở hồ sơ
                   </Button>
@@ -2693,7 +3022,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           />
         ) : null}
 
-        {scopeLoadFailed ? (
+        {!selectedAppointmentLocked && scopeLoadFailed ? (
           <Alert
             action={(
               <Space wrap>
@@ -2713,7 +3042,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           />
         ) : null}
 
-        {scopeMissing ? (
+        {!selectedAppointmentLocked && scopeMissing ? (
           <Alert
             action={(
               <Space wrap>
@@ -2725,7 +3054,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
                 >
                   Đồng bộ từ xem xét đơn
                 </Button>
-                {selectedPlan?.project_id ? (
+                {!appointmentEditorOnly && selectedPlan?.project_id ? (
                   <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)}>
                     Mở hồ sơ
                   </Button>
@@ -2743,7 +3072,7 @@ export function ScheduleResourcesScreen({ initialPlanId, onOpenProject, roles }:
           />
         ) : null}
 
-        {!scopePrerequisiteBlocked && !planTeamPrerequisiteBlocked ? (
+        {!selectedAppointmentLocked && !scopePrerequisiteBlocked && !planTeamPrerequisiteBlocked ? (
         <Form<AppointmentFormValues>
           className="appointment-form"
           form={appointmentForm}

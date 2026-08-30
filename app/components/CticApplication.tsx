@@ -29,17 +29,26 @@ function ApplicationContent() {
   }, []);
 
   useEffect(() => {
-    const rawSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    let cancelled = false;
 
-    if (rawSession) {
-      try {
-        setSession(JSON.parse(rawSession) as AuthSession);
-      } catch {
-        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const rawSession = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+
+      if (rawSession) {
+        try {
+          setSession(JSON.parse(rawSession) as AuthSession);
+        } catch {
+          window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        }
       }
-    }
 
-    setSessionReady(true);
+      setSessionReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

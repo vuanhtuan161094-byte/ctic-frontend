@@ -3,33 +3,26 @@
 import {
   AppstoreOutlined,
   BankOutlined,
-  BellOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
   FileDoneOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
   IdcardOutlined,
   LogoutOutlined,
   MenuOutlined,
-  MoreOutlined,
   NotificationOutlined,
-  PlusOutlined,
-  ReloadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
   TeamOutlined,
   UserOutlined,
-  WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import type { InputRef, MenuProps, TableColumnsType } from "antd";
+import type { InputRef, MenuProps } from "antd";
 import {
   Avatar,
   Badge,
   Button,
-  Card,
   Drawer,
   Dropdown,
   Empty,
@@ -39,17 +32,9 @@ import {
   List,
   Menu,
   Modal,
-  Popover,
-  Progress,
   Select,
-  Skeleton,
   Space,
-  Statistic,
-  Table,
-  Tabs,
   Tag,
-  Tooltip,
-  Typography,
   message,
 } from "antd";
 import dayjs from "dayjs";
@@ -62,28 +47,40 @@ import {
   type TaskDestination,
 } from "../lib/task-navigation";
 import type {
-  DashboardAlert,
   DashboardOverview,
-  RecentCertificate,
-  RecentProject,
-  StatusCount,
-  UpcomingAudit,
 } from "../types/dashboard";
+import type { PersonalWorkspace } from "../types/personal-workspace";
 import { CertificationProjectDetailScreen } from "./CertificationProjectDetailScreen";
 import { CertificationProjectsScreen } from "./CertificationProjectsScreen";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
 import { CustomerCorrectiveActionsScreen } from "./CustomerCorrectiveActionsScreen";
+import { CustomerPortalDashboardScreen } from "./CustomerPortalDashboardScreen";
+import { CustomerProfileScreen } from "./CustomerProfileScreen";
+import { CustomerApplicationsScreen } from "./CustomerApplicationsScreen";
+import { CustomerAuditScheduleScreen } from "./CustomerAuditScheduleScreen";
+import { CustomerResultNotificationsScreen } from "./CustomerResultNotificationsScreen";
+import { CustomerCertificatesScreen } from "./CustomerCertificatesScreen";
+import { CustomerChangeRequestsScreen } from "./CustomerChangeRequestsScreen";
+import { CustomerPortalUsersScreen } from "./CustomerPortalUsersScreen";
+import { CustomerUserRequestsScreen } from "./CustomerUserRequestsScreen";
+import { CustomerDocumentsScreen } from "./CustomerDocumentsScreen";
+import { CustomerDocumentRequestsScreen } from "./CustomerDocumentRequestsScreen";
 import { DocumentsScreen } from "./DocumentsScreen";
+import { GovernanceCasesScreen } from "./GovernanceCasesScreen";
+import { CustomerCasesScreen } from "./CustomerCasesScreen";
 import { ExpertsScreen } from "./ExpertsScreen";
 import { MyTasksScreen } from "./MyTasksScreen";
-import { ReportsScreen } from "./ReportsScreen";
+import { MyCalendarScreen } from "./MyCalendarScreen";
+import { NotificationCenter } from "./NotificationCenter";
+import { NotificationsScreen } from "./NotificationsScreen";
+import { PersonalDashboardScreen } from "./PersonalDashboardScreen";
+import { ManagementCockpitScreen } from "./ManagementCockpitScreen";
 import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
 import { SystemAdminScreen } from "./SystemAdminScreen";
+import { DelegationScreen } from "./DelegationScreen";
 
 const { Header, Content, Sider } = Layout;
-const { Text, Title } = Typography;
-
 interface DashboardShellProps {
   session: AuthSession;
   onLogout: () => void;
@@ -102,14 +99,16 @@ interface SearchResult {
 interface WorkTaskPreview {
   id: string;
   title: string;
-  description: string;
-  group: string;
-  priority: "critical" | "high" | "normal";
-  source_status: string;
-  due_date: string | null;
-  destination: TaskDestination;
-  target_id: string | null;
+  description: string | null;
+  work_type: string;
+  priority: "URGENT" | "HIGH" | "NORMAL" | "LOW";
+  status: string;
+  due_at: string | null;
+  destination_path: string | null;
+  project_id: string | null;
   project_code: string | null;
+  context: Record<string, unknown> | null;
+  cycle_key?: string | null;
 }
 
 interface WorkTaskPreviewResponse {
@@ -125,6 +124,9 @@ interface WorkTaskPreviewResponse {
 type ActiveView =
   | "dashboard"
   | "my-tasks"
+  | "my-calendar"
+  | "notifications"
+  | "delegations"
   | "customers"
   | "applications"
   | "projects"
@@ -134,7 +136,14 @@ type ActiveView =
   | "documents"
   | "experts"
   | "reports"
-  | "system-admin";
+  | "system-admin"
+  | "customer-results"
+  | "customer-change-requests"
+  | "customer-portal-users"
+  | "customer-user-requests"
+  | "customer-documents"
+  | "customer-document-requests"
+  | "governance-cases";
 
 interface BrowserNavigationState {
   activeView: ActiveView;
@@ -146,6 +155,9 @@ interface BrowserNavigationState {
 const activeViewValues: ActiveView[] = [
   "dashboard",
   "my-tasks",
+  "my-calendar",
+  "notifications",
+  "delegations",
   "customers",
   "applications",
   "projects",
@@ -156,6 +168,13 @@ const activeViewValues: ActiveView[] = [
   "experts",
   "reports",
   "system-admin",
+  "customer-results",
+  "customer-change-requests",
+  "customer-portal-users",
+  "customer-user-requests",
+  "customer-documents",
+  "customer-document-requests",
+  "governance-cases",
 ];
 
 function isActiveView(value: unknown): value is ActiveView {
@@ -225,58 +244,21 @@ const statusLabels: Record<string, string> = {
   withdrawn: "Đã thu hồi",
 };
 
-const statusColors: Record<string, string> = {
-  accepted: "green",
-  active: "green",
-  approved: "green",
-  certificate_issued: "blue",
-  closed: "green",
-  completed: "green",
-  corrective_action_required: "orange",
-  draft: "default",
-  expired: "red",
-  in_progress: "processing",
-  in_review: "processing",
-  issued: "blue",
-  overdue: "red",
-  pending: "gold",
-  planned: "cyan",
-  project_created: "blue",
-  replaced: "default",
-  response_submitted: "blue",
-  revision_required: "orange",
-  suspended: "orange",
-  technical_review_completed: "green",
-  under_review: "processing",
-  withdrawn: "red",
-};
-
-const taskAlertTypes = new Set([
-  "open_finding",
-  "overdue_finding",
-  "technical_review_revision",
-  "unsent_notification",
-]);
-
 const roleMenuKeys: Record<string, string[]> = {
-  admin: ["dashboard", "my-tasks", "customers", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports", "system-admin"],
-  staff: ["dashboard", "my-tasks", "customers", "applications", "projects", "schedule-resources", "certificates", "documents", "reports"],
-  sales: ["dashboard", "my-tasks", "customers", "applications", "projects", "documents", "reports"],
-  coordinator: ["dashboard", "my-tasks", "customers", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports"],
-  lead_auditor: ["dashboard", "my-tasks", "projects", "schedule-resources", "documents", "experts", "reports"],
-  auditor: ["dashboard", "my-tasks", "projects", "schedule-resources", "documents", "reports"],
-  technical_reviewer: ["dashboard", "my-tasks", "applications", "projects", "documents", "experts", "reports"],
-  decision_maker: ["dashboard", "my-tasks", "applications", "projects", "certificates", "documents", "reports"],
-  customer: ["dashboard", "my-tasks", "projects", "certificates"],
+  admin: ["dashboard", "my-tasks", "my-calendar", "customers", "customer-change-requests", "governance-cases", "customer-user-requests", "customer-document-requests", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports", "system-admin"],
+  staff: ["dashboard", "my-tasks", "my-calendar", "customers", "applications", "projects", "schedule-resources", "certificates", "documents", "reports"],
+  sales: ["dashboard", "my-tasks", "my-calendar", "customers", "applications", "projects", "documents", "reports"],
+  coordinator: ["dashboard", "my-tasks", "my-calendar", "customers", "customer-change-requests", "governance-cases", "customer-document-requests", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports"],
+  lead_auditor: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "projects", "schedule-resources", "documents", "experts"],
+  auditor: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "projects", "documents"],
+  technical_expert: ["dashboard", "my-tasks", "my-calendar", "projects", "documents"],
+  technical_reviewer: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "applications", "projects", "documents", "experts"],
+  decision_maker: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "applications", "projects", "certificates", "documents"],
+  customer: ["dashboard", "customers", "customer-portal-users", "applications", "customer-documents", "governance-cases", "schedule-resources", "projects", "customer-results", "certificates", "notifications"],
 };
 
 function normalizeStatus(status?: string | null) {
   return (status ?? "unknown").trim().toLowerCase();
-}
-
-function getStatusLabel(status?: string | null) {
-  const normalized = normalizeStatus(status);
-  return statusLabels[normalized] ?? normalized.replaceAll("_", " ");
 }
 
 function translateTechnicalText(value?: string | null) {
@@ -289,31 +271,10 @@ function translateTechnicalText(value?: string | null) {
   );
 }
 
-function StatusTag({ status }: { status?: string | null }) {
-  const normalized = normalizeStatus(status);
-  const icon = ["active", "approved", "completed", "closed"].includes(normalized)
-    ? <CheckCircleOutlined />
-    : ["expired", "overdue", "withdrawn"].includes(normalized)
-      ? <WarningOutlined />
-      : <ClockCircleOutlined />;
-
-  return (
-    <Tag color={statusColors[normalized] ?? "default"} icon={icon}>
-      {getStatusLabel(status)}
-    </Tag>
-  );
-}
-
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = dayjs(value);
   return date.isValid() ? date.format("DD/MM/YYYY") : "—";
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return "—";
-  const date = dayjs(value);
-  return date.isValid() ? date.format("HH:mm · DD/MM/YYYY") : "—";
 }
 
 function formatRole(role?: string) {
@@ -326,59 +287,13 @@ function formatRole(role?: string) {
     sales: "Kinh doanh",
     staff: "Nhân viên",
     technical_reviewer: "Thẩm xét viên kỹ thuật",
+    technical_expert: "Chuyên gia kỹ thuật",
   };
   return labels[role?.toLowerCase() ?? ""] ?? role ?? "Người dùng";
 }
 
 function getDisplayName(session: AuthSession) {
   return session.user.full_name?.trim() || session.user.username;
-}
-
-function getDueMeta(value?: string | null) {
-  if (!value) return { label: "Chưa thiết lập hạn", className: "due-neutral" };
-  const dueDate = dayjs(value).startOf("day");
-  const today = dayjs().startOf("day");
-  const days = dueDate.diff(today, "day");
-
-  if (days < 0) return { label: `Quá hạn ${Math.abs(days)} ngày`, className: "due-overdue" };
-  if (days === 0) return { label: "Đến hạn hôm nay", className: "due-today" };
-  if (days <= 3) return { label: `Còn ${days} ngày`, className: "due-soon" };
-  if (days <= 7) return { label: `Còn ${days} ngày`, className: "due-watch" };
-  return { label: `Hạn ${formatDate(value)}`, className: "due-neutral" };
-}
-
-function formatTaskPreviewDue(value?: string | null) {
-  if (!value) return "Chưa có hạn";
-
-  const dueDate = dayjs(value).startOf("day");
-  const today = dayjs().startOf("day");
-  const days = dueDate.diff(today, "day");
-
-  if (days < 0) return `Quá hạn ${Math.abs(days)} ngày`;
-  if (days === 0) return "Đến hạn hôm nay";
-  if (days <= 7) return `Còn ${days} ngày`;
-  return dueDate.format("DD/MM/YYYY");
-}
-
-function getAlertIcon(severity: DashboardAlert["severity"]) {
-  if (severity === "critical") return <WarningOutlined />;
-  if (severity === "warning") return <ClockCircleOutlined />;
-  return <NotificationOutlined />;
-}
-
-function getAlertClass(severity: DashboardAlert["severity"]) {
-  return `alert-indicator alert-${severity}`;
-}
-
-function getProjectPriority(status?: string | null) {
-  const normalized = normalizeStatus(status);
-  if (["corrective_action_required", "revision_required"].includes(normalized)) {
-    return <Tag color="orange" icon={<WarningOutlined />}>Cần xử lý</Tag>;
-  }
-  if (["pending", "under_review", "in_review"].includes(normalized)) {
-    return <Tag color="blue" icon={<ClockCircleOutlined />}>Đang theo dõi</Tag>;
-  }
-  return <Tag icon={<CheckCircleOutlined />}>Bình thường</Tag>;
 }
 
 function MenuLabel({ label, count }: { label: string; count?: number }) {
@@ -390,51 +305,29 @@ function MenuLabel({ label, count }: { label: string; count?: number }) {
   );
 }
 
-function StatusBreakdown({ data, onSelect }: { data: StatusCount[]; onSelect: (status: string) => void }) {
-  const total = data.reduce((sum, item) => sum + item.count, 0);
-
-  if (!data.length || (data.length === 1 && data[0]?.count === total)) {
-    return (
-      <div className="single-stage-state">
-        <CheckCircleOutlined />
-        <div><strong>{data[0]?.count ?? 0} hồ sơ</strong><span>{getStatusLabel(data[0]?.status)}</span></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="status-breakdown">
-      {data.slice(0, 7).map((item) => {
-        const percentage = total ? Math.round((item.count / total) * 100) : 0;
-        return (
-          <button className="status-row-button" key={item.status} onClick={() => onSelect(item.status)} type="button">
-            <span className="status-row-heading"><span>{getStatusLabel(item.status)}</span><strong>{item.count}</strong></span>
-            <Progress percent={percentage} showInfo={false} strokeColor="#1a6ac7" size="small" />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectDossierKey, setSelectedProjectDossierKey] = useState<string | null>(null);
   const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
   const [selectedAuditPlanId, setSelectedAuditPlanId] = useState<string | null>(null);
+  const [selectedProjectWorkspacePath, setSelectedProjectWorkspacePath] = useState<string | null>(null);
+  const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
   const [openingAlertId, setOpeningAlertId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [warningDays, setWarningDays] = useState(30);
-  const [standardFilter, setStandardFilter] = useState("all");
-  const [certificateTab, setCertificateTab] = useState("expiring");
-  const [taskPopoverOpen, setTaskPopoverOpen] = useState(false);
+  const warningDays = 30;
   const searchInputRef = useRef<InputRef>(null);
   const historyReadyRef = useRef(false);
   const restoringHistoryRef = useRef(false);
   const screens = Grid.useBreakpoint();
   const isDesktop = Boolean(screens.lg);
+  const normalizedRoles = useMemo(
+    () => session.user.roles.map((role) => normalizeStatus(role)),
+    [session.user.roles],
+  );
+  const customerPortalMode = normalizedRoles.includes("customer");
 
   const overviewQuery = useQuery({
     queryKey: ["dashboard", "overview", warningDays],
@@ -442,18 +335,34 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       const response = await api.get<DashboardOverview>(`/dashboard/overview?warning_days=${warningDays}`);
       return response.data;
     },
+    enabled: false,
   });
 
-  const taskSummaryQuery = useQuery({
-    queryKey: ["work-tasks", "summary"],
+  const workspaceQuery = useQuery({
+    queryKey: ["personal-workspace", session.user.id],
     queryFn: async () => {
-      const response = await api.get<WorkTaskPreviewResponse>(
-        "/notifications/me/tasks?limit=5",
-      );
+      const response = await api.get<PersonalWorkspace>("/me/workspace");
       return response.data;
     },
+    enabled: !customerPortalMode,
     staleTime: 20_000,
   });
+
+  const taskSummaryQuery = {
+    data: workspaceQuery.data
+      ? {
+        summary: {
+          total: workspaceQuery.data.work_summary.open + workspaceQuery.data.work_summary.in_progress,
+          overdue: workspaceQuery.data.work_summary.overdue,
+          due_soon: workspaceQuery.data.work_summary.due_soon,
+          high_priority: workspaceQuery.data.work_summary.high_priority,
+        },
+        items: workspaceQuery.data.priority_work_items.slice(0, 5) as WorkTaskPreview[],
+      } satisfies WorkTaskPreviewResponse
+      : undefined,
+    isLoading: workspaceQuery.isLoading,
+    refetch: workspaceQuery.refetch,
+  };
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {
@@ -547,61 +456,30 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
 
   const data = overviewQuery.data;
   const taskCount = taskSummaryQuery.data?.summary.total ?? 0;
-  const primaryRole = normalizeStatus(session.user.roles?.[0] ?? "staff");
-  const customerPortalMode = session.user.roles.some(
-    (role) => normalizeStatus(role) === "customer",
-  );
-
-  const standards = useMemo(() => {
-    if (!data) return [];
-    return Array.from(new Set([
-      ...data.recent_projects.map((item) => item.standard_name),
-      ...data.upcoming_audits.map((item) => item.audit_programs?.standard_name ?? ""),
-    ].filter(Boolean))).sort();
-  }, [data]);
-
-  const filteredProjects = useMemo(() => {
-    if (!data) return [];
-    return standardFilter === "all"
-      ? data.recent_projects
-      : data.recent_projects.filter((item) => item.standard_name === standardFilter);
-  }, [data, standardFilter]);
-
-  const filteredAudits = useMemo(() => {
-    if (!data) return [];
-    return standardFilter === "all"
-      ? data.upcoming_audits
-      : data.upcoming_audits.filter((item) => item.audit_programs?.standard_name === standardFilter);
-  }, [data, standardFilter]);
-
-  const taskItems = useMemo(
-    () => data?.priority_alerts.filter((item) => taskAlertTypes.has(item.alert_type)) ?? [],
-    [data],
-  );
-
-  const alertItems = useMemo(
-    () => data?.priority_alerts.filter((item) => !taskAlertTypes.has(item.alert_type)) ?? [],
-    [data],
-  );
-
-  const certificateItems = useMemo(() => {
-    if (!data) return [];
-    const today = dayjs();
-    return data.recent_certificates.filter((item) => {
-      const status = normalizeStatus(item.status);
-      if (certificateTab === "new") return status === "active";
-      if (certificateTab === "replaced") return status === "replaced";
-      if (certificateTab === "suspended") return status === "suspended";
-      if (certificateTab === "withdrawn") return status === "withdrawn";
-      const days = dayjs(item.expire_date).diff(today, "day");
-      return status === "active" && days >= 0 && days <= warningDays;
-    });
-  }, [certificateTab, data, warningDays]);
 
   const searchResults = useMemo<SearchResult[]>(() => {
-    if (!data || searchTerm.trim().length < 2) return [];
+    if (searchTerm.trim().length < 2) return [];
     const keyword = searchTerm.trim().toLocaleLowerCase("vi");
     const results: SearchResult[] = [];
+
+    if (!customerPortalMode && workspaceQuery.data) {
+      workspaceQuery.data.priority_work_items.forEach((item) => {
+        const searchable = [item.title, item.project_code, item.organization_name].filter(Boolean).join(" ").toLocaleLowerCase("vi");
+        if (searchable.includes(keyword)) {
+          results.push({ key: `work-${item.id}`, type: "Công việc", title: item.title, description: `${item.project_code ?? "—"} · ${item.organization_name ?? item.work_type}`, destination: item.project_id ? "project-detail" : "projects", entityId: item.project_id });
+        }
+      });
+      workspaceQuery.data.recent_records.forEach((item) => {
+        const searchable = [item.title, item.project_code, item.organization_name].filter(Boolean).join(" ").toLocaleLowerCase("vi");
+        if (searchable.includes(keyword)) {
+          const projectMatch = item.destination_path?.match(/^\/projects\/([^/?#]+)/);
+          results.push({ key: `recent-${item.id}`, type: "Hồ sơ gần đây", title: item.title, description: `${item.project_code ?? "—"} · ${item.organization_name ?? "—"}`, destination: projectMatch ? "project-detail" : "projects", entityId: projectMatch ? decodeURIComponent(projectMatch[1]) : null });
+        }
+      });
+      return results.slice(0, 10);
+    }
+
+    if (!data) return [];
 
     data.recent_projects.forEach((item) => {
       const customer = item.certification_applications?.customers;
@@ -625,7 +503,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     });
 
     return results.slice(0, 10);
-  }, [data, searchTerm]);
+  }, [customerPortalMode, data, searchTerm, workspaceQuery.data]);
 
   const openPlannedScreen = (label: string) => {
     message.info(`${label} đang được hoàn thiện trong bước tiếp theo.`);
@@ -634,6 +512,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const openTaskDestination = (
     destination: TaskDestination,
     entityId?: string | null,
+    dossierKey?: string | null,
   ) => {
     setSelectedProjectId(null);
     setSelectedCertificateId(null);
@@ -646,6 +525,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       }
 
       setSelectedProjectId(entityId);
+      setSelectedProjectDossierKey(dossierKey ?? null);
+      setSelectedProjectWorkspacePath(null);
       setActiveView("project-detail");
       return;
     }
@@ -662,7 +543,127 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       return;
     }
 
+    if (destination === "applications") {
+      setSelectedApplicationReviewId(null);
+      setActiveView("applications");
+      return;
+    }
+
     setActiveView("projects");
+  };
+
+  const openWorkspacePath = (
+    path: string | null,
+    context?: Record<string, unknown> | null,
+  ) => {
+    if (!path) {
+      message.warning("Nội dung này chưa có đường dẫn nghiệp vụ hợp lệ.");
+      return;
+    }
+
+    if (path.startsWith("/my-work")) {
+      setActiveView("my-tasks");
+      return;
+    }
+
+    if (path.startsWith("/my-calendar")) {
+      setActiveView("my-calendar");
+      return;
+    }
+
+    if (path.startsWith("/delegations")) {
+      setActiveView("delegations");
+      return;
+    }
+
+    if (customerPortalMode) {
+      if (path.startsWith("/customer-portal/profile")) {
+        setActiveView("customers");
+        return;
+      }
+      if (path.startsWith("/customer-portal/users")) {
+        setActiveView("customer-portal-users");
+        return;
+      }
+      if (path.startsWith("/customer-portal/documents")) {
+        setActiveView("customer-documents");
+        return;
+      }
+      if (path.startsWith("/customer-portal/corrective-actions")) {
+        setActiveView("projects");
+        return;
+      }
+      if (path.startsWith("/customer-portal/certificates")) {
+        setActiveView("certificates");
+        return;
+      }
+      if (path.startsWith("/customer-portal/results")) {
+        setActiveView("customer-results");
+        return;
+      }
+      if (path.startsWith("/customer-portal/notifications")) {
+        setActiveView("notifications");
+        return;
+      }
+      if (path.startsWith("/customer-portal/cases")) {
+        setActiveView("governance-cases");
+        return;
+      }
+    }
+
+    if (path.startsWith("/governance-cases")) {
+      setActiveView("governance-cases");
+      return;
+    }
+
+    if (path.startsWith("/customer-change-requests")) {
+      setActiveView("customer-change-requests");
+      return;
+    }
+
+    if (path.startsWith("/customer-user-requests")) {
+      setActiveView("customer-user-requests");
+      return;
+    }
+
+    if (path.startsWith("/customer-document-requests")) {
+      setActiveView("customer-document-requests");
+      return;
+    }
+
+    const projectMatch = path.match(/^\/projects\/([^/?#]+)/);
+    if (projectMatch) {
+      const dossierKey = typeof context?.dossier_key === "string"
+        ? context.dossier_key
+        : null;
+      openTaskDestination("project-detail", decodeURIComponent(projectMatch[1]), dossierKey);
+      setSelectedProjectWorkspacePath(path);
+      return;
+    }
+
+    const certificateMatch = path.match(/^\/certificates\/([^/?#]+)/);
+    if (certificateMatch) {
+      openTaskDestination("certificates", decodeURIComponent(certificateMatch[1]));
+      return;
+    }
+
+    if (path.startsWith("/certificates")) {
+      openTaskDestination("certificates", null);
+      return;
+    }
+
+    if (path.startsWith("/applications")) {
+      try {
+        const url = new URL(path, window.location.origin);
+        setSelectedApplicationReviewId(url.searchParams.get("review_id"));
+      } catch {
+        setSelectedApplicationReviewId(null);
+      }
+      setActiveView("applications");
+      return;
+    }
+
+    message.warning("Không xác định được màn hình nghiệp vụ của nội dung này.");
   };
 
   const openResolvedTask = async (
@@ -698,8 +699,34 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     await openResolvedTask(result.entityType, result.entityId, result.key);
   };
 
-  const navigationItems = useMemo<MenuProps["items"]>(() => {
-    const visibleKeys = new Set(roleMenuKeys[primaryRole] ?? roleMenuKeys.staff);
+  const navigationItems: MenuProps["items"] = (() => {
+    if (customerPortalMode) {
+      return [
+        {
+          key: "customer-main-group",
+          type: "group",
+          label: "CỔNG KHÁCH HÀNG",
+          children: [
+            { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
+            { key: "customers", icon: <BankOutlined />, label: "Hồ sơ tổ chức" },
+            { key: "customer-portal-users", icon: <TeamOutlined />, label: "Tài khoản Portal" },
+            { key: "applications", icon: <FileSearchOutlined />, label: "Đơn đăng ký" },
+            { key: "customer-documents", icon: <FileDoneOutlined />, label: "Tài liệu & yêu cầu" },
+            { key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi & phản hồi" },
+            { key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch đánh giá" },
+            { key: "projects", icon: <CheckCircleOutlined />, label: "NC / CAP" },
+            { key: "customer-results", icon: <FileDoneOutlined />, label: "Kết quả đánh giá" },
+            { key: "certificates", icon: <SafetyCertificateOutlined />, label: "Chứng chỉ" },
+            { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
+          ],
+        },
+      ];
+    }
+    const visibleKeys = new Set(
+      (customerPortalMode ? ["customer"] : normalizedRoles)
+        .flatMap((role) => roleMenuKeys[role] ?? [])
+        .concat(normalizedRoles.length ? [] : roleMenuKeys.staff),
+    );
     const filterItems = (items: NonNullable<MenuProps["items"]>) => items.filter((item) => item && "key" in item && visibleKeys.has(String(item.key)));
 
     const groups: NonNullable<MenuProps["items"]> = [
@@ -710,6 +737,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         children: filterItems([
           { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
           { key: "my-tasks", icon: <CheckCircleOutlined />, label: <MenuLabel label="Công việc của tôi" count={taskCount} /> },
+          { key: "my-calendar", icon: <CalendarOutlined />, label: "Lịch của tôi" },
         ]),
       },
       {
@@ -718,11 +746,15 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         label: "QUẢN LÝ CHỨNG NHẬN",
         children: filterItems([
           { key: "customers", icon: <BankOutlined />, label: "Khách hàng" },
+          { key: "customer-change-requests", icon: <FileSearchOutlined />, label: "Yêu cầu thay đổi KH" },
+          { key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi & Case" },
+          { key: "customer-user-requests", icon: <TeamOutlined />, label: "Yêu cầu tài khoản KH" },
+          { key: "customer-document-requests", icon: <FileDoneOutlined />, label: "Yêu cầu tài liệu KH" },
           { key: "applications", icon: <FileSearchOutlined />, label: "Đơn đăng ký" },
           { key: "projects", icon: <FolderOpenOutlined />, label: "Hồ sơ chứng nhận" },
           { key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" },
-          { key: "certificates", icon: <SafetyCertificateOutlined />, label: <MenuLabel label="Chứng chỉ" count={data?.summary.certificates.expiring} /> },
-          { key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu" },
+          { key: "certificates", icon: <SafetyCertificateOutlined />, label: <MenuLabel label="Chứng chỉ" count={data?.summary.certificates.expiring ?? workspaceQuery.data?.role_kpis.find((item) => item.key === "certificates_expiring")?.value} /> },
+          { key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu & Mẫu biểu" },
           { key: "experts", icon: <IdcardOutlined />, label: "Chuyên gia & năng lực" },
           { key: "reports", icon: <NotificationOutlined />, label: "Báo cáo" },
         ]),
@@ -738,45 +770,12 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     ];
 
     return groups.filter((item) => item && "children" in item && Array.isArray(item.children) && item.children.length > 0);
-  }, [data?.summary.certificates.expiring, primaryRole, taskCount]);
+  })();
 
-  const projectColumns = useMemo<TableColumnsType<RecentProject>>(() => [
-    { title: "Mã hồ sơ", dataIndex: "project_code", key: "project_code", render: (value: string) => <Text className="code-value" strong>{value}</Text> },
-    {
-      title: "Khách hàng",
-      key: "customer",
-      render: (_, record) => <div className="table-primary-cell"><span>{record.certification_applications?.customers?.company_name ?? "—"}</span><small>{record.certification_applications?.customers?.customer_code ?? ""}</small></div>,
-    },
-    { title: "Tiêu chuẩn", dataIndex: "standard_name", key: "standard_name", responsive: ["md"] },
-    { title: "Giai đoạn hiện tại", dataIndex: "status", key: "status", render: (value: string) => <StatusTag status={value} /> },
-    { title: "Người phụ trách", key: "owner", responsive: ["lg"], render: () => <Text type="secondary">Chưa có dữ liệu</Text> },
-    { title: "Hạn xử lý", key: "due_date", responsive: ["xl"], render: () => <Text type="secondary">Chưa thiết lập</Text> },
-    { title: "Ưu tiên", dataIndex: "status", key: "priority", render: (value: string) => getProjectPriority(value) },
-    {
-      title: "",
-      key: "actions",
-      width: 50,
-      render: (_, record) => (
-        <Dropdown
-          menu={{
-            items: [
-              { key: `${record.id}-open`, label: "Mở hồ sơ", onClick: () => openTaskDestination("project-detail", record.id) },
-              { key: `${record.id}-progress`, label: "Xem tiến độ", onClick: () => openTaskDestination("project-detail", record.id) },
-              { key: `${record.id}-assign`, label: "Phân công", onClick: () => openTaskDestination("schedule-resources", null) },
-              { key: `${record.id}-documents`, label: "Xem tài liệu", onClick: () => setActiveView("documents") },
-              { key: `${record.id}-history`, label: "Xem lịch sử xử lý", onClick: () => openTaskDestination("project-detail", record.id) },
-            ],
-          }}
-          trigger={["click"]}
-        >
-          <Button aria-label={`Thao tác hồ sơ ${record.project_code}`} icon={<MoreOutlined />} type="text" />
-        </Dropdown>
-      ),
-    },
-  ], []);
 
   const accountItems: MenuProps["items"] = [
     { key: "account", icon: <UserOutlined />, label: session.user.username, disabled: true },
+    ...(!customerPortalMode ? [{ key: "delegations", icon: <TeamOutlined />, label: "Ủy quyền công việc", onClick: () => setActiveView("delegations") }] : []),
     { type: "divider" },
     { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true, onClick: onLogout },
   ];
@@ -803,13 +802,43 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             setSelectedProjectId(null);
             setSelectedAuditPlanId(null);
           }
+          else if (key === "my-calendar") {
+            setActiveView("my-calendar");
+            setSelectedProjectId(null);
+            setSelectedAuditPlanId(null);
+          }
           else if (key === "customers") {
             setActiveView("customers");
             setSelectedProjectId(null);
             setSelectedCertificateId(null);
             setSelectedAuditPlanId(null);
           }
+          else if (key === "customer-change-requests") {
+            setActiveView("customer-change-requests");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "governance-cases") {
+            setActiveView("governance-cases");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "customer-document-requests") {
+            setActiveView("customer-document-requests");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "customer-documents") {
+            setActiveView("customer-documents");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
           else if (key === "applications") {
+            setSelectedApplicationReviewId(null);
             setActiveView("applications");
             setSelectedProjectId(null);
             setSelectedCertificateId(null);
@@ -842,6 +871,16 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             setActiveView("reports");
             setSelectedProjectId(null);
           }
+          else if (key === "customer-results") {
+            setActiveView("customer-results");
+            setSelectedProjectId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "notifications") {
+            setActiveView("notifications");
+            setSelectedProjectId(null);
+            setSelectedAuditPlanId(null);
+          }
           else if (key === "system-admin") {
             setActiveView("system-admin");
             setSelectedProjectId(null);
@@ -869,84 +908,6 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     </>
   );
 
-  const renderWorkItem = (item: DashboardAlert, compact = false) => {
-    const due = getDueMeta(item.due_date);
-    return (
-      <List.Item className={compact ? "compact-alert-row" : "work-item-row"}>
-        <div className="work-item-main">
-          <span className={getAlertClass(item.severity)}>{getAlertIcon(item.severity)}</span>
-          <div className="work-item-copy">
-            <div className="work-item-title-line"><strong>{translateTechnicalText(item.title)}</strong><Tag color={item.severity === "critical" ? "red" : item.severity === "warning" ? "orange" : "blue"}>{item.severity === "critical" ? "Nghiêm trọng" : item.severity === "warning" ? "Cần theo dõi" : "Thông tin"}</Tag></div>
-            <p>{translateTechnicalText(item.message)}</p>
-            {!compact ? <div className="work-item-meta"><span>Phụ trách: Chưa có dữ liệu</span><span className={due.className}>{due.label}</span></div> : null}
-          </div>
-        </div>
-        <Button
-          loading={openingAlertId === item.id}
-          onClick={() => void openResolvedTask(
-            item.entity_type,
-            item.entity_id,
-            item.id,
-          )}
-          size="small"
-        >
-          Xem chi tiết
-        </Button>
-      </List.Item>
-    );
-  };
-
-  const taskPreviewItems = taskSummaryQuery.data?.items ?? [];
-  const taskPreviewSummary = taskSummaryQuery.data?.summary;
-
-  const taskPopoverContent = (
-    <div className="task-popover-panel">
-      <div className="task-popover-summary">
-        <div><span>Tổng việc</span><strong>{taskPreviewSummary?.total ?? 0}</strong></div>
-        <div><span>Quá hạn</span><strong className={taskPreviewSummary?.overdue ? "task-popover-danger" : ""}>{taskPreviewSummary?.overdue ?? 0}</strong></div>
-        <div><span>Trong 7 ngày</span><strong>{taskPreviewSummary?.due_soon ?? 0}</strong></div>
-      </div>
-
-      {taskSummaryQuery.isLoading ? (
-        <Skeleton active paragraph={{ rows: 3 }} title={false} />
-      ) : taskPreviewItems.length ? (
-        <div className="task-popover-list">
-          {taskPreviewItems.map((item) => (
-            <button
-              className="task-popover-item"
-              key={item.id}
-              onClick={() => {
-                setTaskPopoverOpen(false);
-                openTaskDestination(item.destination, item.target_id);
-              }}
-              type="button"
-            >
-              <span className={`task-popover-dot priority-${item.priority}`} />
-              <span className="task-popover-copy">
-                <strong>{item.title}</strong>
-                <small>{item.project_code ? `${item.project_code} · ` : ""}{item.group}</small>
-              </span>
-              <span className="task-popover-due">{formatTaskPreviewDue(item.due_date)}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc cần xử lý" />
-      )}
-
-      <Button
-        block
-        onClick={() => {
-          setTaskPopoverOpen(false);
-          setActiveView("my-tasks");
-        }}
-        type="primary"
-      >
-        Mở Trung tâm công việc
-      </Button>
-    </div>
-  );
-
   return (
     <Layout className="application-shell">
       {isDesktop ? <Sider className="desktop-sider" width={268}>{navigation}</Sider> : null}
@@ -959,18 +920,11 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <button className="global-search-trigger" onClick={() => setSearchOpen(true)} type="button"><SearchOutlined /><span>Tìm khách hàng, mã hồ sơ, chứng chỉ...</span><kbd>Ctrl K</kbd></button>
           </div>
           <Space size={isDesktop ? 14 : 8}>
-            <Popover
-              content={taskPopoverContent}
-              onOpenChange={setTaskPopoverOpen}
-              open={taskPopoverOpen}
-              placement="bottomRight"
-              title={<span>Công việc cần xử lý</span>}
-              trigger="click"
-            >
-              <Badge count={taskCount} size="small">
-                <Button aria-label="Công việc cần xử lý" icon={<BellOutlined />} shape="circle" />
-              </Badge>
-            </Popover>
+            <NotificationCenter
+              customerMode={customerPortalMode}
+              onOpenPath={openWorkspacePath}
+              onViewAll={() => setActiveView("notifications")}
+            />
             <Dropdown menu={{ items: accountItems }} placement="bottomRight">
               <button className="account-button" type="button"><Avatar icon={<UserOutlined />} />{isDesktop ? <span><strong>{getDisplayName(session)}</strong><small>{formatRole(session.user.roles?.[0])}</small></span> : null}</button>
             </Dropdown>
@@ -980,39 +934,69 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         <Content className="application-content dashboard-v2">
           {activeView === "project-detail" && selectedProjectId && !customerPortalMode ? (
             <CertificationProjectDetailScreen
+              initialDossierKey={selectedProjectDossierKey}
+              initialWorkspacePath={selectedProjectWorkspacePath}
               onBack={() => {
                 setActiveView("projects");
                 setSelectedProjectId(null);
-              }}
-              onOpenAuditPlan={(planId) => {
-                setSelectedAuditPlanId(planId);
-                setActiveView("schedule-resources");
-              }}
-              onOpenTeamAssignment={(projectId) => {
-                setSelectedAuditPlanId(`project:${projectId}`);
-                setActiveView("schedule-resources");
+                setSelectedProjectDossierKey(null);
+                setSelectedProjectWorkspacePath(null);
               }}
               projectId={selectedProjectId}
               roles={session.user.roles}
             />
           ) : activeView === "my-tasks" ? (
             <MyTasksScreen
-              onNavigate={openTaskDestination}
+              onOpenPath={openWorkspacePath}
               roles={session.user.roles}
             />
+          ) : activeView === "my-calendar" ? (
+            <MyCalendarScreen
+              items={workspaceQuery.data?.calendar_items ?? []}
+              onOpenPath={openWorkspacePath}
+              onRefresh={() => void workspaceQuery.refetch()}
+              refreshing={workspaceQuery.isFetching}
+            />
+          ) : activeView === "notifications" ? (
+            <NotificationsScreen customerMode={customerPortalMode} onOpenPath={openWorkspacePath} />
+          ) : activeView === "delegations" ? (
+            <DelegationScreen roles={session.user.roles} />
+          ) : activeView === "customers" && customerPortalMode ? (
+            <CustomerProfileScreen />
+          ) : activeView === "customer-portal-users" && customerPortalMode ? (
+            <CustomerPortalUsersScreen />
           ) : activeView === "customers" ? (
             <CustomersScreen
               onOpenProject={(projectId) => {
                 setSelectedProjectId(projectId);
+                setSelectedProjectDossierKey(null);
+                setSelectedProjectWorkspacePath(null);
                 setActiveView("project-detail");
               }}
               roles={session.user.roles}
             />
+          ) : activeView === "customer-change-requests" && !customerPortalMode ? (
+            <CustomerChangeRequestsScreen />
+          ) : activeView === "governance-cases" && customerPortalMode ? (
+            <CustomerCasesScreen />
+          ) : activeView === "governance-cases" ? (
+            <GovernanceCasesScreen />
+          ) : activeView === "customer-user-requests" && !customerPortalMode ? (
+            <CustomerUserRequestsScreen />
+          ) : activeView === "customer-document-requests" && !customerPortalMode ? (
+            <CustomerDocumentRequestsScreen />
+          ) : activeView === "customer-documents" && customerPortalMode ? (
+            <CustomerDocumentsScreen />
+          ) : activeView === "applications" && customerPortalMode ? (
+            <CustomerApplicationsScreen />
           ) : activeView === "applications" ? (
             <CertificationProjectsScreen
+              initialReviewId={selectedApplicationReviewId}
               mode="applications"
               onOpenProject={(projectId) => {
                 setSelectedProjectId(projectId);
+                setSelectedProjectDossierKey(null);
+                setSelectedProjectWorkspacePath(null);
                 setActiveView("project-detail");
               }}
             />
@@ -1024,19 +1008,27 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
                 mode="projects"
                 onOpenProject={(projectId) => {
                   setSelectedProjectId(projectId);
+                  setSelectedProjectDossierKey(null);
                   setActiveView("project-detail");
                 }}
               />
             )
+          ) : activeView === "schedule-resources" && customerPortalMode ? (
+            <CustomerAuditScheduleScreen />
           ) : activeView === "schedule-resources" ? (
             <ScheduleResourcesScreen
               initialPlanId={selectedAuditPlanId}
-              onOpenProject={(projectId) => {
+              onOpenProject={(projectId, dossierKey) => {
                 setSelectedProjectId(projectId);
+                setSelectedProjectDossierKey(dossierKey ?? null);
                 setActiveView("project-detail");
               }}
               roles={session.user.roles}
             />
+          ) : activeView === "customer-results" && customerPortalMode ? (
+            <CustomerResultNotificationsScreen />
+          ) : activeView === "certificates" && customerPortalMode ? (
+            <CustomerCertificatesScreen />
           ) : activeView === "certificates" ? (
             <CertificatesScreen initialCertificateId={selectedCertificateId} roles={session.user.roles} />
           ) : activeView === "documents" ? (
@@ -1049,109 +1041,31 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           ) : activeView === "experts" ? (
             <ExpertsScreen roles={session.user.roles} />
           ) : activeView === "reports" ? (
-            <ReportsScreen
-              onOpenProject={(projectId) => {
-                setSelectedProjectId(projectId);
-                setActiveView("project-detail");
-              }}
-              roles={session.user.roles}
-            />
+            <ManagementCockpitScreen roles={session.user.roles} />
           ) : activeView === "system-admin" ? (
             <SystemAdminScreen
               currentUserId={session.user.id}
               roles={session.user.roles}
             />
+          ) : !customerPortalMode ? (
+            <PersonalDashboardScreen
+              error={workspaceQuery.error}
+              loading={workspaceQuery.isLoading}
+              onOpenPath={openWorkspacePath}
+              onRefresh={() => void workspaceQuery.refetch()}
+              onViewAllWork={() => setActiveView("my-tasks")}
+              onViewCalendar={() => setActiveView("my-calendar")}
+              refreshing={workspaceQuery.isFetching}
+              workspace={workspaceQuery.data}
+            />
           ) : (
-            <>
-          <div className="page-heading page-heading-v2">
-            <div><span className="eyebrow">TRUNG TÂM ĐIỀU HÀNH</span><Title level={2}>Tổng quan hoạt động chứng nhận</Title><Text type="secondary">Theo dõi tiến độ hồ sơ, thời hạn và các công việc cần xử lý.</Text></div>
-            <div className="dashboard-filter-area">
-              <Select aria-label="Khoảng thời gian" onChange={setWarningDays} options={[{ value: 1, label: "Hôm nay" }, { value: 7, label: "7 ngày" }, { value: 30, label: "30 ngày" }, { value: 90, label: "90 ngày" }]} value={warningDays} />
-              <Select aria-label="Tiêu chuẩn" onChange={setStandardFilter} options={[{ value: "all", label: "Tất cả tiêu chuẩn" }, ...standards.map((item) => ({ value: item, label: item }))]} value={standardFilter} />
-              <Tooltip title="Làm mới dữ liệu"><Button aria-label="Làm mới dữ liệu" icon={<ReloadOutlined />} loading={overviewQuery.isFetching} onClick={() => { void overviewQuery.refetch(); void taskSummaryQuery.refetch(); }} /></Tooltip>
-              {data ? <small>Cập nhật {formatDateTime(data.generated_at)}</small> : null}
-            </div>
-          </div>
-
-          {overviewQuery.isLoading ? <div className="dashboard-loading"><Skeleton active paragraph={{ rows: 12 }} /></div> : null}
-          {overviewQuery.isError ? <Card><Empty description={getErrorMessage(overviewQuery.error)} /><Button onClick={() => void overviewQuery.refetch()}>Thử lại</Button></Card> : null}
-
-          {data ? (
-            <>
-              <section className="kpi-grid kpi-grid-six" aria-label="Chỉ số tổng quan">
-                {[
-                  { key: "projects", title: "Hồ sơ đang xử lý", value: data.summary.projects.active, note: `${data.summary.projects.total} dự án trong hệ thống`, tone: "blue" },
-                  { key: "tasks", title: "Việc chờ tôi xử lý", value: taskCount, note: `${taskSummaryQuery.data?.summary.overdue ?? 0} việc quá hạn`, tone: "purple" },
-                  { key: "reviews", title: "Hồ sơ chờ thẩm xét", value: data.summary.technical_reviews.pending, note: "Cần thẩm xét kỹ thuật", tone: "cyan" },
-                  { key: "findings", title: "NC/CAP chưa đóng", value: data.summary.findings.open, note: `${data.summary.findings.overdue} NC đã quá hạn`, tone: "orange" },
-                  { key: "audits", title: `Lịch đánh giá ${warningDays === 1 ? "hôm nay" : `${warningDays} ngày tới`}`, value: data.summary.audits.upcoming, note: `${data.summary.audits.overdue} lịch đã quá hạn`, tone: "green" },
-                  { key: "certificates", title: "Chứng chỉ sắp hết hạn", value: data.summary.certificates.expiring, note: `${data.summary.certificates.expired} chứng chỉ đã hết hạn`, tone: "red" },
-                ].map((item) => (
-                  <button
-                    className={`kpi-action kpi-tone-${item.tone}`}
-                    key={item.key}
-                    onClick={() => {
-                      if (item.key === "projects") openTaskDestination("projects", null);
-                      else if (item.key === "audits") openTaskDestination("schedule-resources", null);
-                      else if (item.key === "certificates") openTaskDestination("certificates", null);
-                      else setActiveView("my-tasks");
-                    }}
-                    type="button"
-                  ><Statistic title={item.title} value={item.value} /><span>{item.note}</span></button>
-                ))}
-              </section>
-
-              <section className="work-alert-grid">
-                <Card className="dashboard-card compact-card" extra={<Badge count={taskItems.length} showZero />} title="Công việc cần xử lý">
-                  <List dataSource={taskItems.slice(0, 6)} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hiện không có công việc ưu tiên" /> }} renderItem={(item) => renderWorkItem(item)} />
-                </Card>
-                <Card className="dashboard-card compact-card" extra={<Badge count={alertItems.length} showZero />} title="Cảnh báo & thời hạn">
-                  <List dataSource={alertItems.slice(0, 6)} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có cảnh báo trong khoảng đã chọn" /> }} renderItem={(item) => renderWorkItem(item, true)} />
-                </Card>
-              </section>
-
-              <section className="tracking-audit-grid">
-                <Card className="dashboard-card projects-card" extra={<Button onClick={() => setActiveView("projects")} type="link">Xem tất cả</Button>} title="Hồ sơ cần theo dõi">
-                  <Table columns={projectColumns} dataSource={filteredProjects} locale={{ emptyText: "Không có hồ sơ phù hợp bộ lọc" }} pagination={false} rowKey="id" scroll={{ x: 980 }} size="middle" />
-                </Card>
-                <Card className="dashboard-card compact-card" title="Lịch đánh giá sắp tới">
-                  <List<UpcomingAudit>
-                    className="audit-list audit-list-v2"
-                    dataSource={filteredAudits.slice(0, 5)}
-                    locale={{ emptyText: <div className="action-empty"><Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`Chưa có lịch đánh giá trong ${warningDays} ngày tới`} /><Button icon={<CalendarOutlined />} onClick={() => setActiveView("schedule-resources")}>Mở lịch đánh giá</Button></div> }}
-                    renderItem={(item) => (
-                      <List.Item>
-                        <div className="audit-date"><strong>{item.planned_start_date ? dayjs(item.planned_start_date).format("DD") : "—"}</strong><span>{item.planned_start_date ? dayjs(item.planned_start_date).format("MM/YYYY") : "Chưa xếp"}</span></div>
-                        <div className="audit-info"><strong>{item.audit_programs?.organization_name ?? "Chưa xác định tổ chức"}</strong><span>{getStatusLabel(item.event_type)} · {item.audit_programs?.standard_name ?? "—"}</span><small>{item.audit_programs?.program_code ?? "—"}</small></div>
-                        <StatusTag status={item.status} />
-                      </List.Item>
-                    )}
-                  />
-                </Card>
-              </section>
-
-              <section className="dashboard-bottom-grid">
-                <Card className="dashboard-card" title="Phân bố hồ sơ theo giai đoạn"><StatusBreakdown data={data.status_breakdown.projects} onSelect={() => openTaskDestination("projects", null)} /></Card>
-                <Card className="dashboard-card certificate-watch-card" title="Chứng chỉ cần theo dõi">
-                  <Tabs activeKey={certificateTab} items={[{ key: "expiring", label: "Sắp hết hạn" }, { key: "new", label: "Mới cấp" }, { key: "replaced", label: "Đã thay thế" }, { key: "suspended", label: "Đình chỉ" }, { key: "withdrawn", label: "Thu hồi" }]} onChange={setCertificateTab} size="small" />
-                  <List<RecentCertificate>
-                    dataSource={certificateItems.slice(0, 5)}
-                    locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có chứng chỉ trong nhóm này" /> }}
-                    renderItem={(item) => {
-                      const days = dayjs(item.expire_date).diff(dayjs(), "day");
-                      return <List.Item><div className="certificate-item"><SafetyCertificateOutlined /><div><strong className="code-value">{item.cert_number}</strong><span>Hiệu lực {formatDate(item.issue_date)} – {formatDate(item.expire_date)}</span></div><div className="certificate-status"><StatusTag status={item.status} />{normalizeStatus(item.status) === "active" ? <small>{days >= 0 ? `Còn ${days} ngày` : `Quá hạn ${Math.abs(days)} ngày`}</small> : null}</div><Button onClick={() => { setSelectedCertificateId(item.id); setActiveView("certificates"); }} size="small">Xem</Button></div></List.Item>;
-                    }}
-                  />
-                </Card>
-                <Card className="dashboard-card" title="Chỉ số cần theo dõi">
-                  <div className="monitoring-metrics"><div><span>NC/CAP quá hạn</span><strong className={data.summary.findings.overdue ? "metric-danger" : ""}>{data.summary.findings.overdue}</strong></div><div><span>Lịch đánh giá quá hạn</span><strong className={data.summary.audits.overdue ? "metric-danger" : ""}>{data.summary.audits.overdue}</strong></div><div><span>Thông báo chưa gửi</span><strong>{data.summary.notifications.unsent}</strong></div><div><span>Hồ sơ chờ thẩm xét</span><strong>{data.summary.technical_reviews.pending}</strong></div></div>
-                </Card>
-              </section>
-
-              <footer className="dashboard-footer">Dữ liệu cập nhật {formatDateTime(data.generated_at)} · Khoảng theo dõi {warningDays} ngày</footer>
-            </>
-          ) : null}
-            </>
+            <CustomerPortalDashboardScreen
+              onOpenApplications={() => setActiveView("applications")}
+              onOpenCertificates={() => setActiveView("certificates")}
+              onOpenCorrectiveActions={() => setActiveView("projects")}
+              onOpenNotifications={() => setActiveView("notifications")}
+              onOpenSchedule={() => setActiveView("schedule-resources")}
+            />
           )}
         </Content>
       </Layout>

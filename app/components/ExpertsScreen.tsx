@@ -2,6 +2,7 @@
 
 import {
   AuditOutlined,
+  CalendarOutlined,
   CheckCircleOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -30,6 +31,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Popconfirm,
   Select,
@@ -46,6 +48,9 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import ExpertDevelopmentPanel from "./ExpertDevelopmentPanel";
+import ExpertResourceGovernancePanel from "./ExpertResourceGovernancePanel";
+import { documentRequestFromFile, openDocumentFile } from "../lib/document-file-client";
 
 const { Text, Title } = Typography;
 
@@ -69,6 +74,11 @@ interface ExpertOverview {
     draft: number;
     suspended: number;
     expiring_90_days: number;
+    expired: number;
+    evidence_gaps: number;
+    review_overdue: number;
+    review_due_90_days: number;
+    management_action_required: number;
   };
   certificates: {
     expiring_90_days: number;
@@ -148,6 +158,82 @@ interface ExpertCompetency {
   notes?: string | null;
   approved_at?: string | null;
   suspension_reason?: string | null;
+  _count?: {
+    evidence_records?: number;
+    review_records?: number;
+    action_records?: number;
+  };
+}
+
+interface CompetencyAttachment {
+  id: string;
+  original_name: string;
+  mime_type?: string | null;
+  file_size?: number | null;
+  sha256?: string | null;
+  download_url?: string | null;
+  created_at?: string | null;
+}
+
+interface CompetencyEvidence {
+  id: string;
+  competency_id: string;
+  evidence_type: string;
+  title: string;
+  reference_no?: string | null;
+  evidence_date?: string | null;
+  valid_until?: string | null;
+  result?: string | null;
+  score?: number | string | null;
+  mandays?: number | string | null;
+  description?: string | null;
+  status: string;
+  voided_at?: string | null;
+  void_reason?: string | null;
+  created_at: string;
+  added_by_user?: { full_name?: string | null; username?: string | null } | null;
+  voided_by_user?: { full_name?: string | null; username?: string | null } | null;
+  attachments: CompetencyAttachment[];
+}
+
+interface CompetencyReview {
+  id: string;
+  review_type: string;
+  review_date: string;
+  monitoring_methods: string;
+  score?: number | string | null;
+  result: string;
+  finding?: string | null;
+  required_action?: string | null;
+  next_review_date?: string | null;
+  created_at: string;
+  reviewed_by_user?: { full_name?: string | null; username?: string | null } | null;
+}
+
+interface CompetencyAction {
+  id: string;
+  action_type: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  reason?: string | null;
+  snapshot_json?: string | null;
+  created_at: string;
+  actor?: { full_name?: string | null; username?: string | null } | null;
+}
+
+interface ExpertCompetencyDetail extends ExpertCompetency {
+  evidence_records: CompetencyEvidence[];
+  review_records: CompetencyReview[];
+  action_records: CompetencyAction[];
+  governance: {
+    validity_status: string;
+    active_evidence_count: number;
+    evidence_gap: boolean;
+    latest_review?: CompetencyReview | null;
+    review_due_date?: string | null;
+    review_status: string;
+    requires_management_action: boolean;
+  };
 }
 
 interface ExpertWorkExperience {
@@ -279,14 +365,23 @@ interface ExpertRecommendation {
       email: string;
     } | null;
   };
+  eligible: boolean;
   match_status: string;
   reasons: string[];
+  eligibility_reasons: Array<{
+    code: string;
+    message: string;
+    severity: "BLOCK" | "WARNING";
+  }>;
   checks: {
     account_linked: boolean;
     profile_approved: boolean;
     program_and_role: boolean;
     scope_complete: boolean;
     schedule_available: boolean;
+    availability_available: boolean;
+    independence_eligible: boolean;
+    capacity_exceeded: boolean;
   };
   coverage: {
     covered: number;
@@ -305,6 +400,12 @@ interface ExpertRecommendation {
       start_date: string;
       end_date: string;
     }>;
+  };
+  workload: {
+    assigned_mandays: number;
+    engagement_count: number;
+    occupied_days: number;
+    other_commitments: number;
   };
   competencies: ExpertCompetency[];
 }
@@ -360,6 +461,51 @@ interface CompetencyFormValues {
   evidence_summary?: string;
   restriction?: string;
   notes?: string;
+}
+
+interface CompetencyEvidenceFormValues {
+  evidence_type: string;
+  title: string;
+  reference_no?: string;
+  evidence_date?: Dayjs;
+  valid_until?: Dayjs;
+  result?: string;
+  score?: number;
+  mandays?: number;
+  description?: string;
+}
+
+interface CompetencyVoidEvidenceFormValues {
+  reason: string;
+}
+
+interface CompetencySuspendFormValues {
+  reason: string;
+}
+
+interface CompetencyReviewFormValues {
+  review_type: string;
+  review_date: Dayjs;
+  monitoring_methods: string;
+  score?: number;
+  result: string;
+  finding?: string;
+  required_action?: string;
+  next_review_date?: Dayjs;
+}
+
+interface CompetencyRenewFormValues {
+  effective_date: Dayjs;
+  expiry_date: Dayjs;
+  decision_basis: string;
+  note?: string;
+}
+
+interface CompetencyReactivateFormValues {
+  effective_date?: Dayjs;
+  expiry_date?: Dayjs;
+  decision_basis: string;
+  note?: string;
 }
 
 interface WorkExperienceFormValues {
@@ -426,6 +572,42 @@ const competencyLevelOptions = [
   { value: "EXPERT", label: "Chuyên gia" },
 ];
 
+const competencyEvidenceTypeOptions = [
+  { value: "TRAINING_CERTIFICATE", label: "Đào tạo / chứng chỉ" },
+  { value: "AUDIT_LOG", label: "Nhật ký / kinh nghiệm đánh giá" },
+  { value: "WORK_EXPERIENCE", label: "Kinh nghiệm công việc" },
+  { value: "WITNESS_ASSESSMENT", label: "Đánh giá chứng kiến" },
+  { value: "INTERVIEW_TEST", label: "Phỏng vấn / kiểm tra" },
+  { value: "CUSTOMER_FEEDBACK", label: "Phản hồi khách hàng" },
+  { value: "AUDIT_REPORT_REVIEW", label: "Xem xét báo cáo đánh giá" },
+  { value: "OTHER", label: "Bằng chứng khác" },
+];
+
+const competencyReviewTypeOptions = [
+  { value: "PERIODIC", label: "Đánh giá định kỳ" },
+  { value: "UNSCHEDULED", label: "Đánh giá đột xuất" },
+  { value: "RENEWAL", label: "Đánh giá gia hạn" },
+  { value: "SCOPE_EXTENSION", label: "Đánh giá mở rộng phạm vi" },
+];
+
+const competencyReviewResultOptions = [
+  { value: "SATISFACTORY", label: "Đạt yêu cầu" },
+  { value: "IMPROVEMENT_REQUIRED", label: "Cần cải thiện" },
+  { value: "UNSATISFACTORY", label: "Không đạt" },
+];
+
+const evidenceTypeLabels: Record<string, string> = Object.fromEntries(
+  competencyEvidenceTypeOptions.map((item) => [item.value, item.label]),
+);
+
+const reviewTypeLabels: Record<string, string> = Object.fromEntries(
+  competencyReviewTypeOptions.map((item) => [item.value, item.label]),
+);
+
+const reviewResultLabels: Record<string, string> = Object.fromEntries(
+  competencyReviewResultOptions.map((item) => [item.value, item.label]),
+);
+
 const roleLabels: Record<string, string> = Object.fromEntries(
   competencyRoleOptions.map((item) => [item.value, item.label]),
 );
@@ -455,12 +637,28 @@ const matchLabels: Record<string, string> = {
   ELIGIBLE: "Đủ điều kiện",
   SCHEDULE_CONFLICT: "Trùng lịch",
   INSUFFICIENT_SCOPE: "Thiếu phạm vi",
+  DATE_CONFLICT: "Trùng lịch",
+  LEAVE: "Đang nghỉ phép",
+  UNAVAILABLE: "Không sẵn sàng",
+  OTHER_COMMITMENT: "Có cam kết khác",
+  COMPETENCY_NOT_ELIGIBLE: "Chưa đủ năng lực",
+  INDEPENDENCE_CONFLICT: "Xung đột độc lập",
+  INDEPENDENCE_RESTRICTED: "Hạn chế độc lập",
+  REMOTE_WORKLOAD: "Có workload từ xa",
 };
 
 const matchColors: Record<string, string> = {
   ELIGIBLE: "green",
   SCHEDULE_CONFLICT: "red",
   INSUFFICIENT_SCOPE: "gold",
+  DATE_CONFLICT: "red",
+  LEAVE: "red",
+  UNAVAILABLE: "red",
+  OTHER_COMMITMENT: "gold",
+  COMPETENCY_NOT_ELIGIBLE: "red",
+  INDEPENDENCE_CONFLICT: "red",
+  INDEPENDENCE_RESTRICTED: "orange",
+  REMOTE_WORKLOAD: "gold",
 };
 
 const certificateTypeOptions = [
@@ -510,6 +708,58 @@ function certificateStatus(expiryDate?: string | null) {
   return <Tag color="green">Còn hiệu lực</Tag>;
 }
 
+function governanceValidityTag(value?: string | null) {
+  const key = normalize(value);
+  const labels: Record<string, string> = {
+    DRAFT: "Dự thảo",
+    SUSPENDED: "Đình chỉ",
+    NOT_YET_EFFECTIVE: "Chưa hiệu lực",
+    EXPIRED: "Hết hiệu lực",
+    EXPIRING_90_DAYS: "Sắp hết hiệu lực",
+    ACTIVE: "Có hiệu lực",
+  };
+  const colors: Record<string, string> = {
+    DRAFT: "gold",
+    SUSPENDED: "red",
+    NOT_YET_EFFECTIVE: "blue",
+    EXPIRED: "red",
+    EXPIRING_90_DAYS: "gold",
+    ACTIVE: "green",
+  };
+  return <Tag color={colors[key] ?? "default"}>{(labels[key] ?? key) || "—"}</Tag>;
+}
+
+function reviewStatusTag(value?: string | null) {
+  const key = normalize(value);
+  const labels: Record<string, string> = {
+    OVERDUE: "Quá hạn đánh giá",
+    DUE_90_DAYS: "Đến hạn trong 90 ngày",
+    CURRENT: "Đang trong chu kỳ",
+    NOT_SCHEDULED: "Chưa lập kỳ đánh giá",
+  };
+  const colors: Record<string, string> = {
+    OVERDUE: "red",
+    DUE_90_DAYS: "gold",
+    CURRENT: "green",
+    NOT_SCHEDULED: "default",
+  };
+  return <Tag color={colors[key] ?? "default"}>{(labels[key] ?? key) || "—"}</Tag>;
+}
+
+function reviewResultTag(value?: string | null) {
+  const key = normalize(value);
+  const colors: Record<string, string> = {
+    SATISFACTORY: "green",
+    IMPROVEMENT_REQUIRED: "gold",
+    UNSATISFACTORY: "red",
+  };
+  return <Tag color={colors[key] ?? "default"}>{(reviewResultLabels[key] ?? key) || "—"}</Tag>;
+}
+
+function actorName(value?: { full_name?: string | null; username?: string | null } | null) {
+  return value?.full_name || value?.username || "—";
+}
+
 export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -519,6 +769,14 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<"create" | "edit">("create");
   const [competencyModalOpen, setCompetencyModalOpen] = useState(false);
+  const [selectedCompetencyId, setSelectedCompetencyId] = useState<string | null>(null);
+  const [competencyEvidenceModalOpen, setCompetencyEvidenceModalOpen] = useState(false);
+  const [competencyReviewModalOpen, setCompetencyReviewModalOpen] = useState(false);
+  const [competencyVoidEvidenceId, setCompetencyVoidEvidenceId] = useState<string | null>(null);
+  const [competencySuspendTargetId, setCompetencySuspendTargetId] = useState<string | null>(null);
+  const [competencyRenewModalOpen, setCompetencyRenewModalOpen] = useState(false);
+  const [competencyReactivateModalOpen, setCompetencyReactivateModalOpen] = useState(false);
+  const [competencyEvidenceFile, setCompetencyEvidenceFile] = useState<File | null>(null);
   const [workModalOpen, setWorkModalOpen] = useState(false);
   const [editingWorkId, setEditingWorkId] = useState<string | null>(null);
   const [certificateModalOpen, setCertificateModalOpen] = useState(false);
@@ -528,6 +786,12 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const [recommendationRole, setRecommendationRole] = useState("TEAM_LEADER");
   const [profileForm] = Form.useForm<ExpertFormValues>();
   const [competencyForm] = Form.useForm<CompetencyFormValues>();
+  const [competencyEvidenceForm] = Form.useForm<CompetencyEvidenceFormValues>();
+  const [competencyReviewForm] = Form.useForm<CompetencyReviewFormValues>();
+  const [competencyVoidEvidenceForm] = Form.useForm<CompetencyVoidEvidenceFormValues>();
+  const [competencySuspendForm] = Form.useForm<CompetencySuspendFormValues>();
+  const [competencyRenewForm] = Form.useForm<CompetencyRenewFormValues>();
+  const [competencyReactivateForm] = Form.useForm<CompetencyReactivateFormValues>();
   const [workForm] = Form.useForm<WorkExperienceFormValues>();
   const [certificateForm] = Form.useForm<CertificateFormValues>();
 
@@ -552,6 +816,14 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
     queryKey: ["experts", "detail", selectedExpertId],
     queryFn: async () => (await api.get<ExpertDetail>(`/experts/${selectedExpertId}`)).data,
     enabled: Boolean(selectedExpertId),
+  });
+
+  const competencyGovernanceQuery = useQuery({
+    queryKey: ["expert-competency-governance", selectedCompetencyId],
+    queryFn: async () => (
+      await api.get<ExpertCompetencyDetail>(`/expert-competencies/${selectedCompetencyId}`)
+    ).data,
+    enabled: Boolean(selectedCompetencyId),
   });
 
   const accountOptionsQuery = useQuery({
@@ -579,6 +851,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const refreshAll = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["experts"] }),
+      queryClient.invalidateQueries({ queryKey: ["expert-competency-governance"] }),
       queryClient.invalidateQueries({ queryKey: ["audit-team-appointments"] }),
     ]);
   };
@@ -669,13 +942,139 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   });
 
   const suspendCompetencyMutation = useMutation({
-    mutationFn: async (id: string) => (
-      await api.post(`/expert-competencies/${id}/suspend`, {
-        reason: "Tạm đình chỉ theo quyết định quản lý năng lực.",
-      })
-    ).data,
+    mutationFn: async (values: CompetencySuspendFormValues) => {
+      if (!competencySuspendTargetId) throw new Error("Chưa chọn hồ sơ năng lực");
+      return (
+        await api.post(`/expert-competencies/${competencySuspendTargetId}/suspend`, values)
+      ).data;
+    },
     onSuccess: async () => {
       message.success("Đã tạm đình chỉ năng lực");
+      setCompetencySuspendTargetId(null);
+      competencySuspendForm.resetFields();
+      await refreshAll();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const addCompetencyEvidenceMutation = useMutation({
+    mutationFn: async (values: CompetencyEvidenceFormValues) => {
+      if (!selectedCompetencyId) throw new Error("Chưa chọn hồ sơ năng lực");
+      const evidence = (
+        await api.post<CompetencyEvidence>(`/expert-competencies/${selectedCompetencyId}/evidence`, {
+          evidence_type: values.evidence_type,
+          title: values.title,
+          reference_no: values.reference_no,
+          evidence_date: values.evidence_date?.format("YYYY-MM-DD"),
+          valid_until: values.valid_until?.format("YYYY-MM-DD"),
+          result: values.result,
+          score: values.score,
+          mandays: values.mandays,
+          description: values.description,
+        })
+      ).data;
+
+      if (competencyEvidenceFile) {
+        const formData = new FormData();
+        formData.append("file", competencyEvidenceFile);
+        formData.append("entity_type", "expert_competency_evidence");
+        formData.append("entity_id", evidence.id);
+        formData.append("document_type", "competency_evidence");
+        formData.append("file_kind", "attachment");
+        formData.append("note", values.title);
+        await api.post("/document-files/upload", formData);
+      }
+
+      return evidence;
+    },
+    onSuccess: async () => {
+      message.success("Đã thêm bằng chứng năng lực");
+      setCompetencyEvidenceModalOpen(false);
+      setCompetencyEvidenceFile(null);
+      competencyEvidenceForm.resetFields();
+      await refreshAll();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const voidCompetencyEvidenceMutation = useMutation({
+    mutationFn: async (values: CompetencyVoidEvidenceFormValues) => {
+      if (!selectedCompetencyId || !competencyVoidEvidenceId) throw new Error("Chưa chọn bằng chứng");
+      return (
+        await api.post(`/expert-competencies/${selectedCompetencyId}/evidence/${competencyVoidEvidenceId}/void`, values)
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã vô hiệu bằng chứng và giữ nguyên lịch sử");
+      setCompetencyVoidEvidenceId(null);
+      competencyVoidEvidenceForm.resetFields();
+      await refreshAll();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const addCompetencyReviewMutation = useMutation({
+    mutationFn: async (values: CompetencyReviewFormValues) => {
+      if (!selectedCompetencyId) throw new Error("Chưa chọn hồ sơ năng lực");
+      return (
+        await api.post(`/expert-competencies/${selectedCompetencyId}/reviews`, {
+          review_type: values.review_type,
+          review_date: values.review_date.format("YYYY-MM-DD"),
+          monitoring_methods: values.monitoring_methods,
+          score: values.score,
+          result: values.result,
+          finding: values.finding,
+          required_action: values.required_action,
+          next_review_date: values.next_review_date?.format("YYYY-MM-DD"),
+        })
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã ghi nhận kết quả đánh giá năng lực");
+      setCompetencyReviewModalOpen(false);
+      competencyReviewForm.resetFields();
+      await refreshAll();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const renewCompetencyMutation = useMutation({
+    mutationFn: async (values: CompetencyRenewFormValues) => {
+      if (!selectedCompetencyId) throw new Error("Chưa chọn hồ sơ năng lực");
+      return (
+        await api.post(`/expert-competencies/${selectedCompetencyId}/renew`, {
+          effective_date: values.effective_date.format("YYYY-MM-DD"),
+          expiry_date: values.expiry_date.format("YYYY-MM-DD"),
+          decision_basis: values.decision_basis,
+          note: values.note,
+        })
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã gia hạn năng lực và ghi lịch sử quyết định");
+      setCompetencyRenewModalOpen(false);
+      competencyRenewForm.resetFields();
+      await refreshAll();
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+
+  const reactivateCompetencyMutation = useMutation({
+    mutationFn: async (values: CompetencyReactivateFormValues) => {
+      if (!selectedCompetencyId) throw new Error("Chưa chọn hồ sơ năng lực");
+      return (
+        await api.post(`/expert-competencies/${selectedCompetencyId}/reactivate`, {
+          effective_date: values.effective_date?.format("YYYY-MM-DD"),
+          expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
+          decision_basis: values.decision_basis,
+          note: values.note,
+        })
+      ).data;
+    },
+    onSuccess: async () => {
+      message.success("Đã khôi phục năng lực");
+      setCompetencyReactivateModalOpen(false);
+      competencyReactivateForm.resetFields();
       await refreshAll();
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -885,7 +1284,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
     },
   ], []);
 
-  const competencyColumns = useMemo<TableColumnsType<ExpertCompetency>>(() => [
+  const competencyColumns: TableColumnsType<ExpertCompetency> = [
     {
       title: "Chương trình / vai trò",
       key: "program",
@@ -925,25 +1324,190 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
     {
       title: "",
       key: "action",
-      width: 170,
-      render: (_, record) => canManage ? (
+      width: 260,
+      render: (_, record) => (
         <Space>
-          {normalize(record.approval_status) === "DRAFT" ? (
+          <Button onClick={() => setSelectedCompetencyId(record.id)} size="small">Hồ sơ</Button>
+          {canManage && normalize(record.approval_status) === "DRAFT" ? (
             <Popconfirm title="Phê duyệt phạm vi năng lực này?" onConfirm={() => approveCompetencyMutation.mutate(record.id)}>
               <Button size="small" type="primary">Phê duyệt</Button>
             </Popconfirm>
           ) : null}
-          {normalize(record.approval_status) === "APPROVED" ? (
-            <Popconfirm title="Tạm đình chỉ phạm vi năng lực này?" onConfirm={() => suspendCompetencyMutation.mutate(record.id)}>
-              <Button danger size="small">Đình chỉ</Button>
-            </Popconfirm>
+          {canManage && normalize(record.approval_status) === "APPROVED" ? (
+            <Button
+              danger
+              onClick={() => {
+                competencySuspendForm.resetFields();
+                setCompetencySuspendTargetId(record.id);
+              }}
+              size="small"
+            >
+              Đình chỉ
+            </Button>
           ) : null}
         </Space>
+      ),
+    },
+  ];
+
+  const competencyEvidenceColumns: TableColumnsType<CompetencyEvidence> = [
+    {
+      title: "Loại / bằng chứng",
+      key: "evidence",
+      width: 300,
+      render: (_, record) => (
+        <div className="expert-summary-cell">
+          <strong>{record.title}</strong>
+          <small>{evidenceTypeLabels[normalize(record.evidence_type)] ?? record.evidence_type}</small>
+          <small>{record.reference_no ? `Mã: ${record.reference_no}` : "Không có mã tham chiếu"}</small>
+        </div>
+      ),
+    },
+    {
+      title: "Ngày / kết quả",
+      key: "result",
+      width: 220,
+      render: (_, record) => (
+        <div className="expert-summary-cell">
+          <span>{formatDate(record.evidence_date)}{record.valid_until ? ` · hết hạn ${formatDate(record.valid_until)}` : ""}</span>
+          <small>{record.result || "—"}{record.score !== null && record.score !== undefined ? ` · ${record.score} điểm` : ""}{record.mandays !== null && record.mandays !== undefined ? ` · ${record.mandays} MD` : ""}</small>
+        </div>
+      ),
+    },
+    {
+      title: "Tệp đính kèm",
+      key: "attachments",
+      width: 220,
+      render: (_, record) => record.attachments.length ? (
+        <Space direction="vertical" size={4}>
+          {record.attachments.map((file) => (
+            <Button
+              key={file.id}
+              onClick={() => {
+                void openDocumentFile({
+                  ...documentRequestFromFile(file),
+                  title: file.original_name,
+                }).catch((error) => message.error(getErrorMessage(error)));
+              }}
+              size="small"
+            >
+              {file.original_name}
+            </Button>
+          ))}
+        </Space>
+      ) : <Text type="secondary">Không có tệp</Text>,
+    },
+    {
+      title: "Trạng thái",
+      key: "status",
+      width: 135,
+      render: (_, record) => normalize(record.status) === "ACTIVE"
+        ? <Tag color="green">Đang dùng</Tag>
+        : <Tag color="default">Đã vô hiệu</Tag>,
+    },
+    {
+      title: "",
+      key: "action",
+      width: 110,
+      render: (_, record) => canManage && normalize(record.status) === "ACTIVE" ? (
+        <Button
+          danger
+          onClick={() => {
+            competencyVoidEvidenceForm.resetFields();
+            setCompetencyVoidEvidenceId(record.id);
+          }}
+          size="small"
+        >
+          Vô hiệu
+        </Button>
       ) : null,
     },
-  ], [canManage]);
+  ];
 
-  const workColumns = useMemo<TableColumnsType<ExpertWorkExperience>>(() => [
+  const competencyReviewColumns: TableColumnsType<CompetencyReview> = [
+    {
+      title: "Kỳ đánh giá",
+      key: "review",
+      width: 220,
+      render: (_, record) => (
+        <div className="expert-summary-cell">
+          <strong>{reviewTypeLabels[normalize(record.review_type)] ?? record.review_type}</strong>
+          <small>{formatDate(record.review_date)} · người đánh giá: {actorName(record.reviewed_by_user)}</small>
+        </div>
+      ),
+    },
+    {
+      title: "Phương pháp giám sát",
+      dataIndex: "monitoring_methods",
+      key: "monitoring_methods",
+      width: 260,
+    },
+    {
+      title: "Kết quả",
+      key: "result",
+      width: 175,
+      render: (_, record) => (
+        <Space direction="vertical" size={3}>
+          {reviewResultTag(record.result)}
+          {record.score !== null && record.score !== undefined ? <small>{record.score} điểm</small> : null}
+        </Space>
+      ),
+    },
+    {
+      title: "Phát hiện / hành động",
+      key: "finding",
+      render: (_, record) => (
+        <div className="expert-summary-cell">
+          <span>{record.finding || "Không có phát hiện"}</span>
+          <small>{record.required_action || "Không yêu cầu hành động"}</small>
+        </div>
+      ),
+    },
+    {
+      title: "Kỳ tiếp theo",
+      dataIndex: "next_review_date",
+      key: "next_review_date",
+      width: 130,
+      render: (value?: string | null) => formatDate(value),
+    },
+  ];
+
+  const competencyActionColumns: TableColumnsType<CompetencyAction> = [
+    {
+      title: "Thời điểm",
+      dataIndex: "created_at",
+      key: "created_at",
+      width: 165,
+      render: (value: string) => dayjs(value).format("DD/MM/YYYY HH:mm"),
+    },
+    {
+      title: "Hành động",
+      dataIndex: "action_type",
+      key: "action_type",
+      width: 175,
+      render: (value: string) => <Tag>{value}</Tag>,
+    },
+    {
+      title: "Trạng thái",
+      key: "status",
+      width: 180,
+      render: (_, record) => `${record.from_status || "—"} → ${record.to_status || "—"}`,
+    },
+    {
+      title: "Người thực hiện",
+      key: "actor",
+      width: 190,
+      render: (_, record) => actorName(record.actor),
+    },
+    {
+      title: "Căn cứ / lý do",
+      dataIndex: "reason",
+      key: "reason",
+      render: (value?: string | null) => value || "—",
+    },
+  ];
+
+  const workColumns: TableColumnsType<ExpertWorkExperience> = [
     {
       title: "Đơn vị / vị trí",
       key: "work",
@@ -986,9 +1550,9 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
         </Space>
       ) : null,
     },
-  ], [canManage]);
+  ];
 
-  const certificateColumns = useMemo<TableColumnsType<ExpertCertificate>>(() => [
+  const certificateColumns: TableColumnsType<ExpertCertificate> = [
     {
       title: "Chứng chỉ",
       key: "certificate",
@@ -1038,7 +1602,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
         </Space>
       ) : null,
     },
-  ], [canManage]);
+  ];
 
   const historyColumns = useMemo<TableColumnsType<AuditHistoryItem>>(() => [
     {
@@ -1114,7 +1678,13 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
       render: (_, record) => (
         <div className="expert-summary-cell">
           <Tag color={matchColors[record.match_status] ?? "default"}>{matchLabels[record.match_status] ?? record.match_status}</Tag>
-          <small>{record.reasons.join("; ")}</small>
+          {record.eligibility_reasons.map((reason) => (
+            <small key={`${reason.code}-${reason.message}`}>
+              <Tag color={reason.severity === "BLOCK" ? "red" : "gold"}>{reason.code}</Tag>
+              {reason.message}
+            </small>
+          ))}
+          {!record.eligibility_reasons.length ? <small>{record.reasons.join("; ")}</small> : null}
         </div>
       ),
     },
@@ -1148,21 +1718,21 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
       ),
     },
     {
-      title: "Lịch",
+      title: "Nguồn lực",
       key: "availability",
-      width: 180,
-      render: (_, record) => record.availability.available ? (
-        <Tag color="green">Sẵn sàng</Tag>
-      ) : (
+      width: 220,
+      render: (_, record) => (
         <div className="expert-summary-cell">
-          <Tag color="red">Trùng lịch</Tag>
-          <small>{record.availability.conflicts.map((item) => item.plan_code || "Kế hoạch khác").join(", ")}</small>
+          <Tag color={record.eligible ? "green" : "red"}>{record.eligible ? "Có thể phân công" : "Không thể phân công"}</Tag>
+          <small>{record.workload.assigned_mandays} MD · {record.workload.engagement_count} engagement</small>
+          {record.workload.other_commitments ? <small>{record.workload.other_commitments} cam kết khác</small> : null}
         </div>
       ),
     },
   ], []);
 
   const selectedExpert = detailQuery.data;
+  const selectedCompetency = competencyGovernanceQuery.data;
   const accountOptions = (accountOptionsQuery.data ?? []).filter(
     (account) => account.available || account.id === selectedExpert?.user_id,
   ).map((account) => ({
@@ -1177,7 +1747,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
           <Text className="screen-eyebrow">QUẢN LÝ NGUỒN LỰC</Text>
           <Title level={1}>Chuyên gia & năng lực</Title>
           <Text type="secondary">
-            Hồ sơ chuyên gia gắn với tài khoản, chương trình chứng nhận, mã IAF/NACE, chứng chỉ và lịch sử đánh giá.
+            Hồ sơ chuyên gia, phạm vi năng lực, bằng chứng, đào tạo, giám sát năng lực, chu kỳ đánh giá và lịch sử quyết định được quản trị tập trung.
           </Text>
         </div>
         <Space>
@@ -1189,9 +1759,12 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
 
       <div className="expert-kpi-grid">
         <Card><Statistic prefix={<TeamOutlined />} title="Tổng chuyên gia" value={overviewQuery.data?.experts.total ?? 0} /></Card>
-        <Card><Statistic prefix={<LinkOutlined />} title="Đã gắn tài khoản" value={overviewQuery.data?.experts.linked_accounts ?? 0} /></Card>
-        <Card><Statistic prefix={<CheckCircleOutlined />} title="Hồ sơ đã duyệt" value={overviewQuery.data?.experts.approved_profiles ?? 0} /></Card>
         <Card><Statistic prefix={<SafetyCertificateOutlined />} title="Năng lực đã duyệt" value={overviewQuery.data?.competencies.approved ?? 0} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Năng lực đã hết hiệu lực" value={overviewQuery.data?.competencies.expired ?? 0} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Đánh giá năng lực quá hạn" value={overviewQuery.data?.competencies.review_overdue ?? 0} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Thiếu bằng chứng năng lực" value={overviewQuery.data?.competencies.evidence_gaps ?? 0} /></Card>
+        <Card><Statistic prefix={<CheckCircleOutlined />} title="Hồ sơ chuyên gia đã duyệt" value={overviewQuery.data?.experts.approved_profiles ?? 0} /></Card>
+        <Card><Statistic prefix={<LinkOutlined />} title="Đã gắn tài khoản" value={overviewQuery.data?.experts.linked_accounts ?? 0} /></Card>
         <Card><Statistic prefix={<WarningOutlined />} title="Chứng chỉ hết hạn trong 90 ngày" value={overviewQuery.data?.certificates.expiring_90_days ?? 0} /></Card>
       </div>
 
@@ -1339,6 +1912,20 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
                 ),
               },
               {
+                key: "development",
+                label: <span><AuditOutlined /> Đào tạo & giám sát</span>,
+                children: (
+                  <ExpertDevelopmentPanel expertId={selectedExpert.id} canManage={canManage} />
+                ),
+              },
+              {
+                key: "resource-governance",
+                label: <span><CalendarOutlined /> Nguồn lực & độc lập</span>,
+                children: (
+                  <ExpertResourceGovernancePanel expertId={selectedExpert.id} canManage={canManage} />
+                ),
+              },
+              {
                 key: "history",
                 label: <span><AuditOutlined /> Nhật ký đánh giá ({selectedExpert.audit_team_members.length})</span>,
                 children: (
@@ -1348,6 +1935,205 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
                 ),
               },
             ]} />
+          </div>
+        ) : null}
+      </Drawer>
+
+      <Drawer
+        destroyOnHidden
+        onClose={() => setSelectedCompetencyId(null)}
+        open={Boolean(selectedCompetencyId)}
+        title={selectedCompetency ? `${selectedCompetency.standard_code} · ${roleLabels[normalize(selectedCompetency.competency_role)] ?? selectedCompetency.competency_role}` : "Hồ sơ quản trị năng lực"}
+        width="min(1320px, 96vw)"
+      >
+        {competencyGovernanceQuery.isLoading ? <Skeleton active paragraph={{ rows: 12 }} /> : null}
+        {selectedCompetency ? (
+          <div className="expert-detail-stack">
+            <Card size="small">
+              <div className="expert-profile-status-row">
+                <Space wrap>
+                  {governanceValidityTag(selectedCompetency.governance.validity_status)}
+                  {reviewStatusTag(selectedCompetency.governance.review_status)}
+                  <Tag>IAF {selectedCompetency.iaf_code}</Tag>
+                  {selectedCompetency.nace_code ? <Tag>NACE {selectedCompetency.nace_code}</Tag> : null}
+                  <Tag color={selectedCompetency.governance.active_evidence_count > 0 ? "blue" : "default"}>
+                    {selectedCompetency.governance.active_evidence_count} bằng chứng đang dùng
+                  </Tag>
+                </Space>
+                {canManage ? (
+                  <Space wrap>
+                    <Button
+                      icon={<PlusOutlined />}
+                      onClick={() => {
+                        competencyEvidenceForm.setFieldsValue({
+                          evidence_type: "TRAINING_CERTIFICATE",
+                          evidence_date: dayjs(),
+                        });
+                        setCompetencyEvidenceFile(null);
+                        setCompetencyEvidenceModalOpen(true);
+                      }}
+                    >
+                      Thêm bằng chứng
+                    </Button>
+                    {normalize(selectedCompetency.approval_status) !== "DRAFT" ? (
+                      <Button
+                        onClick={() => {
+                          competencyReviewForm.setFieldsValue({
+                            review_type: "PERIODIC",
+                            review_date: dayjs(),
+                            result: "SATISFACTORY",
+                            next_review_date: dayjs().add(12, "month"),
+                          });
+                          setCompetencyReviewModalOpen(true);
+                        }}
+                      >
+                        Ghi đánh giá năng lực
+                      </Button>
+                    ) : null}
+                    {normalize(selectedCompetency.approval_status) === "DRAFT" ? (
+                      <Popconfirm
+                        title="Phê duyệt hồ sơ năng lực này?"
+                        description="Hệ thống sẽ chặn nếu chưa có bằng chứng năng lực."
+                        onConfirm={() => approveCompetencyMutation.mutate(selectedCompetency.id)}
+                      >
+                        <Button type="primary">Phê duyệt</Button>
+                      </Popconfirm>
+                    ) : null}
+                    {normalize(selectedCompetency.approval_status) === "APPROVED" ? (
+                      <>
+                        <Button
+                          danger
+                          onClick={() => {
+                            competencySuspendForm.resetFields();
+                            setCompetencySuspendTargetId(selectedCompetency.id);
+                          }}
+                        >
+                          Đình chỉ
+                        </Button>
+                        <Button
+                          disabled={
+                            !selectedCompetency.governance.latest_review ||
+                            normalize(selectedCompetency.governance.review_status) === "OVERDUE" ||
+                            selectedCompetency.governance.requires_management_action
+                          }
+                          onClick={() => {
+                            const currentExpiry = selectedCompetency.expiry_date ? dayjs(selectedCompetency.expiry_date) : dayjs();
+                            competencyRenewForm.setFieldsValue({
+                              effective_date: dayjs(),
+                              expiry_date: currentExpiry.add(12, "month"),
+                            });
+                            setCompetencyRenewModalOpen(true);
+                          }}
+                          title={
+                            !selectedCompetency.governance.latest_review
+                              ? "Cần có kết quả đánh giá năng lực trước khi gia hạn"
+                              : normalize(selectedCompetency.governance.review_status) === "OVERDUE"
+                                ? "Kết quả đánh giá năng lực đã quá hạn"
+                                : selectedCompetency.governance.requires_management_action
+                                  ? "Kết quả đánh giá gần nhất không đạt"
+                                  : "Gia hạn năng lực"
+                          }
+                          type="primary"
+                        >
+                          Gia hạn
+                        </Button>
+                      </>
+                    ) : null}
+                    {normalize(selectedCompetency.approval_status) === "SUSPENDED" ? (
+                      <Button
+                        disabled={selectedCompetency.governance.requires_management_action}
+                        onClick={() => {
+                          competencyReactivateForm.setFieldsValue({
+                            effective_date: dayjs(),
+                            expiry_date: selectedCompetency.expiry_date ? dayjs(selectedCompetency.expiry_date) : undefined,
+                          });
+                          setCompetencyReactivateModalOpen(true);
+                        }}
+                        title={selectedCompetency.governance.requires_management_action ? "Cần có đánh giá năng lực phù hợp trước khi khôi phục" : "Khôi phục năng lực"}
+                        type="primary"
+                      >
+                        Khôi phục
+                      </Button>
+                    ) : null}
+                  </Space>
+                ) : null}
+              </div>
+            </Card>
+
+            {selectedCompetency.governance.evidence_gap ? (
+              <Card size="small">
+                <Text type="danger">
+                  Hồ sơ năng lực đã được phê duyệt nhưng hiện không có bằng chứng năng lực đang hoạt động. Cần bổ sung hoặc rà soát hồ sơ.
+                </Text>
+              </Card>
+            ) : null}
+            {selectedCompetency.governance.requires_management_action ? (
+              <Card size="small">
+                <Text type="danger">
+                  Kết quả đánh giá năng lực gần nhất là Không đạt. Hệ thống chặn gia hạn cho đến khi có đánh giá phù hợp tiếp theo.
+                </Text>
+              </Card>
+            ) : null}
+
+            <Descriptions bordered column={3} size="small">
+              <Descriptions.Item label="Chương trình">{selectedCompetency.management_system} · {selectedCompetency.standard_code}</Descriptions.Item>
+              <Descriptions.Item label="Vai trò">{roleLabels[normalize(selectedCompetency.competency_role)] ?? selectedCompetency.competency_role}</Descriptions.Item>
+              <Descriptions.Item label="Mức năng lực">{selectedCompetency.competency_level}</Descriptions.Item>
+              <Descriptions.Item label="Hiệu lực">{formatDateRange(selectedCompetency.effective_date, selectedCompetency.expiry_date)}</Descriptions.Item>
+              <Descriptions.Item label="Đánh giá lại tiếp theo">{formatDate(selectedCompetency.governance.review_due_date)}</Descriptions.Item>
+              <Descriptions.Item label="Ngày phê duyệt">{formatDate(selectedCompetency.approved_at)}</Descriptions.Item>
+              <Descriptions.Item label="Phạm vi" span={3}>{selectedCompetency.scope_description || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Cơ sở phê duyệt" span={3}>{selectedCompetency.approval_basis || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Bằng chứng legacy" span={3}>{selectedCompetency.evidence_summary || "—"}</Descriptions.Item>
+              {selectedCompetency.restriction ? <Descriptions.Item label="Hạn chế" span={3}>{selectedCompetency.restriction}</Descriptions.Item> : null}
+            </Descriptions>
+
+            <Tabs
+              items={[
+                {
+                  key: "evidence",
+                  label: `Bằng chứng (${selectedCompetency.evidence_records.length})`,
+                  children: (
+                    <Table
+                      columns={competencyEvidenceColumns}
+                      dataSource={selectedCompetency.evidence_records}
+                      locale={{ emptyText: <Empty description="Chưa có bằng chứng năng lực có cấu trúc" /> }}
+                      pagination={false}
+                      rowKey="id"
+                      scroll={{ x: 1100 }}
+                    />
+                  ),
+                },
+                {
+                  key: "reviews",
+                  label: `Đánh giá năng lực (${selectedCompetency.review_records.length})`,
+                  children: (
+                    <Table
+                      columns={competencyReviewColumns}
+                      dataSource={selectedCompetency.review_records}
+                      locale={{ emptyText: <Empty description="Chưa có kết quả đánh giá năng lực định kỳ/đột xuất" /> }}
+                      pagination={false}
+                      rowKey="id"
+                      scroll={{ x: 1100 }}
+                    />
+                  ),
+                },
+                {
+                  key: "actions",
+                  label: `Lịch sử quyết định (${selectedCompetency.action_records.length})`,
+                  children: (
+                    <Table
+                      columns={competencyActionColumns}
+                      dataSource={selectedCompetency.action_records}
+                      locale={{ emptyText: <Empty description="Chưa có lịch sử quyết định" /> }}
+                      pagination={{ pageSize: 10 }}
+                      rowKey="id"
+                      scroll={{ x: 1000 }}
+                    />
+                  ),
+                },
+              ]}
+            />
           </div>
         ) : null}
       </Drawer>
@@ -1417,6 +2203,180 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
           <Form.Item label="Cơ sở phê duyệt" name="approval_basis"><Input.TextArea rows={2} placeholder="Đào tạo, kinh nghiệm, đánh giá chứng kiến, hồ sơ chuyên môn..." /></Form.Item>
           <Form.Item label="Tóm tắt bằng chứng năng lực" name="evidence_summary"><Input.TextArea rows={2} /></Form.Item>
           <Form.Item label="Hạn chế năng lực" name="restriction"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={addCompetencyEvidenceMutation.isPending}
+        okText="Lưu bằng chứng"
+        onCancel={() => {
+          setCompetencyEvidenceModalOpen(false);
+          setCompetencyEvidenceFile(null);
+          competencyEvidenceForm.resetFields();
+        }}
+        onOk={() => void competencyEvidenceForm.validateFields().then((values) => addCompetencyEvidenceMutation.mutate(values))}
+        open={competencyEvidenceModalOpen}
+        title="Thêm bằng chứng năng lực"
+        width={820}
+      >
+        <Form form={competencyEvidenceForm} layout="vertical">
+          <div className="competency-form-grid">
+            <Form.Item label="Loại bằng chứng" name="evidence_type" rules={[{ required: true }]}>
+              <Select options={competencyEvidenceTypeOptions} />
+            </Form.Item>
+            <Form.Item label="Tên bằng chứng" name="title" rules={[{ required: true, message: "Nhập tên bằng chứng" }]}>
+              <Input placeholder="Ví dụ: Kết quả đánh giá chứng kiến 2026" />
+            </Form.Item>
+            <Form.Item label="Mã / số tham chiếu" name="reference_no"><Input /></Form.Item>
+            <Form.Item label="Ngày bằng chứng" name="evidence_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+            <Form.Item label="Có giá trị đến" name="valid_until"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+            <Form.Item label="Kết quả" name="result"><Input placeholder="Đạt, 8/10, hoàn thành..." /></Form.Item>
+            <Form.Item label="Điểm (0-100)" name="score"><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item label="Ngày công đánh giá liên quan" name="mandays"><InputNumber min={0} precision={2} style={{ width: "100%" }} /></Form.Item>
+          </div>
+          <Form.Item label="Mô tả / căn cứ" name="description"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item label="Tệp minh chứng">
+            <input
+              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+              onChange={(event) => setCompetencyEvidenceFile(event.target.files?.[0] ?? null)}
+              type="file"
+            />
+            {competencyEvidenceFile ? <div className="competency-upload-note">{competencyEvidenceFile.name}</div> : null}
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={voidCompetencyEvidenceMutation.isPending}
+        okButtonProps={{ danger: true }}
+        okText="Vô hiệu bằng chứng"
+        onCancel={() => {
+          setCompetencyVoidEvidenceId(null);
+          competencyVoidEvidenceForm.resetFields();
+        }}
+        onOk={() => void competencyVoidEvidenceForm.validateFields().then((values) => voidCompetencyEvidenceMutation.mutate(values))}
+        open={Boolean(competencyVoidEvidenceId)}
+        title="Vô hiệu bằng chứng năng lực"
+      >
+        <Form form={competencyVoidEvidenceForm} layout="vertical">
+          <Form.Item
+            label="Lý do"
+            name="reason"
+            rules={[{ required: true, min: 3, message: "Nhập lý do vô hiệu" }]}
+          >
+            <Input.TextArea rows={4} placeholder="Nêu rõ lý do bằng chứng không còn được sử dụng; dữ liệu lịch sử sẽ không bị xóa." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={suspendCompetencyMutation.isPending}
+        okButtonProps={{ danger: true }}
+        okText="Đình chỉ năng lực"
+        onCancel={() => {
+          setCompetencySuspendTargetId(null);
+          competencySuspendForm.resetFields();
+        }}
+        onOk={() => void competencySuspendForm.validateFields().then((values) => suspendCompetencyMutation.mutate(values))}
+        open={Boolean(competencySuspendTargetId)}
+        title="Tạm đình chỉ năng lực chuyên gia"
+      >
+        <Form form={competencySuspendForm} layout="vertical">
+          <Form.Item
+            label="Lý do đình chỉ"
+            name="reason"
+            rules={[{ required: true, min: 3, message: "Nhập lý do đình chỉ" }]}
+          >
+            <Input.TextArea rows={4} placeholder="Nêu rõ căn cứ và lý do đình chỉ năng lực." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={addCompetencyReviewMutation.isPending}
+        okText="Lưu kết quả đánh giá"
+        onCancel={() => {
+          setCompetencyReviewModalOpen(false);
+          competencyReviewForm.resetFields();
+        }}
+        onOk={() => void competencyReviewForm.validateFields().then((values) => addCompetencyReviewMutation.mutate(values))}
+        open={competencyReviewModalOpen}
+        title="Ghi nhận đánh giá năng lực"
+        width={820}
+      >
+        <Form form={competencyReviewForm} layout="vertical">
+          <div className="competency-form-grid">
+            <Form.Item label="Loại đánh giá" name="review_type" rules={[{ required: true }]}>
+              <Select options={competencyReviewTypeOptions} />
+            </Form.Item>
+            <Form.Item label="Ngày đánh giá" name="review_date" rules={[{ required: true }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item label="Kết quả" name="result" rules={[{ required: true }]}>
+              <Select options={competencyReviewResultOptions} />
+            </Form.Item>
+            <Form.Item label="Điểm (0-100)" name="score"><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
+            <Form.Item label="Ngày đánh giá tiếp theo" name="next_review_date">
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+          </div>
+          <Form.Item label="Phương pháp giám sát / nguồn thông tin" name="monitoring_methods" rules={[{ required: true, message: "Nhập phương pháp đánh giá" }]}>
+            <Input.TextArea rows={3} placeholder="Ví dụ: xem xét audit log, báo cáo đánh giá, phản hồi khách hàng, chứng kiến/phỏng vấn..." />
+          </Form.Item>
+          <Form.Item label="Phát hiện" name="finding"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item label="Hành động yêu cầu" name="required_action"><Input.TextArea rows={3} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={renewCompetencyMutation.isPending}
+        okText="Gia hạn năng lực"
+        onCancel={() => {
+          setCompetencyRenewModalOpen(false);
+          competencyRenewForm.resetFields();
+        }}
+        onOk={() => void competencyRenewForm.validateFields().then((values) => renewCompetencyMutation.mutate(values))}
+        open={competencyRenewModalOpen}
+        title="Gia hạn hiệu lực năng lực"
+        width={720}
+      >
+        <Form form={competencyRenewForm} layout="vertical">
+          <div className="competency-form-grid">
+            <Form.Item label="Hiệu lực từ" name="effective_date" rules={[{ required: true }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item label="Hiệu lực đến" name="expiry_date" rules={[{ required: true }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+          </div>
+          <Form.Item label="Căn cứ quyết định gia hạn" name="decision_basis" rules={[{ required: true, min: 3 }]}>
+            <Input.TextArea rows={4} placeholder="Nêu hồ sơ/bằng chứng và kết quả đánh giá làm căn cứ gia hạn." />
+          </Form.Item>
+          <Form.Item label="Ghi chú" name="note"><Input.TextArea rows={2} /></Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        confirmLoading={reactivateCompetencyMutation.isPending}
+        okText="Khôi phục năng lực"
+        onCancel={() => {
+          setCompetencyReactivateModalOpen(false);
+          competencyReactivateForm.resetFields();
+        }}
+        onOk={() => void competencyReactivateForm.validateFields().then((values) => reactivateCompetencyMutation.mutate(values))}
+        open={competencyReactivateModalOpen}
+        title="Khôi phục năng lực đang đình chỉ"
+        width={720}
+      >
+        <Form form={competencyReactivateForm} layout="vertical">
+          <div className="competency-form-grid">
+            <Form.Item label="Hiệu lực từ" name="effective_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+            <Form.Item label="Hiệu lực đến" name="expiry_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+          </div>
+          <Form.Item label="Căn cứ quyết định khôi phục" name="decision_basis" rules={[{ required: true, min: 3 }]}>
+            <Input.TextArea rows={4} placeholder="Nêu bằng chứng đã khắc phục/đủ điều kiện để khôi phục." />
+          </Form.Item>
+          <Form.Item label="Ghi chú" name="note"><Input.TextArea rows={2} /></Form.Item>
         </Form>
       </Modal>
 
@@ -1504,7 +2464,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
                 <Descriptions.Item label="Phạm vi yêu cầu">{recommendationQuery.data.required_scopes.length}</Descriptions.Item>
               </Descriptions>
             </Card>
-            <Table columns={recommendationColumns} dataSource={recommendationQuery.data.recommendations} locale={{ emptyText: <Empty description="Chưa có chuyên gia đã phê duyệt đáp ứng chương trình và vai trò này" /> }} pagination={false} rowKey={(record) => record.expert.id} scroll={{ x: 1180 }} />
+            <Table columns={recommendationColumns} dataSource={recommendationQuery.data.recommendations} locale={{ emptyText: <Empty description="Chưa có chuyên gia đang hoạt động để đối chiếu" /> }} pagination={false} rowKey={(record) => record.expert.id} scroll={{ x: 1180 }} />
           </div>
         ) : recommendationPlanId ? null : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chọn kế hoạch để đối chiếu tài khoản, hồ sơ phê duyệt, chương trình, IAF/NACE và lịch chuyên gia" />

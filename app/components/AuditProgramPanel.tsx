@@ -221,10 +221,8 @@ function formatPlannedMonth(event: AuditProgramEvent) {
   return month?.isValid() ? month.format("MM/YYYY") : "Chưa thiết lập";
 }
 
-function formatDate(value?: string | null) {
-  if (!value) return "Chưa thiết lập";
-  const parsed = dayjs(value);
-  return parsed.isValid() ? parsed.format("DD/MM/YYYY") : "Chưa thiết lập";
+function httpStatus(error: unknown) {
+  return (error as { response?: { status?: number } } | null)?.response?.status;
 }
 
 function eventLabel(value: string) {
@@ -362,8 +360,8 @@ export default function AuditProgramPanel({
           `/audit-team-appointments/project/${projectId}`,
         );
         return response.data;
-      } catch (error: any) {
-        if (Number(error?.response?.status) === 404) return null;
+      } catch (error: unknown) {
+        if (Number(httpStatus(error)) === 404) return null;
         throw error;
       }
     },
@@ -757,7 +755,7 @@ export default function AuditProgramPanel({
     }
   };
 
-  const columns = useMemo<TableColumnsType<AuditProgramEvent>>(() => [
+  const columns: TableColumnsType<AuditProgramEvent> = [
     {
       title: "Kỳ đánh giá",
       dataIndex: "event_type",
@@ -852,7 +850,7 @@ export default function AuditProgramPanel({
         );
       },
     },
-  ], [activeProgram?.status, canManage, creatingPlanEventId, onOpenAuditPlan, onOpenPlanWorkspace, planByEventId]);
+  ];
 
   if (programsQuery.isLoading || mandayQuery.isLoading || teamAppointmentQuery.isLoading) {
     return <Card loading title="Chương trình đánh giá" />;

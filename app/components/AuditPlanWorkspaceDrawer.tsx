@@ -191,14 +191,6 @@ const teamRoleLabels: Record<string, string> = {
   witness_evaluator: "Đánh giá viên chứng kiến",
 };
 
-const findingTypeLabels: Record<string, string> = {
-  conformity: "Điểm phù hợp",
-  observation: "Quan sát",
-  ofi: "Cơ hội cải tiến",
-  minor_nc: "NC nhẹ",
-  major_nc: "NC nặng",
-};
-
 const countedMandayRoles = new Set(["team_leader", "lead_auditor", "auditor"]);
 const manageRoles = new Set(["admin", "coordinator"]);
 const executeRoles = new Set(["admin", "staff", "auditor", "lead_auditor"]);

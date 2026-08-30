@@ -21,6 +21,13 @@ export interface RecentProject {
   status: string;
   created_at: string;
   updated_at: string;
+  current_cycle?: {
+    dossier_key: string;
+    cycle_label: string;
+    stage_label: string;
+    display_label: string;
+    event_id: string;
+  } | null;
   certification_applications?: {
     application_code: string;
     certification_type: string;

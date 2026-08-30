@@ -23,7 +23,6 @@ import {
   InputNumber,
   List,
   Modal,
-  Radio,
   Select,
   Skeleton,
   Space,
@@ -58,6 +57,8 @@ interface DecisionRecord {
   decision_number: string;
   decision_date: string;
   decision_result: string;
+  decision_type?: DecisionType | null;
+  certificate_series_id?: string | null;
   organization_name: string;
   organization_address?: string | null;
   management_system?: string | null;
@@ -69,6 +70,40 @@ interface DecisionRecord {
   signatory_name: string;
   signatory_title: string;
   status: string;
+  change_reason?: string | null;
+  lifecycle?: {
+    requires_certificate_version: boolean;
+    preserves_current_certificate: boolean;
+  } | null;
+}
+
+type DecisionType =
+  | "GRANT"
+  | "MAINTAIN"
+  | "RECERTIFY"
+  | "AMEND"
+  | "EXTEND_SCOPE"
+  | "REDUCE_SCOPE"
+  | "SUSPEND"
+  | "RESTORE"
+  | "WITHDRAW"
+  | "REFUSE";
+
+interface CertificateSummary {
+  id: string;
+  certificate_series_id: string;
+  cert_number: string;
+  version_no: number;
+  issue_date?: string | null;
+  expire_date?: string | null;
+  status?: string | null;
+  organization_name: string;
+  organization_address?: string | null;
+  management_system?: string | null;
+  standard_name: string;
+  certification_scope: string;
+  verification_code: string;
+  official_pdf_available: boolean;
 }
 
 interface NotificationRecord {
@@ -110,13 +145,18 @@ interface Workspace {
   is_surveillance: boolean;
   requires_decision_by_default: boolean;
   surveillance_no_change_allowed: boolean;
-  active_certificate: {
+  allowed_decision_types: DecisionType[];
+  current_status: string | null;
+  allowed_status_actions: Array<"SUSPEND" | "RESTORE" | "WITHDRAW">;
+  certificate_series: Array<{
     id: string;
-    cert_number: string;
-    issue_date?: string | null;
-    expire_date?: string | null;
-    status?: string | null;
-  } | null;
+    series_code: string;
+    status: string;
+    current_certificate: CertificateSummary | null;
+    allowed_status_actions: Array<"SUSPEND" | "RESTORE" | "WITHDRAW">;
+  }>;
+  active_certificate: CertificateSummary | null;
+  current_certificate: CertificateSummary | null;
   report: {
     id: string;
     report_code?: string | null;
@@ -175,11 +215,14 @@ interface DecisionFormValues {
   decision_number: string;
   decision_date: Dayjs;
   decision_result: "approved" | "rejected" | "deferred";
+  decision_type: DecisionType;
+  certificate_series_id?: string;
   organization_name: string;
   organization_address?: string;
   management_system?: string;
   standard_name: string;
   certification_scope: string;
+  change_reason?: string;
   effective_date?: Dayjs;
   expiry_date?: Dayjs;
   surveillance_interval_months: number;
@@ -218,6 +261,7 @@ interface Props {
   planId: string | null;
   focus?: FocusTab;
   roles: string[];
+  preferredDecisionType?: DecisionType | null;
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
 }
@@ -234,8 +278,8 @@ function formatDate(value?: string | null) {
 
 function resultLabel(value?: string | null) {
   const labels: Record<string, string> = {
-    approved: "Phê duyệt cấp chứng nhận",
-    rejected: "Không cấp chứng nhận",
+    approved: "Chấp thuận",
+    rejected: "Không chấp thuận",
     deferred: "Hoãn quyết định",
     certification_granted: "Cấp chứng nhận",
     certification_maintained: "Duy trì chứng nhận",
@@ -246,22 +290,75 @@ function resultLabel(value?: string | null) {
   return labels[value ?? ""] ?? (value || "—").replaceAll("_", " ");
 }
 
+const decisionTypeLabels: Record<DecisionType, string> = {
+  GRANT: "Cấp chứng nhận",
+  MAINTAIN: "Duy trì chứng nhận",
+  RECERTIFY: "Tái chứng nhận",
+  AMEND: "Sửa đổi chứng chỉ",
+  EXTEND_SCOPE: "Mở rộng phạm vi chứng nhận",
+  REDUCE_SCOPE: "Thu hẹp phạm vi chứng nhận",
+  SUSPEND: "Đình chỉ chứng chỉ",
+  RESTORE: "Khôi phục hiệu lực chứng chỉ",
+  WITHDRAW: "Thu hồi chứng chỉ",
+  REFUSE: "Từ chối cấp chứng nhận",
+};
+
+const decisionConsequences: Record<DecisionType, string> = {
+  GRANT: "Sau khi chấp thuận, hệ thống sẽ cho phép phát hành chứng chỉ lần đầu.",
+  MAINTAIN: "Chứng chỉ hiện hành tiếp tục có hiệu lực. Không phát hành phiên bản mới.",
+  RECERTIFY: "Sau khi chấp thuận, hệ thống sẽ cho phép phát hành phiên bản chứng chỉ mới trong cùng dòng chứng nhận và giữ nguyên toàn bộ lịch sử của phiên bản trước.",
+  AMEND: "Hệ thống sẽ tạo phiên bản chứng chỉ mới và lưu phiên bản hiện tại trong lịch sử.",
+  EXTEND_SCOPE: "Hệ thống sẽ tạo phiên bản mới với phạm vi chứng nhận được mở rộng.",
+  REDUCE_SCOPE: "Hệ thống sẽ tạo phiên bản mới với phạm vi chứng nhận được thu hẹp.",
+  SUSPEND: "Chứng chỉ hiện hành chuyển sang Đình chỉ. Phiên bản, PDF và mã xác minh không thay đổi.",
+  RESTORE: "Chứng chỉ đang đình chỉ được khôi phục hiệu lực nếu chưa hết hạn. Không phát hành phiên bản mới.",
+  WITHDRAW: "Chứng chỉ hiện hành chuyển sang Đã thu hồi và không thể khôi phục. Không phát hành phiên bản mới.",
+  REFUSE: "Không cấp chứng nhận và không tạo phiên bản chứng chỉ.",
+};
+
+const statusLabels: Record<string, string> = {
+  active: "Đang hiệu lực",
+  suspended: "Đình chỉ",
+  withdrawn: "Đã thu hồi",
+  expired: "Hết hiệu lực",
+  replaced: "Đã được thay thế",
+};
+
+function statusLabel(value?: string | null) {
+  return statusLabels[(value ?? "").trim().toLowerCase()] ?? "—";
+}
+
+function decisionTypeLabel(value?: string | null) {
+  return decisionTypeLabels[value as DecisionType] ?? "—";
+}
+
 export default function CertificationResultWorkspaceModal({
   open,
   planId,
   focus = "overview",
   roles,
+  preferredDecisionType,
   onClose,
   onChanged,
 }: Props) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [decisionForm] = Form.useForm<DecisionFormValues>();
   const [notificationForm] = Form.useForm<NotificationFormValues>();
-  const [activeTab, setActiveTab] = useState<FocusTab>(focus);
+  const tabContext = `${planId ?? ""}:${focus}`;
+  const [tabSelection, setTabSelection] = useState<{
+    context: string;
+    tab: FocusTab;
+  } | null>(null);
+  const activeTab = tabSelection?.context === tabContext
+    ? tabSelection.tab
+    : focus;
+  const setActiveTab = (tab: FocusTab) => {
+    setTabSelection({ context: tabContext, tab });
+  };
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canDecision = normalizedRoles.some((role) => ["admin", "decisionmaker"].includes(role));
+  const canDecision = normalizedRoles.includes("decisionmaker");
   const canCreateNotification = normalizedRoles.some((role) => ["admin", "decisionmaker"].includes(role));
   const canManageNotification = normalizedRoles.some((role) => ["admin", "decisionmaker", "coordinator"].includes(role));
 
@@ -275,12 +372,25 @@ export default function CertificationResultWorkspaceModal({
   });
 
   const workspace = workspaceQuery.data;
-  const notificationHasChanges = Form.useWatch("has_certification_changes", notificationForm) ?? false;
+  const currentCertificate = workspace?.current_certificate ?? workspace?.active_certificate ?? null;
+  const selectedDecisionType = Form.useWatch("decision_type", decisionForm);
+  const selectedDecisionResult = Form.useWatch("decision_result", decisionForm);
+  const proposedScope = Form.useWatch("certification_scope", decisionForm) ?? "";
+  const isChangeDecision = Boolean(selectedDecisionType && ["AMEND", "EXTEND_SCOPE", "REDUCE_SCOPE"].includes(selectedDecisionType));
+  const isRecertificationDecision = selectedDecisionType === "RECERTIFY";
+  const isScopeChange = selectedDecisionType === "EXTEND_SCOPE" || selectedDecisionType === "REDUCE_SCOPE";
+  const isStatusDecision = Boolean(selectedDecisionType && ["SUSPEND", "RESTORE", "WITHDRAW"].includes(selectedDecisionType));
+  const selectedConsequence = selectedDecisionType
+    ? decisionConsequences[selectedDecisionType]
+    : "Chọn loại quyết định để xem tác động tới chứng chỉ.";
 
   useEffect(() => {
-    if (!open) return;
-    setActiveTab(focus);
-  }, [focus, open]);
+    if (selectedDecisionType !== "REFUSE") return;
+    decisionForm.setFieldsValue({
+      decision_result: "rejected",
+      certificate_series_id: undefined,
+    });
+  }, [decisionForm, selectedDecisionType]);
 
   useEffect(() => {
     if (!workspace || workspace.decision) return;
@@ -289,6 +399,12 @@ export default function CertificationResultWorkspaceModal({
       decision_number: value.decision_number,
       decision_date: dayjs(value.decision_date),
       decision_result: "approved",
+      decision_type: preferredDecisionType && workspace.allowed_decision_types.includes(preferredDecisionType)
+        ? preferredDecisionType
+        : workspace.allowed_decision_types[0],
+      certificate_series_id: workspace.certificate_series.length === 1
+        ? workspace.certificate_series[0].id
+        : undefined,
       organization_name: value.organization_name,
       organization_address: value.organization_address,
       management_system: value.management_system,
@@ -300,7 +416,7 @@ export default function CertificationResultWorkspaceModal({
       signatory_name: value.signatory_name || "",
       signatory_title: value.signatory_title || "Tổng Giám đốc",
     });
-  }, [decisionForm, workspace]);
+  }, [decisionForm, preferredDecisionType, workspace]);
 
   useEffect(() => {
     if (!workspace || workspace.notification) return;
@@ -338,11 +454,16 @@ export default function CertificationResultWorkspaceModal({
           decision_number: values.decision_number.trim(),
           decision_date: values.decision_date.format("YYYY-MM-DD"),
           decision_result: values.decision_result,
+          decision_type: values.decision_type,
+          certificate_series_id: ["GRANT", "REFUSE"].includes(values.decision_type)
+            ? undefined
+            : values.certificate_series_id,
           organization_name: values.organization_name.trim(),
           organization_address: values.organization_address?.trim() || undefined,
           management_system: values.management_system?.trim() || undefined,
           standard_name: values.standard_name.trim(),
           certification_scope: values.certification_scope.trim(),
+          change_reason: values.change_reason?.trim() || undefined,
           effective_date: values.effective_date?.format("YYYY-MM-DD"),
           expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
           surveillance_interval_months: values.surveillance_interval_months,
@@ -359,6 +480,32 @@ export default function CertificationResultWorkspaceModal({
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
+
+  const submitDecision = (values: DecisionFormValues) => {
+    if (
+      values.decision_result !== "approved"
+      || !["SUSPEND", "RESTORE", "WITHDRAW"].includes(values.decision_type)
+    ) {
+      decisionMutation.mutate(values);
+      return;
+    }
+
+    const effectiveDate = values.effective_date?.format("DD/MM/YYYY") ?? "ngày đã chọn";
+    const confirmation = values.decision_type === "SUSPEND"
+      ? `Xác nhận đình chỉ hiệu lực chứng chỉ này từ ngày ${effectiveDate}?`
+      : values.decision_type === "RESTORE"
+        ? `Xác nhận khôi phục hiệu lực chứng chỉ từ ngày ${effectiveDate}?`
+        : "Xác nhận thu hồi chứng chỉ này? Sau khi thu hồi, chứng chỉ không thể khôi phục.";
+
+    modal.confirm({
+      cancelText: "Hủy",
+      content: decisionConsequences[values.decision_type],
+      okButtonProps: values.decision_type === "WITHDRAW" ? { danger: true } : undefined,
+      okText: values.decision_type === "WITHDRAW" ? "Xác nhận thu hồi" : "Xác nhận",
+      onOk: () => decisionMutation.mutateAsync(values),
+      title: confirmation,
+    });
+  };
 
   const notificationMutation = useMutation({
     mutationFn: async (values: NotificationFormValues) => {
@@ -472,15 +619,15 @@ export default function CertificationResultWorkspaceModal({
     { key: "overview", label: "Tổng quan" },
     {
       key: "decision",
-      label: workspace?.is_surveillance
-        ? "Quyết định F.13 (khi có thay đổi)"
-        : "Quyết định F.13",
+      label: "Quyết định chứng nhận",
     },
     {
       key: "notification",
       label: workspace?.is_surveillance
-        ? "Thông báo duy trì F.12"
-        : "Thông báo F.12",
+        ? "Thông báo duy trì"
+        : workspace?.lifecycle_type === "recertification"
+          ? "Thông báo tái chứng nhận"
+        : "Thông báo kết quả",
     },
   ];
 
@@ -488,11 +635,18 @@ export default function CertificationResultWorkspaceModal({
     <Modal
       destroyOnHidden
       footer={null}
-      onCancel={onClose}
+      onCancel={() => {
+        setTabSelection(null);
+        onClose();
+      }}
       open={open}
       title={(
         <div>
-          <Text type="secondary">{workspace?.is_surveillance ? "KHÔNG GIAN KẾT QUẢ GIÁM SÁT" : "KHÔNG GIAN KẾT QUẢ CHỨNG NHẬN"}</Text>
+          <Text type="secondary">{workspace?.is_surveillance
+            ? "KHÔNG GIAN KẾT QUẢ GIÁM SÁT"
+            : workspace?.lifecycle_type === "recertification"
+              ? "KHÔNG GIAN KẾT QUẢ TÁI CHỨNG NHẬN"
+              : "KHÔNG GIAN KẾT QUẢ CHỨNG NHẬN"}</Text>
           <Title level={4} style={{ margin: "2px 0 0" }}>{workspace?.plan.plan_code || "Đang tải..."}</Title>
         </div>
       )}
@@ -516,8 +670,8 @@ export default function CertificationResultWorkspaceModal({
 
           {workspace.is_surveillance ? (
             <Alert
-              description={workspace.active_certificate
-                ? `Chứng chỉ hiện hành ${workspace.active_certificate.cert_number} · hiệu lực đến ${formatDate(workspace.active_certificate.expire_date)}. Nếu kết quả giám sát không làm thay đổi phạm vi/thông tin chứng nhận, chỉ cần phát hành F.12 với kết quả Duy trì chứng nhận; không lập F.13 và không cấp chứng chỉ mới.`
+              description={currentCertificate
+                ? `Chứng chỉ hiện hành ${currentCertificate.cert_number}, phiên bản ${currentCertificate.version_no}, trạng thái ${statusLabel(currentCertificate.status)}, hiệu lực đến ${formatDate(currentCertificate.expire_date)}. Các thao tác được backend giới hạn theo trạng thái hiện tại.`
                 : "Chưa xác định được chứng chỉ hiện hành của dự án."}
               message="Workflow đánh giá giám sát"
               showIcon
@@ -526,12 +680,40 @@ export default function CertificationResultWorkspaceModal({
             />
           ) : null}
 
+          {workspace.lifecycle_type === "recertification" ? (
+            <Alert
+              description={currentCertificate
+                ? `Chứng chỉ ${currentCertificate.cert_number}, phiên bản ${currentCertificate.version_no}, hết hiệu lực ngày ${formatDate(currentCertificate.expire_date)}. Backend chỉ cho phép Tái chứng nhận khi phiên bản hiện hành đang hiệu lực.`
+                : "Chưa xác định được dòng chứng nhận hiện hữu; không thể lập quyết định tái chứng nhận."}
+              message="Chu kỳ tái chứng nhận"
+              showIcon
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+          ) : null}
+
+          <Card title="Bối cảnh kỳ đánh giá" size="small" style={{ marginBottom: 16 }}>
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="Khách hàng" span={2}>{workspace.defaults.organization_name || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Hồ sơ chứng nhận">{workspace.plan.project_code}</Descriptions.Item>
+              <Descriptions.Item label="Loại đánh giá">{workspace.is_surveillance
+                ? "Đánh giá giám sát"
+                : workspace.lifecycle_type === "recertification"
+                  ? "Đánh giá tái chứng nhận"
+                  : "Đánh giá chứng nhận lần đầu – Giai đoạn 2"}</Descriptions.Item>
+              <Descriptions.Item label="Tiêu chuẩn / chương trình" span={2}>{workspace.defaults.standard_name || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Ngày bắt đầu đánh giá">{formatDate(workspace.report?.audit_start_date ?? workspace.plan.planned_start_date)}</Descriptions.Item>
+              <Descriptions.Item label="Ngày kết thúc đánh giá">{formatDate(workspace.report?.audit_end_date ?? workspace.plan.planned_end_date)}</Descriptions.Item>
+              <Descriptions.Item label="Trạng thái thẩm xét" span={2}>{workspace.technical_review?.status === "completed" ? "Đã hoàn thành" : "Chưa hoàn thành"}</Descriptions.Item>
+            </Descriptions>
+          </Card>
+
           {activeTab === "overview" ? (
             <Space direction="vertical" size={16} style={{ width: "100%" }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
                 <Card><Statistic title="Thẩm xét kỹ thuật" value={workspace.technical_review?.status === "completed" ? "Hoàn thành" : "Chưa hoàn thành"} prefix={<CheckCircleOutlined />} /></Card>
-                <Card><Statistic title="Quyết định F.13" value={workspace.decision ? "Đã ban hành" : workspace.is_surveillance ? "Không bắt buộc" : "Chưa có"} prefix={<SafetyCertificateOutlined />} /></Card>
-                <Card><Statistic title="Thông báo F.12" value={workspace.notification ? "Đã lập" : "Chưa có"} prefix={<NotificationOutlined />} /></Card>
+                <Card><Statistic title="Quyết định chứng nhận" value={workspace.decision ? "Đã ban hành" : "Chưa có"} prefix={<SafetyCertificateOutlined />} /></Card>
+                <Card><Statistic title="Thông báo kết quả" value={workspace.notification ? "Đã lập" : "Chưa có"} prefix={<NotificationOutlined />} /></Card>
                 <Card><Statistic title="Đã gửi khách hàng" value={workspace.notification?.status === "sent" ? "Đã gửi" : "Chưa gửi"} prefix={<SendOutlined />} /></Card>
               </div>
               <Card title="Kết quả thẩm xét">
@@ -543,18 +725,22 @@ export default function CertificationResultWorkspaceModal({
                   <Descriptions.Item label="Nhận xét" span={2}>{workspace.technical_review?.recommendation_comment || "—"}</Descriptions.Item>
                 </Descriptions>
               </Card>
-              {workspace.is_surveillance ? (
-                <Card title="Chứng chỉ đang được giám sát">
-                  {workspace.active_certificate ? (
-                    <Descriptions column={2} size="small">
-                      <Descriptions.Item label="Số chứng chỉ">{workspace.active_certificate.cert_number}</Descriptions.Item>
-                      <Descriptions.Item label="Trạng thái"><Tag color="green">{workspace.active_certificate.status || "active"}</Tag></Descriptions.Item>
-                      <Descriptions.Item label="Ngày cấp">{formatDate(workspace.active_certificate.issue_date)}</Descriptions.Item>
-                      <Descriptions.Item label="Hết hiệu lực">{formatDate(workspace.active_certificate.expire_date)}</Descriptions.Item>
-                    </Descriptions>
-                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chứng chỉ hiện hành" />}
-                </Card>
-              ) : null}
+              <Card title="Chứng chỉ hiện hành">
+                  {currentCertificate ? (
+                    <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                      {normalize(currentCertificate.status) === "suspended" ? <Alert showIcon type="warning" message="Chứng chỉ hiện đang bị đình chỉ." /> : null}
+                      <Descriptions column={2} size="small">
+                        <Descriptions.Item label="Số chứng chỉ">{currentCertificate.cert_number}</Descriptions.Item>
+                        <Descriptions.Item label="Phiên bản">{currentCertificate.version_no}</Descriptions.Item>
+                        <Descriptions.Item label="Trạng thái"><Tag color={normalize(currentCertificate.status) === "active" ? "green" : "orange"}>{statusLabel(currentCertificate.status)}</Tag></Descriptions.Item>
+                        <Descriptions.Item label="Ngày cấp">{formatDate(currentCertificate.issue_date)}</Descriptions.Item>
+                        <Descriptions.Item label="Hết hiệu lực">{formatDate(currentCertificate.expire_date)}</Descriptions.Item>
+                        <Descriptions.Item label="Tiêu chuẩn">{currentCertificate.standard_name}</Descriptions.Item>
+                        <Descriptions.Item label="Phạm vi" span={2}>{currentCertificate.certification_scope}</Descriptions.Item>
+                      </Descriptions>
+                    </Space>
+                  ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chứng chỉ được cấp." />}
+              </Card>
             </Space>
           ) : null}
 
@@ -562,51 +748,67 @@ export default function CertificationResultWorkspaceModal({
             workspace.decision ? (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 <Alert type="success" showIcon message="Quyết định chứng nhận đã được ban hành" />
-                <Card title="F.13-P.09 – Quyết định chứng nhận" extra={<Space>
+                  <Alert
+                    type={workspace.decision.lifecycle?.preserves_current_certificate ? "info" : "success"}
+                    showIcon
+                    message={workspace.decision.decision_type ? decisionConsequences[workspace.decision.decision_type] : "Quyết định đã được ghi nhận."}
+                    description={workspace.decision.lifecycle?.preserves_current_certificate && currentCertificate
+                    ? `Duy trì chứng nhận số ${currentCertificate.cert_number}, phiên bản ${currentCertificate.version_no}; không yêu cầu phát hành lại.`
+                    : undefined}
+                />
+                <Card title="Quyết định chứng nhận" extra={<Space>
                   <Button icon={<FileWordOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "docx" })}>Xuất Word</Button>
                   <Button icon={<FilePdfOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "pdf" })}>Xuất PDF</Button>
                 </Space>}>
                   <Descriptions column={2} size="small">
                     <Descriptions.Item label="Số quyết định">{workspace.decision.decision_number}</Descriptions.Item>
                     <Descriptions.Item label="Ngày quyết định">{formatDate(workspace.decision.decision_date)}</Descriptions.Item>
-                    <Descriptions.Item label="Kết quả">{resultLabel(workspace.decision.decision_result)}</Descriptions.Item>
+                    <Descriptions.Item label="Loại quyết định"><Tag color="blue">{decisionTypeLabel(workspace.decision.decision_type)}</Tag></Descriptions.Item>
+                    <Descriptions.Item label="Kết quả"><Tag color={workspace.decision.decision_result === "approved" ? "green" : "default"}>{resultLabel(workspace.decision.decision_result)}</Tag></Descriptions.Item>
                     <Descriptions.Item label="Người ký">{workspace.decision.signatory_name} – {workspace.decision.signatory_title}</Descriptions.Item>
                     <Descriptions.Item label="Tiêu chuẩn" span={2}>{workspace.decision.standard_name}</Descriptions.Item>
                     <Descriptions.Item label="Phạm vi" span={2}>{workspace.decision.certification_scope}</Descriptions.Item>
                     <Descriptions.Item label="Hiệu lực">{formatDate(workspace.decision.effective_date)}</Descriptions.Item>
                     <Descriptions.Item label="Hết hiệu lực">{formatDate(workspace.decision.expiry_date)}</Descriptions.Item>
+                    {workspace.decision.change_reason ? <Descriptions.Item label="Lý do / căn cứ" span={2}>{workspace.decision.change_reason}</Descriptions.Item> : null}
                   </Descriptions>
                 </Card>
-                <Card title="Phiên bản F.13 đã sinh">{renderHistory(workspace.decision_history)}</Card>
+                <Card title="Lịch sử tài liệu quyết định">{renderHistory(workspace.decision_history)}</Card>
               </Space>
             ) : (
-              <Card title={workspace.is_surveillance ? "F.13-P.09 – Chỉ lập khi giám sát làm thay đổi chứng nhận" : "Lập quyết định chứng nhận F.13-P.09"}>
-                {workspace.is_surveillance ? (
-                  <Alert
-                    description="Giám sát thông thường không cần F.13. Chỉ lập quyết định khi kết quả giám sát dẫn đến thay đổi phạm vi/thông tin chứng nhận, đình chỉ hoặc xử lý khác cần quyết định chính thức."
-                    message="Quyết định là tùy trường hợp trong kỳ giám sát"
-                    showIcon
-                    type="info"
-                    style={{ marginBottom: 16 }}
-                  />
-                ) : null}
-                <Form form={decisionForm} layout="vertical" onFinish={(values) => decisionMutation.mutate(values)}>
+              <Card title="Lập quyết định chứng nhận">
+                <Form form={decisionForm} layout="vertical" onFinish={submitDecision}>
                   <div className="certification-result-form-grid">
                     <Form.Item label="Số quyết định" name="decision_number" rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item label="Ngày quyết định" name="decision_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    <Form.Item label="Loại quyết định" name="decision_type" rules={[{ required: true, message: "Chọn loại quyết định" }]}>
+                      <Select options={workspace.allowed_decision_types.map((value) => ({ value, label: decisionTypeLabels[value] }))} />
+                    </Form.Item>
                     <Form.Item label="Kết quả quyết định" name="decision_result" rules={[{ required: true }]}>
-                      <Select options={workspace.is_surveillance ? [
-                        { value: "approved", label: "Phê duyệt duy trì/thay đổi chứng nhận" },
-                        { value: "rejected", label: "Không phê duyệt thay đổi" },
-                        { value: "deferred", label: "Hoãn quyết định" },
-                      ] : [
-                        { value: "approved", label: "Phê duyệt cấp chứng nhận" },
-                        { value: "rejected", label: "Không cấp chứng nhận" },
-                        { value: "deferred", label: "Hoãn quyết định" },
-                      ]} />
+                      <Select
+                        disabled={selectedDecisionType === "REFUSE"}
+                        options={[
+                          { value: "approved", label: "Chấp thuận" },
+                          { value: "rejected", label: "Không chấp thuận" },
+                          { value: "deferred", label: "Hoãn quyết định" },
+                        ]}
+                      />
                     </Form.Item>
                     <Form.Item label="Chu kỳ giám sát (tháng)" name="surveillance_interval_months" rules={[{ required: true }]}><InputNumber min={1} max={36} style={{ width: "100%" }} /></Form.Item>
                   </div>
+                  {selectedDecisionType && !["GRANT", "REFUSE"].includes(selectedDecisionType) ? (
+                    <Form.Item label="Chứng chỉ áp dụng" name="certificate_series_id" rules={[{ required: true, message: "Chọn chứng chỉ hiện hành" }]}>
+                      <Select
+                        options={workspace.certificate_series.map((series) => ({
+                          value: series.id,
+                          label: series.current_certificate
+                            ? `${series.current_certificate.cert_number} · phiên bản ${series.current_certificate.version_no}`
+                            : series.series_code,
+                        }))}
+                        placeholder="Chọn chứng chỉ hiện hành"
+                      />
+                    </Form.Item>
+                  ) : null}
                   <Form.Item label="Tên tổ chức" name="organization_name" rules={[{ required: true }]}><Input /></Form.Item>
                   <Form.Item label="Địa chỉ" name="organization_address"><Input /></Form.Item>
                   <div className="certification-result-form-grid">
@@ -614,15 +816,71 @@ export default function CertificationResultWorkspaceModal({
                     <Form.Item label="Tiêu chuẩn" name="standard_name" rules={[{ required: true }]}><Input /></Form.Item>
                   </div>
                   <Form.Item label="Phạm vi chứng nhận" name="certification_scope" rules={[{ required: true }]}><Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
+                  {isScopeChange ? (
+                    <Card size="small" title="Đối chiếu phạm vi" style={{ marginBottom: 16 }}>
+                      <Descriptions column={1} size="small">
+                        <Descriptions.Item label="Phạm vi hiện hành">{currentCertificate?.certification_scope || "Chưa có"}</Descriptions.Item>
+                        <Descriptions.Item label="Phạm vi đề xuất">{proposedScope || "Chưa nhập"}</Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  ) : null}
+                  {isRecertificationDecision && currentCertificate ? (
+                    <Card size="small" title="Dòng chứng nhận sẽ tiếp tục" style={{ marginBottom: 16 }}>
+                      <Descriptions column={2} size="small">
+                        <Descriptions.Item label="Phiên bản trước">{currentCertificate.version_no}</Descriptions.Item>
+                        <Descriptions.Item label="Số chứng chỉ trước">{currentCertificate.cert_number}</Descriptions.Item>
+                        <Descriptions.Item label="Hết hiệu lực">{formatDate(currentCertificate.expire_date)}</Descriptions.Item>
+                        <Descriptions.Item label="Trạng thái">{statusLabel(currentCertificate.status)}</Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  ) : null}
+                  {isChangeDecision || isStatusDecision ? (
+                    <Form.Item
+                      label={selectedDecisionType === "SUSPEND"
+                        ? "Lý do đình chỉ"
+                        : selectedDecisionType === "RESTORE"
+                          ? "Căn cứ khôi phục"
+                          : selectedDecisionType === "WITHDRAW"
+                            ? "Lý do thu hồi"
+                            : "Lý do thay đổi"}
+                      name="change_reason"
+                      rules={isStatusDecision || selectedDecisionResult === "approved"
+                        ? [{ required: true, whitespace: true, message: "Nhập đầy đủ lý do hoặc căn cứ" }]
+                        : []}
+                    >
+                      <Input.TextArea autoSize={{ minRows: 2, maxRows: 5 }} maxLength={1000} showCount />
+                    </Form.Item>
+                  ) : null}
                   <div className="certification-result-form-grid">
-                    <Form.Item label="Ngày hiệu lực" name="effective_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                    <Form.Item label="Ngày hết hiệu lực" name="expiry_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
+                    {selectedDecisionType !== "MAINTAIN" ? (
+                      <Form.Item
+                        label={selectedDecisionType === "SUSPEND"
+                          ? "Ngày hiệu lực đình chỉ"
+                          : selectedDecisionType === "RESTORE"
+                            ? "Ngày hiệu lực khôi phục"
+                            : selectedDecisionType === "WITHDRAW"
+                              ? "Ngày hiệu lực thu hồi"
+                              : "Ngày hiệu lực"}
+                        name="effective_date"
+                        rules={isStatusDecision ? [{ required: true, message: "Chọn ngày hiệu lực" }] : []}
+                      >
+                        <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+                      </Form.Item>
+                    ) : null}
+                    {selectedDecisionType !== "MAINTAIN" && !isStatusDecision ? <Form.Item label="Ngày hết hiệu lực" name="expiry_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item> : null}
                     <Form.Item label="Người ký" name="signatory_name" rules={[{ required: true, message: "Nhập người ký" }]}><Input /></Form.Item>
                     <Form.Item label="Chức danh" name="signatory_title" rules={[{ required: true }]}><Input /></Form.Item>
                   </div>
+                  <Alert
+                    showIcon
+                    type={isChangeDecision && selectedDecisionResult === "approved" ? "warning" : "info"}
+                    message="Tác động sau khi lưu quyết định"
+                    description={selectedDecisionResult === "approved" ? selectedConsequence : "Kết quả này không cho phép phát hành hoặc thay đổi chứng chỉ."}
+                    style={{ marginBottom: 16 }}
+                  />
                   <Form.Item label="Ghi chú" name="note"><Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
                   <Button disabled={!workspace.can_issue_decision || !canDecision} htmlType="submit" loading={decisionMutation.isPending} type="primary" icon={<SafetyCertificateOutlined />}>Ban hành quyết định</Button>
-                  {!canDecision ? <Text type="secondary" style={{ marginLeft: 12 }}>Chỉ người ra quyết định hoặc quản trị viên được ban hành.</Text> : null}
+                  {!canDecision ? <Text type="secondary" style={{ marginLeft: 12 }}>Chỉ người ra quyết định chứng nhận được ban hành.</Text> : null}
                 </Form>
               </Card>
             )
@@ -632,7 +890,7 @@ export default function CertificationResultWorkspaceModal({
             workspace.notification ? (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 <Alert type={workspace.notification.status === "sent" ? "success" : "info"} showIcon message={workspace.notification.status === "sent" ? "Thông báo đã gửi cho khách hàng" : "Thông báo đã được lập; chưa ghi nhận gửi khách hàng"} />
-                <Card title="F.12-P.09 – Thông báo kết quả đánh giá" extra={<Space>
+                <Card title="Thông báo kết quả đánh giá" extra={<Space>
                   <Button icon={<FileWordOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "notification", format: "docx" })}>Xuất Word</Button>
                   <Button icon={<FilePdfOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "notification", format: "pdf" })}>Xuất PDF</Button>
                   {workspace.notification.status !== "sent" && canManageNotification ? <Button icon={<SendOutlined />} loading={markSentMutation.isPending} onClick={() => markSentMutation.mutate()} type="primary">Đánh dấu đã gửi</Button> : null}
@@ -646,52 +904,27 @@ export default function CertificationResultWorkspaceModal({
                     <Descriptions.Item label="Đánh giá tiếp theo">{formatDate(workspace.notification.next_audit_due_date)}</Descriptions.Item>
                   </Descriptions>
                 </Card>
-                <Card title="Phiên bản F.12 đã sinh">{renderHistory(workspace.notification_history)}</Card>
+                <Card title="Lịch sử tài liệu thông báo">{renderHistory(workspace.notification_history)}</Card>
               </Space>
             ) : (
-              <Card title="Lập thông báo kết quả F.12-P.09">
-                {!workspace.decision && !workspace.is_surveillance ? <Alert showIcon type="warning" message="Chứng nhận lần đầu phải ban hành Quyết định F.13 trước khi lập Thông báo F.12." style={{ marginBottom: 16 }} /> : null}
-                {workspace.is_surveillance && notificationHasChanges && !workspace.decision ? (
-                  <Alert
-                    showIcon
-                    type="warning"
-                    message="Bạn đã chọn có thay đổi chứng nhận"
-                    description="Khi giám sát có thay đổi phạm vi/thông tin chứng nhận, cần lập quyết định F.13 trước khi phát hành F.12."
-                    style={{ marginBottom: 16 }}
-                  />
-                ) : null}
+              <Card title="Lập thông báo kết quả">
+                {!workspace.decision ? <Alert showIcon type="warning" message="Phải ban hành quyết định chứng nhận trước khi lập thông báo kết quả." style={{ marginBottom: 16 }} /> : null}
                 <Form form={notificationForm} layout="vertical" onFinish={(values) => notificationMutation.mutate(values)}>
                   <div className="certification-result-form-grid">
                     <Form.Item label="Số thông báo" name="notification_number" rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item label="Ngày thông báo" name="notification_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-                    {workspace.is_surveillance ? (
-                      <Form.Item label="Có thay đổi thông tin/phạm vi chứng nhận?" name="has_certification_changes">
-                        <Radio.Group
-                          optionType="button"
-                          buttonStyle="solid"
-                          options={[
-                            { label: "Không thay đổi", value: false },
-                            { label: "Có thay đổi", value: true },
-                          ]}
-                          onChange={(event) => {
-                            if (!event.target.value) {
-                              notificationForm.setFieldValue("notification_result", "certification_maintained");
-                            }
-                          }}
-                        />
-                      </Form.Item>
-                    ) : null}
                     <Form.Item label="Kết quả thông báo" name="notification_result" rules={[{ required: true }]}>
                       <Select
-                        disabled={workspace.is_surveillance && !notificationHasChanges}
-                        options={workspace.is_surveillance ? [
-                          { value: "certification_maintained", label: "Duy trì chứng nhận" },
-                          { value: "certification_suspended", label: "Đình chỉ chứng nhận" },
-                          { value: "certification_withdrawn", label: "Thu hồi chứng nhận" },
-                        ] : [
-                          { value: "certification_granted", label: "Cấp chứng nhận" },
-                          { value: "certification_not_granted", label: "Không cấp chứng nhận" },
-                        ]}
+                        disabled
+                        options={workspace.decision?.decision_result === "approved"
+                          ? workspace.decision.decision_type === "SUSPEND"
+                            ? [{ value: "certification_suspended", label: "Đình chỉ chứng nhận" }]
+                            : workspace.decision.decision_type === "WITHDRAW"
+                              ? [{ value: "certification_withdrawn", label: "Thu hồi chứng nhận" }]
+                              : workspace.decision.decision_type === "MAINTAIN" || workspace.decision.decision_type === "RESTORE"
+                            ? [{ value: "certification_maintained", label: "Duy trì chứng nhận" }]
+                            : [{ value: "certification_granted", label: "Chấp thuận chứng nhận" }]
+                          : [{ value: "certification_not_granted", label: "Không chấp thuận chứng nhận" }]}
                       />
                     </Form.Item>
                     <Form.Item label="Ngày đánh giá tiếp theo" name="next_audit_due_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
@@ -718,7 +951,6 @@ export default function CertificationResultWorkspaceModal({
                     disabled={
                       !workspace.can_issue_notification
                       || !canCreateNotification
-                      || (workspace.is_surveillance && notificationHasChanges && !workspace.decision)
                     }
                     htmlType="submit"
                     loading={notificationMutation.isPending}

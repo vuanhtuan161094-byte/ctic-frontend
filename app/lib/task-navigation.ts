@@ -3,6 +3,7 @@ import { api } from "./api";
 export type TaskDestination =
   | "project-detail"
   | "projects"
+  | "applications"
   | "schedule-resources"
   | "certificates";
 

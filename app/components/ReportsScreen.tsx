@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BarChartOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -225,7 +224,15 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
   const [standardFilter, setStandardFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canReadAuditReports = normalizedRoles.some((role) => ["admin", "staff", "auditor"].includes(role));
+  const canReadAuditReports = normalizedRoles.some((role) => [
+    "admin",
+    "staff",
+    "coordinator",
+    "auditor",
+    "lead_auditor",
+    "technical_reviewer",
+    "decision_maker",
+  ].includes(role));
 
   const overviewQuery = useQuery({
     queryKey: ["reports-screen", "overview", warningDays],
@@ -238,7 +245,7 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
   });
 
   const overview = overviewQuery.data;
-  const reports = reportsQuery.data ?? [];
+  const reports = useMemo(() => reportsQuery.data ?? [], [reportsQuery.data]);
   const standards = useMemo(() => Array.from(new Set([
     ...(overview?.recent_projects.map((item) => item.standard_name) ?? []),
     ...reports.map(reportStandard),

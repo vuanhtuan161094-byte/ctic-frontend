@@ -9,25 +9,21 @@ import {
   QrcodeOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
-  SettingOutlined,
   SearchOutlined,
   StopOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Descriptions,
   Drawer,
   Empty,
-  Form,
   Input,
   List,
-  Modal,
   Select,
   Skeleton,
   Space,
@@ -37,8 +33,8 @@ import {
   Timeline,
   Typography,
 } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import dayjs from "dayjs";
+import { useCallback, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { buildPublicApiUrl } from "../lib/deployment-config";
@@ -83,7 +79,14 @@ interface CertificateRecord {
   id: string;
   verification_code?: string | null;
   technical_review_id: string;
+  certificate_series_id?: string | null;
   cert_number: string;
+  version_no?: number | null;
+  organization_name?: string | null;
+  organization_address?: string | null;
+  management_system?: string | null;
+  standard_name?: string | null;
+  certification_scope?: string | null;
   issue_date: string;
   expire_date: string;
   status: string;
@@ -111,6 +114,12 @@ interface CertificateHistoryItem {
     id: string;
     username?: string | null;
     full_name?: string | null;
+  } | null;
+  certification_decision?: {
+    id: string;
+    decision_number: string;
+    decision_type: string;
+    decision_result: string;
   } | null;
 }
 
@@ -144,19 +153,11 @@ interface CertificatesScreenProps {
   roles: string[];
 }
 
-type CertificateActionStatus = "active" | "suspended" | "withdrawn";
-
-interface CertificateStatusFormValues {
-  status: CertificateActionStatus;
-  reason: string;
-  effectiveDate: Dayjs;
-}
-
 const statusLabels: Record<string, string> = {
   active: "Đang hiệu lực",
-  expired: "Đã hết hạn",
-  replaced: "Đã thay thế",
-  suspended: "Tạm đình chỉ",
+  expired: "Hết hiệu lực",
+  replaced: "Đã được thay thế",
+  suspended: "Đình chỉ",
   withdrawn: "Đã thu hồi",
   completed: "Đã hoàn thành",
 };
@@ -202,11 +203,15 @@ function daysUntil(value?: string | null) {
 }
 
 function certificateOrganization(certificate: CertificateRecord) {
-  return certificate.technical_reviews?.certification_decision?.organization_name ?? "Chưa cập nhật tổ chức";
+  return certificate.organization_name
+    ?? certificate.technical_reviews?.certification_decision?.organization_name
+    ?? "Chưa cập nhật tổ chức";
 }
 
 function certificateStandard(certificate: CertificateRecord) {
-  return certificate.technical_reviews?.certification_decision?.standard_name ?? "Chưa cập nhật tiêu chuẩn";
+  return certificate.standard_name
+    ?? certificate.technical_reviews?.certification_decision?.standard_name
+    ?? "Chưa cập nhật tiêu chuẩn";
 }
 
 async function optionalRequest<T>(request: Promise<{ data: T }>, fallback: T): Promise<T> {
@@ -220,44 +225,23 @@ async function optionalRequest<T>(request: Promise<{ data: T }>, fallback: T): P
   }
 }
 
-const statusActionLabels: Record<CertificateActionStatus, string> = {
-  active: "Khôi phục hiệu lực",
-  suspended: "Tạm đình chỉ",
-  withdrawn: "Thu hồi chứng chỉ",
-};
-
-function availableTransitions(status?: string | null) {
-  const normalized = normalize(status);
-  if (normalized === "active") {
-    return [
-      { value: "suspended" as const, label: statusActionLabels.suspended },
-      { value: "withdrawn" as const, label: statusActionLabels.withdrawn },
-    ];
-  }
-  if (normalized === "suspended") {
-    return [
-      { value: "active" as const, label: statusActionLabels.active },
-      { value: "withdrawn" as const, label: statusActionLabels.withdrawn },
-    ];
-  }
-  return [];
-}
-
-export function CertificatesScreen({ initialCertificateId, roles }: CertificatesScreenProps) {
-  const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(initialCertificateId ?? null);
+export function CertificatesScreen({ initialCertificateId }: CertificatesScreenProps) {
+  const selectionContext = initialCertificateId ?? null;
+  const [certificateSelection, setCertificateSelection] = useState<{
+    context: string | null;
+    certificateId: string | null;
+  } | null>(null);
+  const selectedCertificateId = certificateSelection?.context === selectionContext
+    ? certificateSelection.certificateId
+    : selectionContext;
+  const setSelectedCertificateId = useCallback((certificateId: string | null) => {
+    setCertificateSelection({ context: selectionContext, certificateId });
+  }, [selectionContext]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [standardFilter, setStandardFilter] = useState("all");
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
-  const [statusModalOpen, setStatusModalOpen] = useState(false);
-  const [targetStatus, setTargetStatus] = useState<CertificateActionStatus | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [statusForm] = Form.useForm<CertificateStatusFormValues>();
-
-  useEffect(() => {
-    if (initialCertificateId) setSelectedCertificateId(initialCertificateId);
-  }, [initialCertificateId]);
 
   const certificatesQuery = useQuery({
     queryKey: ["certificates", "workspace"],
@@ -291,35 +275,8 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
   });
 
   const selectedCertificate = workspaceQuery.data?.certificate;
-  const transitions = availableTransitions(selectedCertificate?.status);
-  const canManageCertificate = roles.some((role) => ["admin", "decision_maker"].includes(normalize(role)));
 
-  const statusMutation = useMutation({
-    mutationFn: async (values: CertificateStatusFormValues) => {
-      if (!selectedCertificateId) throw new Error("Chưa chọn chứng chỉ");
-      const response = await api.patch<CertificateRecord>(`/certificates/${selectedCertificateId}/status`, {
-        status: values.status,
-        reason: values.reason.trim(),
-        effective_date: values.effectiveDate.format("YYYY-MM-DD"),
-      });
-      return response.data;
-    },
-    onSuccess: async (_, variables) => {
-      setStatusModalOpen(false);
-      setTargetStatus(null);
-      statusForm.resetFields();
-      setActionFeedback({
-        type: "success",
-        message: `${statusActionLabels[variables.status]} thành công. Lịch sử đã ghi nhận tài khoản thực hiện.`,
-      });
-      await Promise.all([certificatesQuery.refetch(), workspaceQuery.refetch()]);
-    },
-    onError: (error) => {
-      setActionFeedback({ type: "error", message: getErrorMessage(error) });
-    },
-  });
-
-  const certificates = certificatesQuery.data ?? [];
+  const certificates = useMemo(() => certificatesQuery.data ?? [], [certificatesQuery.data]);
   const standards = useMemo(
     () => Array.from(new Set(certificates.map(certificateStandard).filter((value) => !value.startsWith("Chưa ")))).sort(),
     [certificates],
@@ -386,9 +343,24 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
       render: (_, record) => (
         <div className="certificate-primary-cell">
           <strong>{certificateOrganization(record)}</strong>
-          <span>{record.technical_reviews?.certification_decision?.organization_address ?? "Chưa cập nhật địa chỉ"}</span>
+          <span>{record.organization_address ?? record.technical_reviews?.certification_decision?.organization_address ?? "Chưa cập nhật địa chỉ"}</span>
         </div>
       ),
+    },
+    {
+      title: "Phiên bản",
+      dataIndex: "version_no",
+      key: "version_no",
+      width: 90,
+      render: (value?: number | null) => value ?? 1,
+    },
+    {
+      title: "Vai trò phiên bản",
+      key: "version_role",
+      width: 125,
+      render: (_, record) => normalize(record.status) === "replaced"
+        ? <Tag>Lịch sử</Tag>
+        : <Tag color="blue">Hiện hành</Tag>,
     },
     {
       title: "Tiêu chuẩn",
@@ -421,7 +393,7 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
       width: 95,
       render: (_, record) => <Button icon={<EyeOutlined />} onClick={() => setSelectedCertificateId(record.id)} size="small">Chi tiết</Button>,
     },
-  ], []);
+  ], [setSelectedCertificateId]);
 
   const decision = selectedCertificate?.technical_reviews?.certification_decision;
   const notification = selectedCertificate?.technical_reviews?.audit_result_notification;
@@ -437,19 +409,6 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
   const qrUrl = selectedCertificate?.verification_code
     ? buildPublicApiUrl(`/public/certificates/${selectedCertificate.verification_code}/qr`)
     : null;
-
-  const openStatusModal = () => {
-    const firstTransition = transitions[0];
-    if (!firstTransition) return;
-    setActionFeedback(null);
-    setTargetStatus(firstTransition.value);
-    statusForm.setFieldsValue({
-      status: firstTransition.value,
-      reason: "",
-      effectiveDate: dayjs(),
-    });
-    setStatusModalOpen(true);
-  };
 
   return (
     <div className="certificates-screen">
@@ -513,8 +472,6 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
         onClose={() => {
           setSelectedCertificateId(null);
           setDocumentError(null);
-          setActionFeedback(null);
-          setStatusModalOpen(false);
         }}
         open={Boolean(selectedCertificateId)}
         title={(
@@ -546,31 +503,19 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
                 </div>
                 <div className="certificate-identity-controls">
                   <CertificateStatusTag status={selectedCertificate.status} />
-                  {canManageCertificate && transitions.length ? (
-                    <Button icon={<SettingOutlined />} onClick={openStatusModal}>Quản lý trạng thái</Button>
-                  ) : null}
                 </div>
               </div>
               <Descriptions column={2} size="small">
                 <Descriptions.Item label="Tổ chức" span={2}>{certificateOrganization(selectedCertificate)}</Descriptions.Item>
                 <Descriptions.Item label="Tiêu chuẩn">{certificateStandard(selectedCertificate)}</Descriptions.Item>
-                <Descriptions.Item label="Hệ thống">{decision?.management_system ?? "—"}</Descriptions.Item>
+                <Descriptions.Item label="Phiên bản">{selectedCertificate.version_no ?? 1}</Descriptions.Item>
+                <Descriptions.Item label="Hệ thống">{selectedCertificate.management_system ?? decision?.management_system ?? "—"}</Descriptions.Item>
                 <Descriptions.Item label="Ngày cấp">{formatDate(selectedCertificate.issue_date)}</Descriptions.Item>
                 <Descriptions.Item label="Hết hạn">{formatDate(selectedCertificate.expire_date)}</Descriptions.Item>
-                <Descriptions.Item label="Phạm vi" span={2}>{decision?.certification_scope ?? "Chưa cập nhật phạm vi"}</Descriptions.Item>
+                <Descriptions.Item label="Phạm vi" span={2}>{selectedCertificate.certification_scope ?? decision?.certification_scope ?? "Chưa cập nhật phạm vi"}</Descriptions.Item>
                 <Descriptions.Item label="Mã xác minh" span={2}><Text copyable={Boolean(selectedCertificate.verification_code)}>{selectedCertificate.verification_code ?? "Chưa có"}</Text></Descriptions.Item>
               </Descriptions>
             </section>
-
-            {actionFeedback ? (
-              <Alert
-                closable
-                message={actionFeedback.message}
-                onClose={() => setActionFeedback(null)}
-                showIcon
-                type={actionFeedback.type}
-              />
-            ) : null}
 
             {documentError ? <Alert closable description={documentError} message="Không mở được tài liệu" onClose={() => setDocumentError(null)} showIcon type="error" /> : null}
 
@@ -633,8 +578,8 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
                     children: (
                       <div className="certificate-history-item">
                         <strong>{statusLabel(item.from_status)} → {statusLabel(item.to_status)}</strong>
-                        <span>{item.reason}</span>
-                        <small>{formatDate(item.effective_date)} · {item.changed_by_user?.full_name ?? item.changed_by_user?.username ?? "Hệ thống"}</small>
+                        <span>{item.certification_decision?.decision_number ? `Quyết định ${item.certification_decision.decision_number} · ` : ""}{item.reason}</span>
+                        <small>{formatDate(item.effective_date)} · {item.changed_by_user?.full_name ?? item.changed_by_user?.username ?? "Hệ thống"} · {dayjs(item.created_at).format("DD/MM/YYYY HH:mm")}</small>
                       </div>
                     ),
                   }))}
@@ -645,92 +590,6 @@ export function CertificatesScreen({ initialCertificateId, roles }: Certificates
         ) : null}
       </Drawer>
 
-      <Modal
-        cancelText="Hủy"
-        className="certificate-status-modal"
-        confirmLoading={statusMutation.isPending}
-        destroyOnHidden
-        okText="Xác nhận thay đổi"
-        onCancel={() => {
-          setStatusModalOpen(false);
-          setTargetStatus(null);
-          statusForm.resetFields();
-        }}
-        onOk={() => statusForm.submit()}
-        open={statusModalOpen}
-        title="Quản lý trạng thái chứng chỉ"
-      >
-        <Form<CertificateStatusFormValues>
-          form={statusForm}
-          layout="vertical"
-          onFinish={(values) => statusMutation.mutate(values)}
-        >
-          <Form.Item
-            label="Thao tác"
-            name="status"
-            rules={[{ required: true, message: "Chọn thao tác cần thực hiện" }]}
-          >
-            <Select
-              onChange={(value: CertificateActionStatus) => setTargetStatus(value)}
-              options={transitions}
-            />
-          </Form.Item>
-
-          {targetStatus === "withdrawn" ? (
-            <Alert
-              className="certificate-status-warning"
-              description="Chứng chỉ đã thu hồi không thể khôi phục. Chỉ xác nhận khi quyết định thu hồi đã được phê duyệt."
-              message="Thao tác không thể hoàn tác"
-              showIcon
-              type="warning"
-            />
-          ) : targetStatus === "suspended" ? (
-            <Alert
-              className="certificate-status-warning"
-              description="Mã QR và trang tra cứu công khai sẽ tạm ngừng xác nhận hiệu lực cho đến khi chứng chỉ được khôi phục."
-              message="Tạm đình chỉ hiệu lực"
-              showIcon
-              type="info"
-            />
-          ) : targetStatus === "active" ? (
-            <Alert
-              className="certificate-status-warning"
-              description="Hệ thống sẽ khôi phục tra cứu công khai và hiệu lực của chứng chỉ từ ngày được chọn."
-              message="Khôi phục hiệu lực"
-              showIcon
-              type="success"
-            />
-          ) : null}
-
-          <Form.Item
-            label="Ngày hiệu lực"
-            name="effectiveDate"
-            rules={[{ required: true, message: "Chọn ngày hiệu lực" }]}
-          >
-            <DatePicker allowClear={false} format="DD/MM/YYYY" style={{ width: "100%" }} />
-          </Form.Item>
-
-          <Form.Item
-            label="Lý do"
-            name="reason"
-            rules={[
-              { required: true, whitespace: true, message: "Nhập lý do thay đổi trạng thái" },
-              { min: 10, message: "Lý do cần có ít nhất 10 ký tự" },
-            ]}
-          >
-            <Input.TextArea
-              maxLength={1000}
-              placeholder="Nêu căn cứ và lý do thực hiện..."
-              rows={4}
-              showCount
-            />
-          </Form.Item>
-
-          <Text type="secondary">
-            Hành động được xác nhận bằng tài khoản đang đăng nhập và được lưu trong lịch sử chứng chỉ.
-          </Text>
-        </Form>
-      </Modal>
     </div>
   );
 }

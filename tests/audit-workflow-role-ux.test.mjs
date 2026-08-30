@@ -42,8 +42,11 @@ test("Stage 1 and Stage 2 inherit F04 roles while surveillance and recertificati
 
 test("project detail keeps the full dossier and provides direct period navigation", async () => {
   const source = await readFile(projectDetailUrl, "utf8");
-  assert.match(source, /onOpenAuditPlan=\{onOpenAuditPlan\}/);
-  assert.match(source, /Hồ sơ theo kỳ/);
+  assert.match(source, /documentType: "audit_plan_f05"/);
+  assert.match(source, /initialPlanId=\{coordinationTarget\}/);
+  assert.match(source, /effectiveNextAction/);
+  assert.match(source, /title="Chu kỳ chứng nhận"/);
+  assert.match(source, /appointmentEditorOnly/);
   assert.match(source, /Hồ sơ chứng nhận lần đầu/);
   assert.match(source, /surveillance_/);
 });
@@ -68,10 +71,11 @@ test("dossier chronology separates Stage 1 from Stage 2 and uses professional of
   assert.match(source, /title: "Chuẩn bị & Giai đoạn 1"/);
   assert.match(source, /keys: \["audit_team_assignment", "audit_program", "stage1_audit_plan", "stage1_audit_report"\]/);
   assert.match(source, /title: "Giai đoạn 2 & khắc phục"/);
-  assert.match(source, /keys: \["stage2_audit_plan", "audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap"\]/);
+  assert.match(source, /keys: \["stage2_audit_plan", "audit_checklist", "opening_closing_attendance", "stage2_audit_report", "nc_cap", "audit_log"\]/);
   assert.match(source, /Tải lên PDF chính thức/);
   assert.match(source, /PDF chính thức/);
-  assert.match(source, />Đủ dữ liệu<\/Tag>/);
+  assert.match(source, /DossierBusinessStatusTag/);
+  assert.match(source, /Chưa sinh Word/);
   assert.doesNotMatch(source, /PDF chốt|chốt PDF|đã ký\/chốt/);
 });
 

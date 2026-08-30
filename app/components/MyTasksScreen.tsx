@@ -14,8 +14,10 @@ import {
   Alert,
   Button,
   Card,
+  Descriptions,
   Empty,
   Input,
+  Modal,
   Select,
   Skeleton,
   Space,
@@ -29,33 +31,50 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
-import {
-  resolveTaskNavigation,
-  type TaskDestination,
-} from "../lib/task-navigation";
 
 const { Text, Title } = Typography;
 
-type TaskPriority = "critical" | "high" | "normal";
+type TaskPriority = "URGENT" | "HIGH" | "NORMAL" | "LOW";
 type TimeFilter = "all" | "overdue" | "due_soon" | "no_due";
+type StatusFilter = "ACTIVE" | "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
 interface WorkTaskItem {
   id: string;
-  task_type: string;
+  work_type: string;
+  action_code: string;
   title: string;
-  description: string;
-  group: string;
+  description: string | null;
   priority: TaskPriority;
-  source_status: string;
+  status: string;
   entity_type: string;
-  entity_id: string | null;
+  entity_id: string;
   project_id: string | null;
   project_code: string | null;
   organization_name: string | null;
   assignee: string | null;
-  due_date: string | null;
-  destination: TaskDestination;
-  target_id: string | null;
+  due_at: string | null;
+  is_overdue: boolean;
+  sla_state: string;
+  sla_label: string;
+  days_until_due: number | null;
+  days_overdue: number;
+  escalation_level: 1 | 2 | 3 | null;
+  destination_path: string | null;
+  context: Record<string, unknown> | null;
+  can_execute: boolean;
+  can_view?: boolean;
+  is_delegated: boolean;
+  delegated_from_user?: {
+    id: string;
+    username: string;
+    full_name?: string | null;
+  } | null;
+  delegation_validity?: {
+    effective_from: string;
+    effective_to: string;
+  } | null;
+  cycle_key?: string | null;
+  audit_event_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -76,22 +95,45 @@ interface WorkTaskResponse {
 
 interface MyTasksScreenProps {
   roles: string[];
-  onNavigate: (destination: TaskDestination, entityId?: string | null) => void;
+  onOpenPath: (
+    path: string | null,
+    context?: Record<string, unknown> | null,
+  ) => void;
 }
 
 const priorityMeta: Record<
   TaskPriority,
   { color: string; label: string }
 > = {
-  critical: { color: "red", label: "Khẩn cấp" },
-  high: { color: "orange", label: "Ưu tiên cao" },
-  normal: { color: "blue", label: "Bình thường" },
+  URGENT: { color: "red", label: "Khẩn cấp" },
+  HIGH: { color: "orange", label: "Ưu tiên cao" },
+  NORMAL: { color: "blue", label: "Bình thường" },
+  LOW: { color: "default", label: "Ưu tiên thấp" },
 };
+
+const workTypeLabels: Record<string, string> = {
+  APPLICATION_REVIEW: "Xem xét đăng ký",
+  SURVEILLANCE_CHANGE_REVIEW: "Rà soát thay đổi giám sát",
+  F04_TEAM_APPOINTMENT: "Bổ nhiệm đoàn đánh giá",
+  AUDIT_PLAN: "Kế hoạch đánh giá",
+  AUDIT_EXECUTION: "Thực hiện đánh giá",
+  CAP_ACTION_OR_REVIEW: "NC / Hành động khắc phục",
+  REVIEWER_ASSIGNMENT: "Phân công người thẩm xét",
+  TECHNICAL_REVIEW: "Thẩm xét kỹ thuật",
+  CERTIFICATION_DECISION: "Quyết định chứng nhận",
+  CERTIFICATE_ISSUE: "Phát hành chứng chỉ",
+};
+
+function getWorkTypeLabel(value: string) {
+  return workTypeLabels[value] ?? value.replaceAll("_", " ");
+}
 
 const statusLabels: Record<string, string> = {
   active: "Đang hiệu lực",
   assigned: "Đã phân công",
   corrective_action_required: "Chờ khắc phục NC",
+  cancelled: "Đã hủy",
+  done: "Đã hoàn thành",
   draft: "Bản nháp",
   in_progress: "Đang xử lý",
   in_review: "Đang thẩm xét",
@@ -100,6 +142,7 @@ const statusLabels: Record<string, string> = {
   pending_decision: "Chờ quyết định",
   pending_technical_review: "Chờ thẩm xét kỹ thuật",
   planned: "Đã lập kế hoạch",
+  open: "Mới mở",
   project_created: "Đã tạo hồ sơ",
   resubmitted: "Đã gửi lại",
   response_submitted: "Đã gửi phản hồi",
@@ -163,25 +206,30 @@ function getDueMeta(value?: string | null) {
   };
 }
 
-export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
+export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [openingItemId, setOpeningItemId] = useState<string | null>(null);
+  const [historyItem, setHistoryItem] = useState<WorkTaskItem | null>(null);
 
   const taskQuery = useQuery({
-    queryKey: ["work-tasks", "me"],
+    queryKey: ["work-tasks", "me", statusFilter],
     queryFn: async () => {
+      const statusQuery = statusFilter === "ACTIVE"
+        ? ""
+        : `&status=${statusFilter}`;
       const response = await api.get<WorkTaskResponse>(
-        "/notifications/me/tasks?limit=200",
+        `/my-work?limit=200${statusQuery}`,
       );
       return response.data;
     },
     staleTime: 20_000,
   });
 
-  const items = taskQuery.data?.items ?? [];
+  const items = useMemo(() => taskQuery.data?.items ?? [], [taskQuery.data?.items]);
   const summary = taskQuery.data?.summary ?? {
     total: 0,
     overdue: 0,
@@ -191,9 +239,9 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
 
   const groupOptions = useMemo(
     () =>
-      Array.from(new Set(items.map((item) => item.group)))
+      Array.from(new Set(items.map((item) => item.work_type)))
         .sort((left, right) => left.localeCompare(right, "vi"))
-        .map((value) => ({ value, label: value })),
+        .map((value) => ({ value, label: getWorkTypeLabel(value) })),
     [items],
   );
 
@@ -204,7 +252,7 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
     return items.filter((item) => {
       if (
         priorityFilter === "important" &&
-        !["critical", "high"].includes(item.priority)
+        !["URGENT", "HIGH"].includes(item.priority)
       ) {
         return false;
       }
@@ -216,23 +264,23 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
         return false;
       }
 
-      if (groupFilter !== "all" && item.group !== groupFilter) {
+      if (groupFilter !== "all" && item.work_type !== groupFilter) {
         return false;
       }
 
-      if (timeFilter === "no_due" && item.due_date) {
+      if (timeFilter === "no_due" && item.due_at) {
         return false;
       }
 
       if (timeFilter === "overdue") {
-        if (!item.due_date || !dayjs(item.due_date).startOf("day").isBefore(today)) {
+        if (!item.due_at || !dayjs(item.due_at).startOf("day").isBefore(today)) {
           return false;
         }
       }
 
       if (timeFilter === "due_soon") {
-        if (!item.due_date) return false;
-        const days = dayjs(item.due_date).startOf("day").diff(today, "day");
+        if (!item.due_at) return false;
+        const days = dayjs(item.due_at).startOf("day").diff(today, "day");
         if (days < 0 || days > 7) return false;
       }
 
@@ -241,11 +289,11 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
       return [
         item.title,
         item.description,
-        item.group,
+        getWorkTypeLabel(item.work_type),
         item.project_code,
         item.organization_name,
         item.assignee,
-        getStatusLabel(item.source_status),
+        getStatusLabel(item.status),
       ]
         .filter(Boolean)
         .join(" ")
@@ -255,33 +303,32 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
   }, [groupFilter, items, priorityFilter, searchTerm, timeFilter]);
 
   const openTask = async (item: WorkTaskItem) => {
+    // Completed/cancelled work and SoD-blocked work remain inspectable, but
+    // must not reopen a mutable business workspace.
+    if (!item.can_execute && item.can_view) {
+      setHistoryItem(item);
+      return;
+    }
+
     setOpeningItemId(item.id);
 
     try {
-      if (item.destination && (item.target_id || item.destination === "projects")) {
-        onNavigate(item.destination, item.target_id);
-        return;
+      if (!item.destination_path) {
+        throw new Error("Công việc chưa có đường dẫn đích hợp lệ.");
       }
 
-      const target = await resolveTaskNavigation(
-        item.entity_type,
-        item.entity_id,
-      );
-
-      onNavigate(target.destination, target.entityId);
+      onOpenPath(item.destination_path, item.context);
     } catch (error) {
       const detail = error instanceof Error && error.constructor === Error
         ? error.message
         : getErrorMessage(error);
-      message.warning(`${detail} Đã mở danh sách hồ sơ để tiếp tục tra cứu.`);
-      onNavigate("projects", null);
+      message.warning(detail);
     } finally {
       setOpeningItemId(null);
     }
   };
 
-  const columns = useMemo<TableColumnsType<WorkTaskItem>>(
-    () => [
+  const columns: TableColumnsType<WorkTaskItem> = [
       {
         title: "Công việc cần xử lý",
         key: "task",
@@ -291,13 +338,18 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
             <div>
               <Space size={8} wrap>
                 <Text strong>{item.title}</Text>
+                {item.is_delegated ? (
+                  <Tag color="purple">
+                    Xử lý thay cho {item.delegated_from_user?.full_name || item.delegated_from_user?.username || "người ủy quyền"}
+                  </Tag>
+                ) : <Tag color="blue">Việc của tôi</Tag>}
                 {item.project_code ? (
                   <Tag className="task-project-code">{item.project_code}</Tag>
                 ) : null}
               </Space>
               <p>{item.description}</p>
               <small>
-                {item.organization_name ?? item.group}
+                {item.organization_name ?? getWorkTypeLabel(item.work_type)}
                 {item.assignee ? ` · Phụ trách: ${item.assignee}` : ""}
               </small>
             </div>
@@ -306,14 +358,14 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
       },
       {
         title: "Nhóm nghiệp vụ",
-        dataIndex: "group",
+        dataIndex: "work_type",
         key: "group",
         width: 205,
         responsive: ["md"],
         render: (value: string, item) => (
           <div className="table-primary-cell">
-            <span>{value}</span>
-            <small>{getStatusLabel(item.source_status)}</small>
+            <span>{getWorkTypeLabel(value)}</span>
+            <small>{getStatusLabel(item.status)}</small>
           </div>
         ),
       },
@@ -330,13 +382,30 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
         ),
       },
       {
+        title: "Trạng thái",
+        dataIndex: "status",
+        key: "status",
+        width: 145,
+        responsive: ["lg"],
+        render: (status: string) => <Tag>{getStatusLabel(status)}</Tag>,
+      },
+      {
         title: "Hạn xử lý",
-        dataIndex: "due_date",
-        key: "due_date",
+        dataIndex: "due_at",
+        key: "due_at",
         width: 155,
-        render: (value: string | null) => {
+        render: (value: string | null, item) => {
           const due = getDueMeta(value);
-          return <span className={due.className}>{due.label}</span>;
+          return (
+            <Space direction="vertical" size={2}>
+              <span className={due.className}>{item.sla_label || due.label}</span>
+              {item.escalation_level ? (
+                <Tag color={item.escalation_level === 3 ? "red" : "orange"}>
+                  Mức cảnh báo {item.escalation_level}
+                </Tag>
+              ) : null}
+            </Space>
+          );
         },
       },
       {
@@ -346,19 +415,18 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
         fixed: "right",
         render: (_, item) => (
           <Button
+            disabled={!item.can_execute && !item.can_view}
             icon={<EyeOutlined />}
             loading={openingItemId === item.id}
             onClick={() => void openTask(item)}
             size="small"
             type="primary"
           >
-            Mở
+            {item.can_execute ? "Mở" : "Xem"}
           </Button>
         ),
       },
-    ],
-    [openingItemId],
-  );
+    ];
 
   if (taskQuery.isLoading) {
     return (
@@ -469,14 +537,27 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
             value={timeFilter}
           />
           <Select
+            aria-label="Lọc trạng thái"
+            onChange={setStatusFilter}
+            options={[
+              { value: "ACTIVE", label: "Đang hoạt động" },
+              { value: "OPEN", label: "Mới mở" },
+              { value: "IN_PROGRESS", label: "Đang xử lý" },
+              { value: "DONE", label: "Đã hoàn thành" },
+              { value: "CANCELLED", label: "Đã hủy" },
+            ]}
+            value={statusFilter}
+          />
+          <Select
             aria-label="Lọc mức ưu tiên"
             onChange={setPriorityFilter}
             options={[
               { value: "all", label: "Tất cả ưu tiên" },
               { value: "important", label: "Khẩn cấp & ưu tiên cao" },
-              { value: "critical", label: "Khẩn cấp" },
-              { value: "high", label: "Ưu tiên cao" },
-              { value: "normal", label: "Bình thường" },
+              { value: "URGENT", label: "Khẩn cấp" },
+              { value: "HIGH", label: "Ưu tiên cao" },
+              { value: "NORMAL", label: "Bình thường" },
+              { value: "LOW", label: "Ưu tiên thấp" },
             ]}
             value={priorityFilter}
           />
@@ -507,12 +588,46 @@ export function MyTasksScreen({ onNavigate }: MyTasksScreenProps) {
             showSizeChanger: false,
             showTotal: (total) => `${total} công việc`,
           }}
-          rowClassName={(item) => `task-row-priority-${item.priority}`}
+          rowClassName={(item) => `task-row-priority-${item.priority.toLowerCase()}`}
           rowKey="id"
           scroll={{ x: 1040 }}
           size="middle"
         />
       </Card>
+
+      <Modal
+        footer={<Button onClick={() => setHistoryItem(null)}>Đóng</Button>}
+        onCancel={() => setHistoryItem(null)}
+        open={Boolean(historyItem)}
+        title="Chi tiết công việc — chỉ xem"
+      >
+        {historyItem ? (
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="Công việc">{historyItem.title}</Descriptions.Item>
+            <Descriptions.Item label="Nhóm nghiệp vụ">{getWorkTypeLabel(historyItem.work_type)}</Descriptions.Item>
+            <Descriptions.Item label="Trạng thái">{getStatusLabel(historyItem.status)}</Descriptions.Item>
+            <Descriptions.Item label="Hồ sơ / dự án">
+              {historyItem.project_code || historyItem.organization_name || "—"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Người phụ trách">{historyItem.assignee || "—"}</Descriptions.Item>
+            <Descriptions.Item label="Hạn xử lý">{formatDateTime(historyItem.due_at)}</Descriptions.Item>
+            <Descriptions.Item label="Cập nhật cuối">{formatDateTime(historyItem.updated_at)}</Descriptions.Item>
+            <Descriptions.Item label="Mô tả">{historyItem.description || "—"}</Descriptions.Item>
+            {historyItem.is_delegated ? (
+              <Descriptions.Item label="Ủy quyền">
+                Xử lý thay cho {historyItem.delegated_from_user?.full_name || historyItem.delegated_from_user?.username || "người ủy quyền"}
+              </Descriptions.Item>
+            ) : null}
+          </Descriptions>
+        ) : null}
+        <Alert
+          description="Chỉ hiển thị dấu vết công việc; không mở lại thao tác nghiệp vụ đã hoàn thành, đã hủy hoặc đang bị chặn bởi phân quyền/SoD."
+          message="Chế độ lịch sử"
+          showIcon
+          style={{ marginTop: 16 }}
+          type="info"
+        />
+      </Modal>
 
       <Text className="my-tasks-updated-at" type="secondary">
         Dữ liệu cập nhật lúc {formatDateTime(taskQuery.data?.generated_at)}

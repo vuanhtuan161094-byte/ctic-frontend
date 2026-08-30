@@ -154,8 +154,8 @@ export default function CommercialDocumentsPanel({
     staleTime: 60_000,
   });
 
-  const contractFiles = contractFilesQuery.data ?? [];
-  const agreementFiles = agreementFilesQuery.data ?? [];
+  const contractFiles = useMemo(() => contractFilesQuery.data ?? [], [contractFilesQuery.data]);
+  const agreementFiles = useMemo(() => agreementFilesQuery.data ?? [], [agreementFilesQuery.data]);
 
   const contractSigned = useMemo(
     () => newestCurrent(contractFiles, "signed_scan"),

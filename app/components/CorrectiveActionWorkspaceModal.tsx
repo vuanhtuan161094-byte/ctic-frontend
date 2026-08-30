@@ -40,7 +40,7 @@ import {
 } from "antd";
 import type { UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile } from "../lib/document-file-client";
@@ -54,6 +54,7 @@ const { Text, Title } = Typography;
 interface CorrectiveActionWorkspaceModalProps {
   open: boolean;
   planId: string | null;
+  initialFindingId?: string | null;
   roles: string[];
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
@@ -206,6 +207,7 @@ function isNc(finding: AuditFindingDetail) {
 export default function CorrectiveActionWorkspaceModal({
   open,
   planId,
+  initialFindingId = null,
   roles,
   onClose,
   onChanged,
@@ -319,6 +321,18 @@ export default function CorrectiveActionWorkspaceModal({
     () => findingsData.filter(isNc),
     [findingsData],
   );
+
+  useEffect(() => {
+    if (!open || !initialFindingId) return;
+    const focused = allNc.find((item) => item.id === initialFindingId);
+    if (!focused) return;
+    const timer = window.setTimeout(() => {
+      setFilter(normalize(focused.status) === "closed" ? "all" : "open");
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [allNc, initialFindingId, open]);
+
   const summary = useMemo(() => {
     const closed = allNc.filter((item) => normalize(item.status) === "closed").length;
     const waitingReview = allNc.filter((item) =>
@@ -338,10 +352,19 @@ export default function CorrectiveActionWorkspaceModal({
   }, [allNc]);
 
   const filteredNc = useMemo(() => {
-    if (filter === "closed") return allNc.filter((item) => normalize(item.status) === "closed");
-    if (filter === "open") return allNc.filter((item) => normalize(item.status) !== "closed");
-    return allNc;
-  }, [allNc, filter]);
+    const visible = filter === "closed"
+      ? allNc.filter((item) => normalize(item.status) === "closed")
+      : filter === "open"
+        ? allNc.filter((item) => normalize(item.status) !== "closed")
+        : [...allNc];
+
+    if (!initialFindingId) return visible;
+    return [...visible].sort((left, right) => {
+      if (left.id === initialFindingId) return -1;
+      if (right.id === initialFindingId) return 1;
+      return 0;
+    });
+  }, [allNc, filter, initialFindingId]);
 
   const f10CardByFinding = useMemo(() => {
     const map = new Map<string, AuditDocumentCard>();
@@ -706,6 +729,7 @@ export default function CorrectiveActionWorkspaceModal({
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", width: "100%" }}>
                 <Space wrap>
                   <strong>{finding.finding_code}</strong>
+                  {finding.id === initialFindingId ? <Tag color="blue">Công việc đang mở</Tag> : null}
                   <Tag color={normalize(finding.finding_type) === "major_nc" ? "red" : "orange"}>
                     {ncTypeLabels[normalize(finding.finding_type)] ?? finding.finding_type}
                   </Tag>

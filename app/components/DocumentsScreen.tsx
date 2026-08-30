@@ -4,9 +4,7 @@ import {
   ClockCircleOutlined,
   DownloadOutlined,
   EyeOutlined,
-  FileDoneOutlined,
   FileOutlined,
-  FolderOpenOutlined,
   HistoryOutlined,
   LinkOutlined,
   ReloadOutlined,
@@ -18,6 +16,7 @@ import {
   Alert,
   Button,
   Card,
+  Collapse,
   Descriptions,
   Drawer,
   Empty,
@@ -26,7 +25,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -36,7 +34,9 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
-import { downloadDocumentFile, openDocumentFile } from "../lib/document-file-client";
+import { downloadDocumentFile } from "../lib/document-file-client";
+import { DocumentPreviewModal, type PreviewableFile } from "./DocumentPreviewModal";
+import { ControlledDocumentPanel } from "./ControlledDocumentPanel";
 
 const { Text, Title } = Typography;
 
@@ -128,6 +128,7 @@ const entityTypeLabels: Record<string, string> = {
 const fileKindLabels: Record<string, string> = {
   attachment: "Tệp đính kèm",
   generated_docx: "Word hệ thống",
+  generated_xlsx: "Excel hệ thống",
   generated_pdf: "PDF hệ thống",
   signed_pdf: "PDF đã xác nhận",
   signed_scan: "Bản quét đã xác nhận",
@@ -188,7 +189,7 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
   const [entityTypeFilter, setEntityTypeFilter] = useState("all");
   const [versionFilter, setVersionFilter] = useState("current");
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const documentsQuery = useQuery({
@@ -256,7 +257,11 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
   }, [documentTypeFilter, documentsQuery.data?.items, entityTypeFilter, searchTerm, versionFilter]);
 
   const openFile = async (record: DocumentRecord, download = false) => {
-    const setter = download ? setDownloadingId : setOpeningId;
+    if (!download) {
+      setPreviewFile({ id: record.id, original_name: record.original_name, mime_type: record.mime_type });
+      return;
+    }
+    const setter = setDownloadingId;
     setter(record.id);
     try {
       const request = {
@@ -264,11 +269,7 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
         filename: record.original_name,
         mimeType: record.mime_type,
       };
-      if (download) {
-        await downloadDocumentFile(request);
-      } else {
-        await openDocumentFile({ ...request, title: record.original_name });
-      }
+      await downloadDocumentFile(request);
     } catch (error) {
       message.error(getErrorMessage(error));
     } finally {
@@ -339,8 +340,8 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
       <div className="documents-heading">
         <div>
           <span className="eyebrow">QUẢN LÝ CHỨNG NHẬN</span>
-          <Title level={2}>Tài liệu</Title>
-          <Text type="secondary">Tra cứu hồ sơ điện tử, tệp hiện hành và toàn bộ lịch sử phiên bản.</Text>
+          <Title level={2}>Tài liệu & Mẫu biểu</Title>
+          <Text type="secondary">Quản lý tài liệu, mẫu biểu và hồ sơ trong một luồng đơn giản; kho tệp nghiệp vụ khác được thu gọn bên dưới khi cần tra cứu.</Text>
         </div>
         <Button icon={<ReloadOutlined />} loading={documentsQuery.isFetching} onClick={() => void documentsQuery.refetch()}>Làm mới</Button>
       </div>
@@ -350,22 +351,25 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
 
       {documentsQuery.data ? (
         <>
-          <section className="document-summary-grid" aria-label="Tổng hợp tài liệu">
-            <Card><Statistic prefix={<FileDoneOutlined />} title="Tổng phiên bản" value={summary?.total ?? 0} /></Card>
-            <Card><Statistic prefix={<FileOutlined />} title="Tệp hiện hành" value={summary?.current ?? 0} /></Card>
-            <Card><Statistic prefix={<HistoryOutlined />} title="Phiên bản lịch sử" value={summary?.archived ?? 0} /></Card>
-            <Card><Statistic prefix={<FolderOpenOutlined />} title="Hồ sơ được liên kết" value={summary?.linked_projects ?? 0} /></Card>
-          </section>
+          <ControlledDocumentPanel />
 
-          <Card className="documents-catalog-card">
-            <div className="documents-filter-bar">
-              <Input allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm tên tệp, khách hàng, mã hồ sơ..." prefix={<SearchOutlined />} value={searchTerm} />
-              <Select aria-label="Loại tài liệu" onChange={setDocumentTypeFilter} options={[{ value: "all", label: "Tất cả loại tài liệu" }, ...documentTypes.map((value) => ({ value, label: documentTypeLabel(value) }))]} value={documentTypeFilter} />
-              <Select aria-label="Nguồn nghiệp vụ" onChange={setEntityTypeFilter} options={[{ value: "all", label: "Tất cả nguồn nghiệp vụ" }, ...entityTypes.map((value) => ({ value, label: entityTypeLabel(value) }))]} value={entityTypeFilter} />
-              <Select aria-label="Trạng thái phiên bản" onChange={setVersionFilter} options={[{ value: "current", label: "Tệp hiện hành" }, { value: "archived", label: "Phiên bản lịch sử" }, { value: "all", label: "Tất cả phiên bản" }]} value={versionFilter} />
-            </div>
-            <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" /> }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
-          </Card>
+          <Collapse
+            className="documents-secondary-catalog"
+            items={[{
+              key: "other-files",
+              label: `Kho tệp nghiệp vụ khác · ${summary?.current ?? 0} tệp hiện hành`,
+              children: <Card className="documents-catalog-card" bordered={false}>
+                <Alert message="Khu vực tra cứu phụ" description="Dùng khi cần tìm các tệp đính kèm phát sinh từ đơn đăng ký, kế hoạch, báo cáo, CAP... Không cần mở khu vực này để quản lý tài liệu và mẫu biểu ở trên." type="info" showIcon style={{ marginBottom: 16 }} />
+                <div className="documents-filter-bar">
+                  <Input allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm tên tệp, khách hàng, mã hồ sơ..." prefix={<SearchOutlined />} value={searchTerm} />
+                  <Select aria-label="Loại tài liệu" onChange={setDocumentTypeFilter} options={[{ value: "all", label: "Tất cả loại tài liệu" }, ...documentTypes.map((value) => ({ value, label: documentTypeLabel(value) }))]} value={documentTypeFilter} />
+                  <Select aria-label="Nguồn nghiệp vụ" onChange={setEntityTypeFilter} options={[{ value: "all", label: "Tất cả nguồn nghiệp vụ" }, ...entityTypes.map((value) => ({ value, label: entityTypeLabel(value) }))]} value={entityTypeFilter} />
+                  <Select aria-label="Trạng thái phiên bản" onChange={setVersionFilter} options={[{ value: "current", label: "Tệp hiện hành" }, { value: "archived", label: "Phiên bản lịch sử" }, { value: "all", label: "Tất cả phiên bản" }]} value={versionFilter} />
+                </div>
+                <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" /> }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
+              </Card>,
+            }]}
+          />
 
           <div className="documents-update-note">Dữ liệu cập nhật {formatDateTime(documentsQuery.data.generated_at)}</div>
         </>
@@ -395,7 +399,7 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
 
             <Card className="document-workspace-card" title="Thao tác tài liệu">
               <Space wrap>
-                <Button icon={<EyeOutlined />} loading={openingId === selectedDocument.id} onClick={() => void openFile(selectedDocument)}>Mở tệp</Button>
+                <Button icon={<EyeOutlined />} onClick={() => void openFile(selectedDocument)}>Xem</Button>
                 <Button icon={<DownloadOutlined />} loading={downloadingId === selectedDocument.id} onClick={() => void openFile(selectedDocument, true)}>Tải xuống</Button>
                 {selectedDocument.context?.project_id && onOpenProject ? <Button icon={<LinkOutlined />} onClick={() => onOpenProject(selectedDocument.context!.project_id!)}>Mở hồ sơ chứng nhận</Button> : null}
               </Space>
@@ -404,11 +408,12 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
             <Card className="document-version-card" title={<Space><HistoryOutlined />Lịch sử phiên bản</Space>}>
               {versionsQuery.isLoading ? <Skeleton active paragraph={{ rows: 4 }} /> : null}
               {versionsQuery.isError ? <Alert description={getErrorMessage(versionsQuery.error)} message="Không thể tải lịch sử phiên bản" showIcon type="error" /> : null}
-              {versionsQuery.data ? <List dataSource={versionsQuery.data} locale={{ emptyText: "Chưa có lịch sử phiên bản" }} renderItem={(item) => <List.Item actions={[<Button icon={<EyeOutlined />} key="open" loading={openingId === item.id} onClick={() => void openFile(item)} size="small">Mở</Button>]}><List.Item.Meta avatar={<div className={item.is_current ? "version-icon current" : "version-icon"}><ClockCircleOutlined /></div>} description={`${uploaderName(item)} · ${formatDateTime(item.created_at)} · ${formatFileSize(item.file_size)}`} title={<Space wrap><Text strong>Phiên bản {item.version_no}</Text>{item.is_current ? <Tag color="green">Hiện hành</Tag> : <Tag>Lịch sử</Tag>}</Space>} /></List.Item>} /> : null}
+              {versionsQuery.data ? <List dataSource={versionsQuery.data} locale={{ emptyText: "Chưa có lịch sử phiên bản" }} renderItem={(item) => <List.Item actions={[<Button icon={<EyeOutlined />} key="open" onClick={() => void openFile(item)} size="small">Xem</Button>]}><List.Item.Meta avatar={<div className={item.is_current ? "version-icon current" : "version-icon"}><ClockCircleOutlined /></div>} description={`${uploaderName(item)} · ${formatDateTime(item.created_at)} · ${formatFileSize(item.file_size)}`} title={<Space wrap><Text strong>Phiên bản {item.version_no}</Text>{item.is_current ? <Tag color="green">Hiện hành</Tag> : <Tag>Lịch sử</Tag>}</Space>} /></List.Item>} /> : null}
             </Card>
           </div>
         ) : null}
       </Drawer>
+      <DocumentPreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
     </div>
   );
 }

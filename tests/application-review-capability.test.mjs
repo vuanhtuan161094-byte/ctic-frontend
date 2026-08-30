@@ -4,6 +4,7 @@ import test from "node:test";
 
 const projectRoot = new URL("../", import.meta.url);
 const reviewScreenUrl = new URL("app/components/CertificationProjectsScreen.tsx", projectRoot);
+const projectDetailUrl = new URL("app/components/CertificationProjectDetailScreen.tsx", projectRoot);
 const adminPanelUrl = new URL("app/components/CertificationBodyCapabilitiesPanel.tsx", projectRoot);
 const customersScreenUrl = new URL("app/components/CustomersScreen.tsx", projectRoot);
 
@@ -49,15 +50,17 @@ test("proposed experts are required only for IAF MD11 calculation and remain exc
   assert.match(proposedExpertSection, /required: true/);
 });
 
-test("admin capability master supports Program + IAF, status and effective dates without delete", async () => {
+test("admin capability master supports exact standard edition + multi-IAF, status and effective dates without delete", async () => {
   const source = await readFile(adminPanelUrl, "utf8");
-  assert.match(source, /Năng lực tổ chức chứng nhận/);
-  assert.match(source, /program_code/);
-  assert.match(source, /iaf_scope_id/);
+  assert.match(source, /Năng lực tổ chức/);
+  assert.match(source, /standard_edition_id/);
+  assert.match(source, /iaf_scope_ids/);
+  assert.match(source, /mode="multiple"/);
   assert.match(source, /effective_from/);
   assert.match(source, /effective_to/);
   assert.match(source, /ACTIVE/);
   assert.match(source, /INACTIVE/);
+  assert.match(source, /ISO 9001:2026/);
   assert.doesNotMatch(source, /api\.delete/);
 });
 
@@ -135,6 +138,13 @@ test("final UAT polish makes status read-only, documents upload-driven and appli
   assert.match(source, /<Checkbox disabled value=\{documentName\}>/);
   assert.match(source, /uploaded\.original_name/);
   assert.match(source, /\.zip,\.rar/);
+});
+
+test("project dossier displays the current one-reviewer relation with historical fallback", async () => {
+  const projectDetailSource = await readFile(projectDetailUrl, "utf8");
+  assert.match(projectDetailSource, /users\?: \{ full_name\?: string \| null; username\?: string \| null \} \| null/);
+  assert.match(projectDetailSource, /label="Reviewer"/);
+  assert.match(projectDetailSource, /displayUser\(sourceReview\.users\) \|\| displayUser\(sourceReview\.checker\)/);
 });
 
 test("IAF MD11 reduction is system-calculated rather than a manual adjustment", async () => {
