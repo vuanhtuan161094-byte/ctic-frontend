@@ -93,9 +93,11 @@ test("project header falls back to cycle dates and approved mandays", () => {
 });
 
 test("Schedule & Resources is read-focused and opens work in the project dossier", () => {
+  const workspaceStart = scheduleSource.indexOf("activeKey={workspaceTab}");
+  assert.notEqual(workspaceStart, -1);
   const workspace = scheduleSource.slice(
-    scheduleSource.indexOf("<Tabs\n          activeKey={workspaceTab}"),
-    scheduleSource.indexOf("<Drawer", scheduleSource.indexOf("<Tabs\n          activeKey={workspaceTab}")),
+    workspaceStart,
+    scheduleSource.indexOf("<Drawer", workspaceStart),
   );
   assert.match(scheduleSource, /THEO DÕI LỊCH VÀ KHẢ DỤNG/);
   assert.match(workspace, /Tải nguồn lực/);
