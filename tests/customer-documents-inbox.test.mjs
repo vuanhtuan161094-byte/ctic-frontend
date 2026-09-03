@@ -11,7 +11,7 @@ test('customer portal exposes a dedicated documents and evidence request screen'
   const shell = read('app/components/DashboardShell.tsx');
   assert.match(shell, /CustomerDocumentsScreen/);
   assert.match(shell, /customer-documents/);
-  assert.match(shell, /Tài liệu & yêu cầu/);
+  assert.match(shell, /label: "Tài liệu"/);
 });
 
 test('customer documents screen only uses customer-safe document endpoints', () => {

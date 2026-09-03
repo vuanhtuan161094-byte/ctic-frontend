@@ -82,16 +82,8 @@ test("SystemAdminScreen integrates governance without duplicating Phase 7 direct
 });
 
 test("System Administration route remains ADMIN-only in frontend navigation", () => {
-  assert.match(shell, /admin: \[[^\]]*system-admin/);
-  for (const role of [
-    "customer",
-    "auditor",
-    "lead_auditor",
-    "technical_reviewer",
-    "decision_maker",
-  ]) {
-    assert.doesNotMatch(shell, new RegExp(`${role}: \\[[^\\]]*system-admin`));
-  }
+  assert.match(shell, /if \(hasRole\("ADMIN"\)\) administration\.push\(\{ key: "system-admin"/);
+  assert.doesNotMatch(shell, /hasPermission\([^)]*users\.read[^)]*\)[^\n]*system-admin/);
 });
 
 test("runtime role designer mutation is not added to Phase 9 UI", () => {

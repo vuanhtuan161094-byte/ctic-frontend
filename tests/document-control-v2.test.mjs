@@ -59,8 +59,8 @@ test('technical secondary file catalog is collapsed outside the main document wo
 });
 
 
-test('main navigation names the module Tài liệu & Mẫu biểu and recognizes generated Excel', () => {
-  assert.ok(shell.includes('label: "Tài liệu & Mẫu biểu"'));
+test('main navigation uses the frozen Tài liệu label and recognizes generated Excel', () => {
+  assert.ok(shell.includes('label: "Tài liệu"'));
   assert.ok(documents.includes('<Title level={2}>Tài liệu & Mẫu biểu</Title>'));
   assert.ok(documents.includes('generated_xlsx: "Excel hệ thống"'));
 });

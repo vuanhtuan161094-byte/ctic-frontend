@@ -78,6 +78,6 @@ test('role-aware navigation exposes the appropriate internal or customer case wo
   assert.match(shell, /GovernanceCasesScreen/);
   assert.match(shell, /CustomerCasesScreen/);
   assert.match(shell, /activeView === "governance-cases" && customerPortalMode/);
-  assert.match(shell, /Thay đổi & Case/);
-  assert.match(shell, /Thay đổi & phản hồi/);
+  assert.match(shell, /Thay đổi, khiếu nại & kháng nghị/);
+  assert.match(shell, /Yêu cầu, khiếu nại & kháng nghị/);
 });

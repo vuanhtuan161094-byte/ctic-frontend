@@ -33,11 +33,13 @@ test("application-review deep link opens the assigned review workflow", () => {
   assert.match(applications, /application_reviews\?\.some\(\(review\) => review\.id === initialReviewId\)/);
 });
 
-test("multi-role internal navigation is a union and customer mode remains isolated", () => {
-  assert.match(shell, /normalizedRoles/);
-  assert.match(shell, /\.flatMap\(\(role\) => roleMenuKeys\[role\] \?\? \[\]\)/);
-  assert.match(shell, /customerPortalMode \? \["customer"\] : normalizedRoles/);
-  assert.doesNotMatch(shell, /roleMenuKeys\[primaryRole\]/);
+test("internal navigation is shaped by effective permissions and customer mode remains isolated", () => {
+  assert.match(shell, /api\.get<[^>]*\{[\s\S]*permissions: string\[\]/);
+  assert.match(shell, /\("\/auth\/me"\)/);
+  assert.match(shell, /effectivePermissions/);
+  assert.match(shell, /hasPermission\("projects\.read"\)/);
+  assert.match(shell, /if \(customerPortalMode\) \{/);
+  assert.doesNotMatch(shell, /roleMenuKeys/);
 });
 
 test("Reports read access mirrors the backend role surface", () => {

@@ -48,16 +48,16 @@ test("commercial write controls are role-aware in UI", () => {
   assert.doesNotMatch(cockpit, /"AUDITOR".*canManageCommercial/);
 });
 
-test("commercial/reporting menu is excluded from technical-only personas and CUSTOMER", () => {
-  for (const role of ["lead_auditor", "auditor", "technical_reviewer", "decision_maker", "customer"]) {
-    const line = shell.split("\n").find((value) => value.includes(`${role}: [`));
-    assert.ok(line);
-    assert.doesNotMatch(line, /"reports"/);
-  }
-  for (const role of ["admin", "staff", "sales", "coordinator"]) {
-    const line = shell.split("\n").find((value) => value.includes(`${role}: [`));
-    assert.match(line, /"reports"/);
-  }
+test("commercial/reporting navigation is permission-shaped and excluded from the customer portal shell", () => {
+  assert.match(shell, /hasPermission\("contracts\.read"\) \|\| hasRole\("ADMIN", "SALES"\)/);
+  assert.match(shell, /label: "Báo cáo điều hành"/);
+  assert.doesNotMatch(shell, /roleMenuKeys/);
+
+  const portalBranch = shell.slice(
+    shell.indexOf('if (customerPortalMode)'),
+    shell.indexOf('const operations:', shell.indexOf('if (customerPortalMode)')),
+  );
+  assert.doesNotMatch(portalBranch, /key: "reports"/);
 });
 
 test("export uses the same server filters and authenticated API client", () => {

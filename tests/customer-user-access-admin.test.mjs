@@ -11,7 +11,7 @@ test('customer portal exposes a dedicated controlled account administration scre
   const shell = read('app/components/DashboardShell.tsx');
   const portal = read('app/components/CustomerPortalUsersScreen.tsx');
   assert.match(shell, /customer-portal-users/);
-  assert.match(shell, /Tài khoản Portal/);
+  assert.match(shell, /Quyền truy cập tổ chức/);
   assert.match(portal, /\/customer-portal\/me\/user-access/);
   assert.match(portal, /\/customer-portal\/me\/user-access-requests/);
 });

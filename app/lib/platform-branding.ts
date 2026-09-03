@@ -70,6 +70,18 @@ export function applyPlatformBrandingToDocument() {
     "--ctic-blue-2",
     PLATFORM_BRANDING.accentColor,
   );
+  document.documentElement.style.setProperty(
+    "--cmp-brand-strong",
+    PLATFORM_BRANDING.darkColor,
+  );
+  document.documentElement.style.setProperty(
+    "--cmp-brand-primary",
+    PLATFORM_BRANDING.primaryColor,
+  );
+  document.documentElement.style.setProperty(
+    "--cmp-brand-accent",
+    PLATFORM_BRANDING.accentColor,
+  );
 
   let description = document.querySelector<HTMLMetaElement>(
     'meta[name="description"]',

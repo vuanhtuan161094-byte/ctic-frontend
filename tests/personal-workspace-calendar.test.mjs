@@ -78,7 +78,7 @@ test("calendar list keys prevent rendering duplicate normalized identities", () 
 
 test("global Schedule remains separate from My Calendar", () => {
   assert.match(shell, /key: "my-calendar"/);
-  assert.match(shell, /label: "Lịch của tôi"/);
+  assert.match(shell, /label: "Lịch"/);
   assert.match(shell, /key: "schedule-resources"/);
   assert.match(shell, /label: "Lịch & nguồn lực"/);
 });

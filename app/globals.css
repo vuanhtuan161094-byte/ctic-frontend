@@ -1,17 +1,19 @@
 @import "tailwindcss";
+@import "./components/design-system/tokens.css";
 
 :root {
-  --ctic-navy: #082f6b;
-  --ctic-blue: #0b4ba2;
-  --ctic-blue-2: #1a6ac7;
-  --ctic-ink: #17233b;
-  --ctic-muted: #66758d;
-  --ctic-border: #dce5f0;
-  --ctic-surface: #ffffff;
-  --ctic-background: #f2f6fb;
-  --ctic-green: #168451;
-  --ctic-orange: #c56a11;
-  --ctic-red: #c83b3b;
+  /* Compatibility aliases. New shared UI consumes the --cmp-* contract. */
+  --ctic-navy: var(--cmp-brand-strong);
+  --ctic-blue: var(--cmp-brand-primary);
+  --ctic-blue-2: var(--cmp-brand-accent);
+  --ctic-ink: var(--cmp-text-primary);
+  --ctic-muted: var(--cmp-text-secondary);
+  --ctic-border: var(--cmp-border-default);
+  --ctic-surface: var(--cmp-surface-raised);
+  --ctic-background: var(--cmp-surface-canvas);
+  --ctic-green: var(--cmp-state-positive);
+  --ctic-orange: var(--cmp-state-attention);
+  --ctic-red: var(--cmp-state-critical);
 }
 
 * { box-sizing: border-box; }
@@ -5343,4 +5345,36 @@ input { font: inherit; }
   border-radius: 8px;
   padding: 18px;
   margin: 0;
+}
+
+/* Step 14 — route-capable shell */
+.application-shell--internal .desktop-sider,
+.application-shell--portal .desktop-sider {
+  background: var(--cmp-brand-strong);
+}
+
+.application-shell--portal .side-brand {
+  background: color-mix(in srgb, var(--cmp-brand-strong) 88%, black 12%);
+}
+
+.cmp-shell-breadcrumb {
+  margin: 0 0 var(--cmp-space-md);
+  min-height: 28px;
+}
+
+.cmp-shell-breadcrumb .ant-btn-link {
+  height: auto;
+  padding: 0;
+}
+
+.cmp-shell-access-warning {
+  margin-bottom: var(--cmp-space-lg);
+}
+
+@media (max-width: 768px) {
+  .cmp-shell-breadcrumb {
+    margin-bottom: var(--cmp-space-sm);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
 }

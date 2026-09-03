@@ -20,6 +20,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import type { InputRef, MenuProps } from "antd";
 import {
+  Alert,
   Avatar,
   Badge,
   Button,
@@ -41,7 +42,17 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { api, type AuthSession, getErrorMessage } from "../lib/api";
+import {
+  canonicalPathForNavigation,
+  createBrowserHistoryPayload,
+  isCanonicalRoutePath,
+  parseCanonicalLocation,
+  readBrowserNavigationState,
+  type ActiveView,
+  type BrowserNavigationState,
+} from "../lib/app-navigation";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
+import { Breadcrumb as CmpBreadcrumb } from "./design-system";
 import {
   resolveTaskNavigation,
   type TaskDestination,
@@ -61,6 +72,7 @@ import { CustomerApplicationsScreen } from "./CustomerApplicationsScreen";
 import { CustomerAuditScheduleScreen } from "./CustomerAuditScheduleScreen";
 import { CustomerResultNotificationsScreen } from "./CustomerResultNotificationsScreen";
 import { CustomerCertificatesScreen } from "./CustomerCertificatesScreen";
+import { CustomerCertificationsScreen } from "./CustomerCertificationsScreen";
 import { CustomerChangeRequestsScreen } from "./CustomerChangeRequestsScreen";
 import { CustomerPortalUsersScreen } from "./CustomerPortalUsersScreen";
 import { CustomerUserRequestsScreen } from "./CustomerUserRequestsScreen";
@@ -121,93 +133,6 @@ interface WorkTaskPreviewResponse {
   items: WorkTaskPreview[];
 }
 
-type ActiveView =
-  | "dashboard"
-  | "my-tasks"
-  | "my-calendar"
-  | "notifications"
-  | "delegations"
-  | "customers"
-  | "applications"
-  | "projects"
-  | "project-detail"
-  | "schedule-resources"
-  | "certificates"
-  | "documents"
-  | "experts"
-  | "reports"
-  | "system-admin"
-  | "customer-results"
-  | "customer-change-requests"
-  | "customer-portal-users"
-  | "customer-user-requests"
-  | "customer-documents"
-  | "customer-document-requests"
-  | "governance-cases";
-
-interface BrowserNavigationState {
-  activeView: ActiveView;
-  selectedProjectId: string | null;
-  selectedCertificateId: string | null;
-  selectedAuditPlanId: string | null;
-}
-
-const activeViewValues: ActiveView[] = [
-  "dashboard",
-  "my-tasks",
-  "my-calendar",
-  "notifications",
-  "delegations",
-  "customers",
-  "applications",
-  "projects",
-  "project-detail",
-  "schedule-resources",
-  "certificates",
-  "documents",
-  "experts",
-  "reports",
-  "system-admin",
-  "customer-results",
-  "customer-change-requests",
-  "customer-portal-users",
-  "customer-user-requests",
-  "customer-documents",
-  "customer-document-requests",
-  "governance-cases",
-];
-
-function isActiveView(value: unknown): value is ActiveView {
-  return typeof value === "string" && activeViewValues.includes(value as ActiveView);
-}
-
-function readBrowserNavigationState(rawState: unknown): BrowserNavigationState | null {
-  if (!rawState || typeof rawState !== "object") return null;
-
-  const wrapped = (rawState as { cticNavigation?: unknown }).cticNavigation;
-  if (!wrapped || typeof wrapped !== "object") return null;
-
-  const candidate = wrapped as Partial<BrowserNavigationState>;
-  if (!isActiveView(candidate.activeView)) return null;
-
-  return {
-    activeView: candidate.activeView,
-    selectedProjectId: typeof candidate.selectedProjectId === "string" ? candidate.selectedProjectId : null,
-    selectedCertificateId: typeof candidate.selectedCertificateId === "string" ? candidate.selectedCertificateId : null,
-    selectedAuditPlanId: typeof candidate.selectedAuditPlanId === "string" ? candidate.selectedAuditPlanId : null,
-  };
-}
-
-function createBrowserHistoryPayload(navigation: BrowserNavigationState) {
-  const currentState = window.history.state;
-  const baseState = currentState && typeof currentState === "object" ? currentState : {};
-
-  return {
-    ...baseState,
-    cticNavigation: navigation,
-  };
-}
-
 const statusLabels: Record<string, string> = {
   accepted: "Đã chấp nhận",
   active: "Đang hiệu lực",
@@ -244,19 +169,6 @@ const statusLabels: Record<string, string> = {
   withdrawn: "Đã thu hồi",
 };
 
-const roleMenuKeys: Record<string, string[]> = {
-  admin: ["dashboard", "my-tasks", "my-calendar", "customers", "customer-change-requests", "governance-cases", "customer-user-requests", "customer-document-requests", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports", "system-admin"],
-  staff: ["dashboard", "my-tasks", "my-calendar", "customers", "applications", "projects", "schedule-resources", "certificates", "documents", "reports"],
-  sales: ["dashboard", "my-tasks", "my-calendar", "customers", "applications", "projects", "documents", "reports"],
-  coordinator: ["dashboard", "my-tasks", "my-calendar", "customers", "customer-change-requests", "governance-cases", "customer-document-requests", "applications", "projects", "schedule-resources", "certificates", "documents", "experts", "reports"],
-  lead_auditor: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "projects", "schedule-resources", "documents", "experts"],
-  auditor: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "projects", "documents"],
-  technical_expert: ["dashboard", "my-tasks", "my-calendar", "projects", "documents"],
-  technical_reviewer: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "applications", "projects", "documents", "experts"],
-  decision_maker: ["dashboard", "my-tasks", "my-calendar", "governance-cases", "applications", "projects", "certificates", "documents"],
-  customer: ["dashboard", "customers", "customer-portal-users", "applications", "customer-documents", "governance-cases", "schedule-resources", "projects", "customer-results", "certificates", "notifications"],
-};
-
 function normalizeStatus(status?: string | null) {
   return (status ?? "unknown").trim().toLowerCase();
 }
@@ -288,6 +200,10 @@ function formatRole(role?: string) {
     staff: "Nhân viên",
     technical_reviewer: "Thẩm xét viên kỹ thuật",
     technical_expert: "Chuyên gia kỹ thuật",
+    approver: "Người phê duyệt",
+    certification_manager: "Quản lý chứng nhận",
+    witness_evaluator: "Chuyên gia đánh giá chứng kiến",
+    customer: "Khách hàng",
   };
   return labels[role?.toLowerCase() ?? ""] ?? role ?? "Người dùng";
 }
@@ -328,6 +244,34 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     [session.user.roles],
   );
   const customerPortalMode = normalizedRoles.includes("customer");
+
+  const accessQuery = useQuery({
+    queryKey: ["auth", "me", "effective-access", session.user.id],
+    queryFn: async () => {
+      const response = await api.get<{
+        user: { id: string | null; username: string | null; email: string | null; roles: string[]; permissions: string[] };
+      }>("/auth/me");
+      return response.data.user;
+    },
+    staleTime: 60_000,
+  });
+
+  const effectiveAccess = useMemo(() => ({
+    roles: accessQuery.data?.roles ?? session.user.roles,
+    permissions: accessQuery.data?.permissions ?? [],
+  }), [accessQuery.data?.permissions, accessQuery.data?.roles, session.user.roles]);
+
+  const normalizedAccessRoles = useMemo(
+    () => new Set(effectiveAccess.roles.map((role) => role.trim().toUpperCase())),
+    [effectiveAccess.roles],
+  );
+  const effectivePermissions = useMemo(
+    () => new Set(effectiveAccess.permissions.map((permission) => permission.trim().toLowerCase())),
+    [effectiveAccess.permissions],
+  );
+  const hasRole = (...roles: string[]) => roles.some((role) => normalizedAccessRoles.has(role.toUpperCase()));
+  const hasPermission = (...permissions: string[]) =>
+    normalizedAccessRoles.has("ADMIN") || permissions.some((permission) => effectivePermissions.has(permission.toLowerCase()));
 
   const overviewQuery = useQuery({
     queryKey: ["dashboard", "overview", warningDays],
@@ -381,44 +325,45 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedProjectId(navigation.selectedProjectId);
       setSelectedCertificateId(navigation.selectedCertificateId);
       setSelectedAuditPlanId(navigation.selectedAuditPlanId);
+      setSelectedApplicationReviewId(navigation.selectedApplicationReviewId ?? null);
+      setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? null);
+      setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
     };
 
-    const storedNavigation = readBrowserNavigationState(window.history.state);
+    const navigation = parseCanonicalLocation(
+      window.location.pathname,
+      window.location.search,
+      customerPortalMode,
+    );
+    restoringHistoryRef.current = true;
+    applyNavigationState(navigation);
 
-    if (storedNavigation) {
-      restoringHistoryRef.current = true;
-      applyNavigationState(storedNavigation);
-    } else {
-      const initialNavigation: BrowserNavigationState = {
-        activeView: "dashboard",
-        selectedProjectId: null,
-        selectedCertificateId: null,
-        selectedAuditPlanId: null,
-      };
-
-      window.history.replaceState(
-        createBrowserHistoryPayload(initialNavigation),
-        "",
-      );
-    }
-
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    const canonicalUrl = isCanonicalRoutePath(window.location.pathname, customerPortalMode)
+      ? currentUrl
+      : canonicalPathForNavigation(navigation, customerPortalMode);
+    window.history.replaceState(
+      createBrowserHistoryPayload(navigation),
+      "",
+      canonicalUrl,
+    );
     historyReadyRef.current = true;
 
     const handlePopState = (event: PopStateEvent) => {
-      const navigation = readBrowserNavigationState(event.state) ?? {
-        activeView: "dashboard",
-        selectedProjectId: null,
-        selectedCertificateId: null,
-        selectedAuditPlanId: null,
-      };
-
+      const stateNavigation = readBrowserNavigationState(event.state);
+      const locationNavigation = parseCanonicalLocation(
+        window.location.pathname,
+        window.location.search,
+        customerPortalMode,
+      );
+      const nextNavigation = stateNavigation ?? locationNavigation;
       restoringHistoryRef.current = true;
-      applyNavigationState(navigation);
+      applyNavigationState(nextNavigation);
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [customerPortalMode]);
 
   useEffect(() => {
     if (!historyReadyRef.current) return;
@@ -428,6 +373,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedProjectId,
       selectedCertificateId,
       selectedAuditPlanId,
+      selectedApplicationReviewId,
+      selectedProjectDossierKey,
+      selectedProjectWorkspacePath,
     };
 
     if (restoringHistoryRef.current) {
@@ -436,19 +384,33 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     }
 
     const currentNavigation = readBrowserNavigationState(window.history.state);
+    const targetPath = canonicalPathForNavigation(navigation, customerPortalMode);
+    const currentPath = `${window.location.pathname}${window.location.search}`;
     const isSameNavigation = currentNavigation
       && currentNavigation.activeView === navigation.activeView
       && currentNavigation.selectedProjectId === navigation.selectedProjectId
       && currentNavigation.selectedCertificateId === navigation.selectedCertificateId
-      && currentNavigation.selectedAuditPlanId === navigation.selectedAuditPlanId;
+      && currentNavigation.selectedAuditPlanId === navigation.selectedAuditPlanId
+      && currentNavigation.selectedApplicationReviewId === navigation.selectedApplicationReviewId
+      && currentNavigation.selectedProjectDossierKey === navigation.selectedProjectDossierKey;
 
-    if (isSameNavigation) return;
+    if (isSameNavigation && currentPath === targetPath) return;
 
     window.history.pushState(
       createBrowserHistoryPayload(navigation),
       "",
+      targetPath,
     );
-  }, [activeView, selectedProjectId, selectedCertificateId, selectedAuditPlanId]);
+  }, [
+    activeView,
+    customerPortalMode,
+    selectedApplicationReviewId,
+    selectedAuditPlanId,
+    selectedCertificateId,
+    selectedProjectDossierKey,
+    selectedProjectId,
+    selectedProjectWorkspacePath,
+  ]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -472,7 +434,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       workspaceQuery.data.recent_records.forEach((item) => {
         const searchable = [item.title, item.project_code, item.organization_name].filter(Boolean).join(" ").toLocaleLowerCase("vi");
         if (searchable.includes(keyword)) {
-          const projectMatch = item.destination_path?.match(/^\/projects\/([^/?#]+)/);
+          const projectMatch = item.destination_path?.match(/^\/(?:projects|certifications)\/([^/?#]+)/);
           results.push({ key: `recent-${item.id}`, type: "Hồ sơ gần đây", title: item.title, description: `${item.project_code ?? "—"} · ${item.organization_name ?? "—"}`, destination: projectMatch ? "project-detail" : "projects", entityId: projectMatch ? decodeURIComponent(projectMatch[1]) : null });
         }
       });
@@ -559,6 +521,27 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (!path) {
       message.warning("Nội dung này chưa có đường dẫn nghiệp vụ hợp lệ.");
       return;
+    }
+
+    try {
+      const canonicalUrl = new URL(path, window.location.origin);
+      if (isCanonicalRoutePath(canonicalUrl.pathname, customerPortalMode)) {
+        const navigation = parseCanonicalLocation(
+          canonicalUrl.pathname,
+          canonicalUrl.search,
+          customerPortalMode,
+        );
+        setActiveView(navigation.activeView);
+        setSelectedProjectId(navigation.selectedProjectId);
+        setSelectedCertificateId(navigation.selectedCertificateId);
+        setSelectedAuditPlanId(navigation.selectedAuditPlanId);
+        setSelectedApplicationReviewId(navigation.selectedApplicationReviewId ?? null);
+        setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? (typeof context?.dossier_key === "string" ? context.dossier_key : null));
+        setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
+        return;
+      }
+    } catch {
+      // Legacy resolver below remains authoritative for malformed/old destinations.
     }
 
     if (path.startsWith("/my-work")) {
@@ -709,76 +692,102 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           children: [
             { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
             { key: "customers", icon: <BankOutlined />, label: "Hồ sơ tổ chức" },
-            { key: "customer-portal-users", icon: <TeamOutlined />, label: "Tài khoản Portal" },
             { key: "applications", icon: <FileSearchOutlined />, label: "Đơn đăng ký" },
-            { key: "customer-documents", icon: <FileDoneOutlined />, label: "Tài liệu & yêu cầu" },
-            { key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi & phản hồi" },
-            { key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch đánh giá" },
-            { key: "projects", icon: <CheckCircleOutlined />, label: "NC / CAP" },
-            { key: "customer-results", icon: <FileDoneOutlined />, label: "Kết quả đánh giá" },
+            { key: "customer-certifications", icon: <FolderOpenOutlined />, label: "Hồ sơ chứng nhận" },
+            { key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch" },
+            { key: "projects", icon: <CheckCircleOutlined />, label: "Hành động khắc phục" },
+            { key: "customer-documents", icon: <FileDoneOutlined />, label: "Tài liệu" },
+            { key: "customer-results", icon: <FileDoneOutlined />, label: "Kết quả" },
             { key: "certificates", icon: <SafetyCertificateOutlined />, label: "Chứng chỉ" },
+            { key: "governance-cases", icon: <FileSearchOutlined />, label: "Yêu cầu, khiếu nại & kháng nghị" },
             { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
           ],
         },
       ];
     }
-    const visibleKeys = new Set(
-      (customerPortalMode ? ["customer"] : normalizedRoles)
-        .flatMap((role) => roleMenuKeys[role] ?? [])
-        .concat(normalizedRoles.length ? [] : roleMenuKeys.staff),
-    );
-    const filterItems = (items: NonNullable<MenuProps["items"]>) => items.filter((item) => item && "key" in item && visibleKeys.has(String(item.key)));
 
-    const groups: NonNullable<MenuProps["items"]> = [
+    const operations: NonNullable<MenuProps["items"]> = [];
+    if (hasPermission("customers.read")) operations.push({ key: "customers", icon: <BankOutlined />, label: "Khách hàng" });
+
+    const certificationChildren: NonNullable<MenuProps["items"]> = [];
+    if (hasPermission("applications.read")) certificationChildren.push({ key: "applications", icon: <FileSearchOutlined />, label: "Đơn đăng ký" });
+    if (hasPermission("projects.read")) certificationChildren.push({ key: "projects", icon: <FolderOpenOutlined />, label: "Hồ sơ chứng nhận" });
+    if (hasPermission("certificates.read")) certificationChildren.push({ key: "certificates", icon: <SafetyCertificateOutlined />, label: <MenuLabel label="Sổ đăng ký chứng chỉ" count={data?.summary.certificates.expiring ?? workspaceQuery.data?.role_kpis.find((item) => item.key === "certificates_expiring")?.value} /> });
+    if (certificationChildren.length) operations.push({ key: "certification-group", icon: <SafetyCertificateOutlined />, label: "Chứng nhận", children: certificationChildren });
+
+    if (hasPermission("audit_plans.read", "audit_teams.read", "experts.read", "competencies.read")) operations.push({ key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" });
+    if (hasPermission("documents.read")) operations.push({ key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu" });
+    if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị" });
+    if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });
+
+    const administration: NonNullable<MenuProps["items"]> = [];
+    if (hasRole("ADMIN")) administration.push({ key: "system-admin", icon: <TeamOutlined />, label: "Quản trị hệ thống" });
+
+    return [
       {
         key: "workspace-group",
         type: "group",
-        label: "ĐIỀU HÀNH",
-        children: filterItems([
+        label: "KHÔNG GIAN LÀM VIỆC",
+        children: [
           { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
           { key: "my-tasks", icon: <CheckCircleOutlined />, label: <MenuLabel label="Công việc của tôi" count={taskCount} /> },
-          { key: "my-calendar", icon: <CalendarOutlined />, label: "Lịch của tôi" },
-        ]),
+          { key: "my-calendar", icon: <CalendarOutlined />, label: "Lịch" },
+          { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
+        ],
       },
-      {
-        key: "operations-group",
-        type: "group",
-        label: "QUẢN LÝ CHỨNG NHẬN",
-        children: filterItems([
-          { key: "customers", icon: <BankOutlined />, label: "Khách hàng" },
-          { key: "customer-change-requests", icon: <FileSearchOutlined />, label: "Yêu cầu thay đổi KH" },
-          { key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi & Case" },
-          { key: "customer-user-requests", icon: <TeamOutlined />, label: "Yêu cầu tài khoản KH" },
-          { key: "customer-document-requests", icon: <FileDoneOutlined />, label: "Yêu cầu tài liệu KH" },
-          { key: "applications", icon: <FileSearchOutlined />, label: "Đơn đăng ký" },
-          { key: "projects", icon: <FolderOpenOutlined />, label: "Hồ sơ chứng nhận" },
-          { key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" },
-          { key: "certificates", icon: <SafetyCertificateOutlined />, label: <MenuLabel label="Chứng chỉ" count={data?.summary.certificates.expiring ?? workspaceQuery.data?.role_kpis.find((item) => item.key === "certificates_expiring")?.value} /> },
-          { key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu & Mẫu biểu" },
-          { key: "experts", icon: <IdcardOutlined />, label: "Chuyên gia & năng lực" },
-          { key: "reports", icon: <NotificationOutlined />, label: "Báo cáo" },
-        ]),
-      },
-      {
-        key: "administration-group",
-        type: "group",
-        label: "HỆ THỐNG",
-        children: filterItems([
-          { key: "system-admin", icon: <TeamOutlined />, label: "Quản trị hệ thống" },
-        ]),
-      },
+      ...(operations.length ? [{ key: "operations-group", type: "group" as const, label: "NGHIỆP VỤ", children: operations }] : []),
+      ...(administration.length ? [{ key: "administration-group", type: "group" as const, label: "QUẢN TRỊ", children: administration }] : []),
     ];
-
-    return groups.filter((item) => item && "children" in item && Array.isArray(item.children) && item.children.length > 0);
   })();
-
 
   const accountItems: MenuProps["items"] = [
     { key: "account", icon: <UserOutlined />, label: session.user.username, disabled: true },
     ...(!customerPortalMode ? [{ key: "delegations", icon: <TeamOutlined />, label: "Ủy quyền công việc", onClick: () => setActiveView("delegations") }] : []),
+    ...(customerPortalMode ? [{ key: "portal-access", icon: <TeamOutlined />, label: "Quyền truy cập tổ chức", onClick: () => setActiveView("customer-portal-users") }] : []),
     { type: "divider" },
     { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true, onClick: onLogout },
   ];
+
+  const currentPageLabel: Partial<Record<ActiveView, string>> = {
+    "my-tasks": "Công việc của tôi",
+    "my-calendar": "Lịch",
+    notifications: "Thông báo",
+    delegations: "Ủy quyền công việc",
+    customers: customerPortalMode ? "Hồ sơ tổ chức" : "Khách hàng",
+    applications: "Đơn đăng ký",
+    projects: customerPortalMode ? "Hành động khắc phục" : "Hồ sơ chứng nhận",
+    "project-detail": "Chi tiết hồ sơ chứng nhận",
+    "customer-certifications": "Hồ sơ chứng nhận",
+    "schedule-resources": customerPortalMode ? "Lịch" : "Lịch & nguồn lực",
+    certificates: "Chứng chỉ",
+    documents: "Tài liệu",
+    "customer-documents": "Tài liệu",
+    experts: "Chuyên gia & năng lực",
+    reports: "Báo cáo điều hành",
+    "system-admin": "Quản trị hệ thống",
+    "customer-results": "Kết quả",
+    "customer-change-requests": "Yêu cầu thay đổi khách hàng",
+    "customer-portal-users": "Quyền truy cập tổ chức",
+    "customer-user-requests": "Yêu cầu tài khoản khách hàng",
+    "customer-document-requests": "Yêu cầu tài liệu khách hàng",
+    "governance-cases": customerPortalMode ? "Yêu cầu, khiếu nại & kháng nghị" : "Thay đổi, khiếu nại & kháng nghị",
+  };
+
+  const shellBreadcrumbItems = activeView === "dashboard"
+    ? []
+    : [
+      {
+        key: "root",
+        label: customerPortalMode ? "Cổng khách hàng" : "Tổng quan",
+        onNavigate: () => {
+          setActiveView("dashboard");
+          setSelectedProjectId(null);
+          setSelectedCertificateId(null);
+          setSelectedAuditPlanId(null);
+        },
+      },
+      { key: "current", label: currentPageLabel[activeView] ?? "Nghiệp vụ" },
+    ];
 
   const navigation = (
     <>
@@ -790,6 +799,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         className="main-menu main-menu-v2"
         items={navigationItems}
         mode="inline"
+        defaultOpenKeys={!customerPortalMode ? ["certification-group"] : undefined}
         onClick={({ key }) => {
           setMobileMenuOpen(false);
           if (key === "dashboard") {
@@ -833,6 +843,12 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else if (key === "customer-documents") {
             setActiveView("customer-documents");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "customer-certifications") {
+            setActiveView("customer-certifications");
             setSelectedProjectId(null);
             setSelectedCertificateId(null);
             setSelectedAuditPlanId(null);
@@ -909,9 +925,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   );
 
   return (
-    <Layout className="application-shell">
+    <Layout className={`application-shell ${customerPortalMode ? "application-shell--portal" : "application-shell--internal"}`}>
       {isDesktop ? <Sider className="desktop-sider" width={268}>{navigation}</Sider> : null}
-      <Drawer className="mobile-navigation" closable={false} onClose={() => setMobileMenuOpen(false)} open={mobileMenuOpen} placement="left" styles={{ body: { padding: 0, background: "#082f6b" } }} width={286}>{navigation}</Drawer>
+      <Drawer className="mobile-navigation" closable={false} onClose={() => setMobileMenuOpen(false)} open={mobileMenuOpen} placement="left" styles={{ body: { padding: 0, background: "var(--cmp-brand-strong)" } }} width={286}>{navigation}</Drawer>
 
       <Layout>
         <Header className="top-header top-header-v2">
@@ -932,6 +948,20 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         </Header>
 
         <Content className="application-content dashboard-v2">
+          {shellBreadcrumbItems.length ? (
+            <div className="cmp-shell-breadcrumb">
+              <CmpBreadcrumb items={shellBreadcrumbItems} />
+            </div>
+          ) : null}
+          {accessQuery.isError && !customerPortalMode ? (
+            <Alert
+              className="cmp-shell-access-warning"
+              showIcon
+              type="warning"
+              title="Chưa tải được quyền hiệu lực"
+              description="Các mục nghiệp vụ có thể tạm thời bị ẩn. Hệ thống vẫn giữ nguyên kiểm soát quyền ở backend; thử tải lại trang khi kết nối ổn định."
+            />
+          ) : null}
           {activeView === "project-detail" && selectedProjectId && !customerPortalMode ? (
             <CertificationProjectDetailScreen
               initialDossierKey={selectedProjectDossierKey}
@@ -989,6 +1019,11 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <CustomerDocumentsScreen />
           ) : activeView === "applications" && customerPortalMode ? (
             <CustomerApplicationsScreen />
+          ) : activeView === "customer-certifications" && customerPortalMode ? (
+            <CustomerCertificationsScreen
+              selectedCaseId={selectedProjectId}
+              onSelectCase={(caseId) => setSelectedProjectId(caseId)}
+            />
           ) : activeView === "applications" ? (
             <CertificationProjectsScreen
               initialReviewId={selectedApplicationReviewId}
@@ -1061,6 +1096,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           ) : (
             <CustomerPortalDashboardScreen
               onOpenApplications={() => setActiveView("applications")}
+              onOpenCertifications={() => setActiveView("customer-certifications")}
               onOpenCertificates={() => setActiveView("certificates")}
               onOpenCorrectiveActions={() => setActiveView("projects")}
               onOpenNotifications={() => setActiveView("notifications")}

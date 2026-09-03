@@ -53,6 +53,7 @@ interface CustomerPortalDashboard {
 
 interface CustomerPortalDashboardScreenProps {
   onOpenApplications: () => void;
+  onOpenCertifications: () => void;
   onOpenCorrectiveActions: () => void;
   onOpenCertificates: () => void;
   onOpenNotifications: () => void;
@@ -72,6 +73,7 @@ function formatDateRange(start?: string | null, end?: string | null) {
 
 export function CustomerPortalDashboardScreen({
   onOpenApplications,
+  onOpenCertifications,
   onOpenCorrectiveActions,
   onOpenCertificates,
   onOpenNotifications,
@@ -122,7 +124,7 @@ export function CustomerPortalDashboardScreen({
         <Card onClick={onOpenApplications} className="clickable-summary-card">
           <Statistic prefix={<FileTextOutlined />} title="Đơn đăng ký" value={data.summary.applications} />
         </Card>
-        <Card>
+        <Card onClick={onOpenCertifications} className="clickable-summary-card">
           <Statistic prefix={<FolderOpenOutlined />} title="Hồ sơ đang hoạt động" value={data.summary.active_projects} />
         </Card>
         <Card onClick={onOpenCorrectiveActions} className="clickable-summary-card">
