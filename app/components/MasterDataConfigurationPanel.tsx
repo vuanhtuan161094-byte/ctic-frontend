@@ -142,7 +142,7 @@ type OrganizationProfile = {
   file_retention_days?: number;
 };
 
-type ConfigurationReadiness = {
+export type ConfigurationReadiness = {
   status: "READY" | "NEEDS_ATTENTION";
   generated_at: string;
   organization: {
@@ -345,10 +345,28 @@ function normalizeStandardCode(codeValue: unknown, editionValue: unknown) {
   return code;
 }
 
-export function MasterDataConfigurationPanel() {
+export type MasterDataConfigurationSection =
+  | "overview"
+  | "programs"
+  | "taxonomy"
+  | "rules"
+  | "numbering"
+  | "organization"
+  | "import";
+
+interface MasterDataConfigurationPanelProps {
+  activeSection?: MasterDataConfigurationSection;
+  routeMode?: boolean;
+}
+
+export function MasterDataConfigurationPanel({
+  activeSection,
+  routeMode = false,
+}: MasterDataConfigurationPanelProps = {}) {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [internalActiveTab, setInternalActiveTab] = useState<MasterDataConfigurationSection>("overview");
+  const activeTab = activeSection ?? internalActiveTab;
   const [schemeOpen, setSchemeOpen] = useState(false);
   const [standardOpen, setStandardOpen] = useState(false);
   const [editingStandard, setEditingStandard] = useState<Standard | null>(null);
@@ -418,7 +436,7 @@ export function MasterDataConfigurationPanel() {
       await invalidate();
       setSchemeOpen(false);
       schemeForm.resetFields();
-      setActiveTab("programs");
+      setInternalActiveTab("programs");
       messageApi.success("Đã tạo chương trình");
     },
     onError: (error) => {
@@ -426,7 +444,7 @@ export function MasterDataConfigurationPanel() {
       const code = String(schemeForm.getFieldValue("code") ?? "").trim().toUpperCase();
       if (/scheme\/program.*đã tồn tại|already exists|duplicate/i.test(raw)) {
         messageApi.warning(`Chương trình ${code || "này"} đã tồn tại. Không tạo lại; hãy thêm tiêu chuẩn/phiên bản bên trong chương trình hiện có.`);
-        setActiveTab("programs");
+        setInternalActiveTab("programs");
         return;
       }
       messageApi.error(raw);
@@ -462,7 +480,7 @@ export function MasterDataConfigurationPanel() {
       setStandardOpen(false);
       setEditingStandard(null);
       standardForm.resetFields();
-      setActiveTab("programs");
+      setInternalActiveTab("programs");
       messageApi.success(wasEditing ? "Đã cập nhật tiêu chuẩn / phiên bản" : "Đã thêm phiên bản tiêu chuẩn");
     },
     onError: (error) => {
@@ -1232,14 +1250,14 @@ export function MasterDataConfigurationPanel() {
   return (
     <Card className="system-admin-table-card">
       {contextHolder}
-      <div className="page-heading page-heading-v2">
+      {!routeMode ? <div className="page-heading page-heading-v2">
         <div>
           <span className="eyebrow">THIẾT LẬP NGHIỆP VỤ & DỮ LIỆU NỀN</span>
           <Title level={3}>Cấu hình hệ thống chứng nhận</Title>
           <Text type="secondary">Mỗi mục bên dưới đều giải thích “là gì – ví dụ – ảnh hưởng ở đâu”. Cấu hình theo phiên bản để hồ sơ lịch sử không bị thay đổi khi quy tắc mới có hiệu lực.</Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={() => void invalidate()}>Làm mới</Button>
-      </div>
+      </div> : null}
       {foundationLoadError ? (
         <Alert
           showIcon
@@ -1250,7 +1268,9 @@ export function MasterDataConfigurationPanel() {
           action={<Button size="small" icon={<ReloadOutlined />} onClick={() => void invalidate()}>Làm mới</Button>}
         />
       ) : null}
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
+      {routeMode
+        ? tabItems.find((item) => item.key === activeTab)?.children
+        : <Tabs activeKey={activeTab} onChange={(key) => setInternalActiveTab(key as MasterDataConfigurationSection)} items={tabItems} />}
 
       <Modal open={schemeOpen} onCancel={() => setSchemeOpen(false)} footer={null} title="Thêm chương trình chứng nhận" width={640}>
         <Alert showIcon type="info" message="Chỉ tạo chương trình một lần" description="Ví dụ: QMS chỉ có một chương trình. ISO 9001:2015 và ISO 9001:2026 là các phiên bản tiêu chuẩn nằm bên trong QMS, không phải chương trình mới." style={{ marginBottom: 12 }} />

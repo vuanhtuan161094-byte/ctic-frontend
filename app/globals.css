@@ -1601,6 +1601,67 @@ input { font: inherit; }
   }
 }
 
+/* Step 15 — route-level configuration workspace */
+.configuration-route-page {
+  display: grid;
+  gap: var(--cmp-space-6);
+}
+
+.configuration-route-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+  gap: var(--cmp-space-4);
+}
+
+.configuration-route-nav__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cmp-space-2);
+  padding: var(--cmp-space-3);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  background: var(--cmp-surface-raised);
+}
+
+.configuration-route-nav__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cmp-space-2);
+  width: 100%;
+  color: var(--cmp-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.configuration-route-nav-mobile {
+  display: none;
+}
+
+.configuration-route-page__readiness,
+.configuration-route-page__content {
+  min-width: 0;
+}
+
+.configuration-route-page__content .ant-card-body {
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .configuration-route-nav {
+    display: none;
+  }
+
+  .configuration-route-nav-mobile {
+    display: block;
+  }
+
+  .configuration-route-page__content {
+    overflow: hidden;
+  }
+}
+
 /* Read-only audit plan workspace */
 .project-detail-code-button.ant-btn-link {
   color: #123e76;

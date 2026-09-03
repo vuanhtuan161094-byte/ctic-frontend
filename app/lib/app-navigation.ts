@@ -14,6 +14,14 @@ export type ActiveView =
   | "experts"
   | "reports"
   | "system-admin"
+  | "configuration-schemes"
+  | "configuration-standards"
+  | "configuration-capabilities"
+  | "configuration-numbering"
+  | "configuration-branding"
+  | "configuration-classifications"
+  | "configuration-mappings"
+  | "configuration-import"
   | "customer-results"
   | "customer-certifications"
   | "customer-change-requests"
@@ -37,6 +45,9 @@ const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
   "customers", "applications", "projects", "project-detail", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
+  "configuration-schemes", "configuration-standards", "configuration-capabilities",
+  "configuration-numbering", "configuration-branding", "configuration-classifications",
+  "configuration-mappings", "configuration-import",
   "customer-results", "customer-certifications", "customer-change-requests", "customer-portal-users",
   "customer-user-requests", "customer-documents", "customer-document-requests",
   "governance-cases",
@@ -179,6 +190,18 @@ export function parseCanonicalLocation(
   if (path.startsWith("/customer-user-requests")) return { ...base, activeView: "customer-user-requests" };
   if (path.startsWith("/customer-document-requests")) return { ...base, activeView: "customer-document-requests" };
   if (path.startsWith("/analytics") || path.startsWith("/reports")) return { ...base, activeView: "reports" };
+  const configurationRoutes: Record<string, ActiveView> = {
+    "/admin/configuration/schemes": "configuration-schemes",
+    "/admin/configuration/standards": "configuration-standards",
+    "/admin/configuration/capabilities": "configuration-capabilities",
+    "/admin/configuration/numbering": "configuration-numbering",
+    "/admin/configuration/branding": "configuration-branding",
+    "/admin/configuration/classifications": "configuration-classifications",
+    "/admin/configuration/mappings": "configuration-mappings",
+    "/admin/configuration/import": "configuration-import",
+  };
+  const configurationRoute = Object.entries(configurationRoutes).find(([route]) => path === route || path.startsWith(`${route}/`));
+  if (configurationRoute) return { ...base, activeView: configurationRoute[1] };
   if (path.startsWith("/admin" ) || path.startsWith("/system-admin")) return { ...base, activeView: "system-admin" };
 
   const certificateMatch = path.match(/^\/certificates\/([^/?#]+)/);
@@ -232,6 +255,14 @@ export function canonicalPathForNavigation(
     experts: "/resources/experts",
     reports: "/analytics",
     "system-admin": "/admin/accounts",
+    "configuration-schemes": "/admin/configuration/schemes",
+    "configuration-standards": "/admin/configuration/standards",
+    "configuration-capabilities": "/admin/configuration/capabilities",
+    "configuration-numbering": "/admin/configuration/numbering",
+    "configuration-branding": "/admin/configuration/branding",
+    "configuration-classifications": "/admin/configuration/classifications",
+    "configuration-mappings": "/admin/configuration/mappings",
+    "configuration-import": "/admin/configuration/import",
     "customer-change-requests": "/governance?type=organization-change",
     "governance-cases": "/governance",
     "customer-user-requests": "/admin/accounts?queue=portal-access",

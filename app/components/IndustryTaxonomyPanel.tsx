@@ -160,7 +160,11 @@ function countReady(summary?: IndustrySummary) {
   return summary.counts.isic_total > 700 && summary.counts.nace_total === 996 && summary.counts.iaf_total === 39;
 }
 
-export function IndustryTaxonomyPanel() {
+interface IndustryTaxonomyPanelProps {
+  mode?: "all" | "classifications" | "mappings";
+}
+
+export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelProps = {}) {
   const [messageApi, contextHolder] = message.useMessage();
   const [isicSearch, setIsicSearch] = useState("");
   const [naceSearch, setNaceSearch] = useState("");
@@ -512,6 +516,7 @@ export function IndustryTaxonomyPanel() {
 
       <Tabs
         style={{ marginTop: 16 }}
+        defaultActiveKey={mode === "mappings" ? "isic-nace" : "isic"}
         items={[
           {
             key: "isic",
@@ -599,7 +604,9 @@ export function IndustryTaxonomyPanel() {
               ]} />
             </>,
           },
-        ]}
+        ].filter((item) => mode === "all"
+          || (mode === "classifications" && ["isic", "nace", "iaf", "sources"].includes(item.key))
+          || (mode === "mappings" && ["isic-nace", "nace-iaf"].includes(item.key)))}
       />
     </div>
   );

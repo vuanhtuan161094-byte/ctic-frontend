@@ -14,6 +14,7 @@ import {
   NotificationOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
+  SettingOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -52,7 +53,7 @@ import {
   type BrowserNavigationState,
 } from "../lib/app-navigation";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
-import { Breadcrumb as CmpBreadcrumb } from "./design-system";
+import { Breadcrumb as CmpBreadcrumb, ForbiddenState } from "./design-system";
 import {
   resolveTaskNavigation,
   type TaskDestination,
@@ -91,12 +92,35 @@ import { ManagementCockpitScreen } from "./ManagementCockpitScreen";
 import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
 import { SystemAdminScreen } from "./SystemAdminScreen";
 import { DelegationScreen } from "./DelegationScreen";
+import { ConfigurationRouteScreen, type ConfigurationRouteSection } from "./ConfigurationRouteScreen";
 
 const { Header, Content, Sider } = Layout;
 interface DashboardShellProps {
   session: AuthSession;
   onLogout: () => void;
 }
+
+const configurationSectionByView: Partial<Record<ActiveView, ConfigurationRouteSection>> = {
+  "configuration-schemes": "schemes",
+  "configuration-standards": "standards",
+  "configuration-capabilities": "capabilities",
+  "configuration-numbering": "numbering",
+  "configuration-branding": "branding",
+  "configuration-classifications": "classifications",
+  "configuration-mappings": "mappings",
+  "configuration-import": "import",
+};
+
+const configurationViewBySection: Record<ConfigurationRouteSection, ActiveView> = {
+  schemes: "configuration-schemes",
+  standards: "configuration-standards",
+  capabilities: "configuration-capabilities",
+  numbering: "configuration-numbering",
+  branding: "configuration-branding",
+  classifications: "configuration-classifications",
+  mappings: "configuration-mappings",
+  import: "configuration-import",
+};
 
 interface SearchResult {
   key: string;
@@ -272,6 +296,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const hasRole = (...roles: string[]) => roles.some((role) => normalizedAccessRoles.has(role.toUpperCase()));
   const hasPermission = (...permissions: string[]) =>
     normalizedAccessRoles.has("ADMIN") || permissions.some((permission) => effectivePermissions.has(permission.toLowerCase()));
+  const canManageConfiguration = hasPermission("classifications.manage");
+  const configurationSection = configurationSectionByView[activeView];
 
   const overviewQuery = useQuery({
     queryKey: ["dashboard", "overview", warningDays],
@@ -721,7 +747,36 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });
 
     const administration: NonNullable<MenuProps["items"]> = [];
-    if (hasRole("ADMIN")) administration.push({ key: "system-admin", icon: <TeamOutlined />, label: "Quản trị hệ thống" });
+    if (hasRole("ADMIN")) administration.push({ key: "system-admin", icon: <TeamOutlined />, label: "Tài khoản & phân quyền" });
+    if (canManageConfiguration) {
+      administration.push({
+        key: "configuration-group",
+        icon: <SettingOutlined />,
+        label: "Cấu hình",
+        children: [
+          {
+            key: "configuration-certification-group",
+            label: "Cấu hình chứng nhận",
+            children: [
+              { key: "configuration-schemes", label: "Chương trình chứng nhận" },
+              { key: "configuration-standards", label: "Tiêu chuẩn & phiên bản" },
+              { key: "configuration-capabilities", label: "Phạm vi năng lực" },
+              { key: "configuration-numbering", label: "Quy tắc đánh số" },
+              { key: "configuration-branding", label: "Tổ chức & nhận diện" },
+            ],
+          },
+          {
+            key: "configuration-classification-group",
+            label: "Dữ liệu phân loại",
+            children: [
+              { key: "configuration-classifications", label: "Danh mục phân loại" },
+              { key: "configuration-mappings", label: "Quy đổi phân loại" },
+              { key: "configuration-import", label: "Nhập dữ liệu" },
+            ],
+          },
+        ],
+      });
+    }
 
     return [
       {
@@ -765,6 +820,14 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     experts: "Chuyên gia & năng lực",
     reports: "Báo cáo điều hành",
     "system-admin": "Quản trị hệ thống",
+    "configuration-schemes": "Chương trình chứng nhận",
+    "configuration-standards": "Tiêu chuẩn & phiên bản",
+    "configuration-capabilities": "Phạm vi năng lực",
+    "configuration-numbering": "Quy tắc đánh số",
+    "configuration-branding": "Tổ chức & nhận diện",
+    "configuration-classifications": "Danh mục phân loại",
+    "configuration-mappings": "Quy đổi phân loại",
+    "configuration-import": "Nhập dữ liệu cấu hình",
     "customer-results": "Kết quả",
     "customer-change-requests": "Yêu cầu thay đổi khách hàng",
     "customer-portal-users": "Quyền truy cập tổ chức",
@@ -899,6 +962,12 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else if (key === "system-admin") {
             setActiveView("system-admin");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key in configurationSectionByView) {
+            setActiveView(key as ActiveView);
             setSelectedProjectId(null);
             setSelectedCertificateId(null);
             setSelectedAuditPlanId(null);
@@ -1077,6 +1146,13 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <ExpertsScreen roles={session.user.roles} />
           ) : activeView === "reports" ? (
             <ManagementCockpitScreen roles={session.user.roles} />
+          ) : configurationSection ? (
+            canManageConfiguration ? (
+              <ConfigurationRouteScreen
+                section={configurationSection}
+                onNavigate={(nextSection) => setActiveView(configurationViewBySection[nextSection])}
+              />
+            ) : <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
           ) : activeView === "system-admin" ? (
             <SystemAdminScreen
               currentUserId={session.user.id}
