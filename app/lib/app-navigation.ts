@@ -37,6 +37,8 @@ export type ActiveView =
   | "customer-document-requests"
   | "governance-cases";
 
+export type CertificationCaseArea = "overview" | "progress" | "team" | "documents" | "activity";
+
 export interface BrowserNavigationState {
   activeView: ActiveView;
   selectedProjectId: string | null;
@@ -45,6 +47,7 @@ export interface BrowserNavigationState {
   selectedApplicationReviewId?: string | null;
   selectedProjectDossierKey?: string | null;
   selectedProjectWorkspacePath?: string | null;
+  selectedProjectArea?: CertificationCaseArea;
   selectedAccountId?: string | null;
 }
 
@@ -104,6 +107,7 @@ export function parseCanonicalLocation(
     selectedApplicationReviewId: params.get("review_id"),
     selectedProjectDossierKey: params.get("cycle") ?? params.get("dossier_key"),
     selectedProjectWorkspacePath: null,
+    selectedProjectArea: "overview",
     selectedAccountId: null,
   };
 
@@ -151,20 +155,26 @@ export function parseCanonicalLocation(
   if (caseMatch) {
     const caseId = safeDecode(caseMatch[1]);
     const child = caseMatch[2] ?? "";
+    const directArea = child.match(/^(progress|team|documents|activity)$/)?.[1] as CertificationCaseArea | undefined;
+    let selectedProjectArea: CertificationCaseArea = directArea ?? "overview";
     let workspacePath: string | null = null;
     const auditMatch = child.match(/^audits\/([^/?#]+)/);
     const findingMatch = child.match(/^findings\/([^/?#]+)/);
     if (auditMatch) {
+      selectedProjectArea = "progress";
       const auditId = safeDecode(auditMatch[1]);
       workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=audit-execution&audit_plan_id=${encodeURIComponent(auditId ?? "")}`;
     } else if (findingMatch) {
+      selectedProjectArea = "progress";
       const findingId = safeDecode(findingMatch[1]);
       const planId = params.get("audit_plan_id");
       if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=cap&audit_plan_id=${encodeURIComponent(planId)}&finding_id=${encodeURIComponent(findingId ?? "")}`;
     } else if (child === "technical-review") {
+      selectedProjectArea = "progress";
       const planId = params.get("audit_plan_id");
       if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=technical-review&audit_plan_id=${encodeURIComponent(planId)}`;
     } else if (child === "decision") {
+      selectedProjectArea = "progress";
       const planId = params.get("audit_plan_id");
       if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=certification-decision&audit_plan_id=${encodeURIComponent(planId)}`;
     }
@@ -174,6 +184,7 @@ export function parseCanonicalLocation(
       selectedProjectId: caseId,
       selectedAuditPlanId: auditMatch ? safeDecode(auditMatch[1]) : null,
       selectedProjectWorkspacePath: workspacePath,
+      selectedProjectArea,
     };
   }
   if (path === "/certifications") return { ...base, activeView: "projects" };
@@ -181,12 +192,21 @@ export function parseCanonicalLocation(
   // Legacy project paths retained through Step 18.
   const legacyProjectMatch = path.match(/^\/(?:projects|certification-projects)\/([^/?#]+)/);
   if (legacyProjectMatch) {
+    const workspace = params.get("workspace") ?? "";
+    const selectedProjectArea: CertificationCaseArea = workspace === "audit-team"
+      ? "team"
+      : workspace === "certificate-issue"
+        ? "documents"
+        : workspace
+          ? "progress"
+          : "overview";
     return {
       ...base,
       activeView: "project-detail",
       selectedProjectId: safeDecode(legacyProjectMatch[1]),
       selectedProjectDossierKey: params.get("dossier_key") ?? params.get("cycle"),
       selectedProjectWorkspacePath: `${path}${search}`,
+      selectedProjectArea,
     };
   }
   if (path === "/projects") return { ...base, activeView: "projects" };
@@ -273,7 +293,9 @@ export function canonicalPathForNavigation(
     customers: "/customers",
     applications: `/applications${suffix()}`,
     projects: "/certifications",
-    "project-detail": navigation.selectedProjectId ? `/certifications/${encodeURIComponent(navigation.selectedProjectId)}${suffix()}` : "/certifications",
+    "project-detail": navigation.selectedProjectId
+      ? `/certifications/${encodeURIComponent(navigation.selectedProjectId)}${navigation.selectedProjectArea && navigation.selectedProjectArea !== "overview" ? `/${navigation.selectedProjectArea}` : ""}${suffix()}`
+      : "/certifications",
     "schedule-resources": `/schedule${suffix()}`,
     certificates: navigation.selectedCertificateId ? `/certificates/${encodeURIComponent(navigation.selectedCertificateId)}` : "/certificates",
     documents: "/documents",
@@ -323,6 +345,9 @@ export function readBrowserNavigationState(rawState: unknown): BrowserNavigation
     selectedApplicationReviewId: typeof candidate.selectedApplicationReviewId === "string" ? candidate.selectedApplicationReviewId : null,
     selectedProjectDossierKey: typeof candidate.selectedProjectDossierKey === "string" ? candidate.selectedProjectDossierKey : null,
     selectedProjectWorkspacePath: typeof candidate.selectedProjectWorkspacePath === "string" ? candidate.selectedProjectWorkspacePath : null,
+    selectedProjectArea: ["overview", "progress", "team", "documents", "activity"].includes(candidate.selectedProjectArea ?? "")
+      ? candidate.selectedProjectArea
+      : "overview",
     selectedAccountId: typeof candidate.selectedAccountId === "string" ? candidate.selectedAccountId : null,
   };
 }

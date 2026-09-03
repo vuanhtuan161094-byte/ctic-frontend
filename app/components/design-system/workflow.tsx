@@ -88,16 +88,16 @@ export interface LifecycleStep {
   key: string;
   title: ReactNode;
   description?: ReactNode;
-  state: "complete" | "current" | "upcoming" | "notApplicable";
+  state: "complete" | "current" | "blocked" | "upcoming" | "notApplicable";
 }
 
 export function LifecycleStepper({ steps }: { steps: LifecycleStep[] }) {
   return (
     <ol aria-label="Tiến trình vòng đời" className="cmp-section-stack" style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {steps.map((step, index) => (
-        <li key={step.key} aria-current={step.state === "current" ? "step" : undefined}>
-          <Typography.Text type={step.state === "notApplicable" ? "secondary" : undefined} strong={step.state === "current"}>
-            {index + 1}. {step.title}{step.state === "notApplicable" ? " — Không áp dụng" : ""}
+        <li key={step.key} aria-current={["current", "blocked"].includes(step.state) ? "step" : undefined} data-lifecycle-state={step.state}>
+          <Typography.Text type={step.state === "notApplicable" ? "secondary" : undefined} strong={["current", "blocked"].includes(step.state)}>
+            {index + 1}. {step.title}{step.state === "notApplicable" ? " — Không áp dụng" : step.state === "blocked" ? " — Đang bị chặn" : ""}
           </Typography.Text>
           {step.description ? <div><Typography.Text type="secondary">{step.description}</Typography.Text></div> : null}
         </li>

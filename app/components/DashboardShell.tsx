@@ -50,9 +50,10 @@ import {
   readBrowserNavigationState,
   type ActiveView,
   type BrowserNavigationState,
+  type CertificationCaseArea,
 } from "../lib/app-navigation";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
-import { Breadcrumb as CmpBreadcrumb, ForbiddenState } from "./design-system";
+import { Breadcrumb as CmpBreadcrumb, ForbiddenState, LoadingSkeleton } from "./design-system";
 import {
   resolveTaskNavigation,
   type TaskDestination,
@@ -63,6 +64,7 @@ import type {
 import type { PersonalWorkspace } from "../types/personal-workspace";
 import { CertificationProjectDetailScreen } from "./CertificationProjectDetailScreen";
 import { CertificationProjectsScreen } from "./CertificationProjectsScreen";
+import { CertificationCaseRegistryPage, CertificationCaseWorkspace } from "./certification-case";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
 import { CustomerCorrectiveActionsScreen } from "./CustomerCorrectiveActionsScreen";
@@ -267,6 +269,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [selectedCertificateId, setSelectedCertificateId] = useState<string | null>(null);
   const [selectedAuditPlanId, setSelectedAuditPlanId] = useState<string | null>(null);
   const [selectedProjectWorkspacePath, setSelectedProjectWorkspacePath] = useState<string | null>(null);
+  const [selectedProjectArea, setSelectedProjectArea] = useState<CertificationCaseArea>("overview");
   const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [openingAlertId, setOpeningAlertId] = useState<string | null>(null);
@@ -314,6 +317,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     normalizedAccessRoles.has("ADMIN") || permissions.some((permission) => effectivePermissions.has(permission.toLowerCase()));
   const canManageConfiguration = hasPermission("classifications.manage");
   const canManageAccounts = hasRole("ADMIN") && hasPermission("users.read");
+  const canReadCertificationCases = hasPermission("projects.read");
   const configurationSection = configurationSectionByView[activeView];
   const accountDetailSection = accountSectionByView[activeView];
 
@@ -372,6 +376,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedApplicationReviewId(navigation.selectedApplicationReviewId ?? null);
       setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? null);
       setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
+      setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
       setSelectedAccountId(navigation.selectedAccountId ?? null);
     };
 
@@ -421,6 +426,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedApplicationReviewId,
       selectedProjectDossierKey,
       selectedProjectWorkspacePath,
+      selectedProjectArea,
       selectedAccountId,
     };
 
@@ -439,9 +445,10 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       && currentNavigation.selectedAuditPlanId === navigation.selectedAuditPlanId
       && currentNavigation.selectedApplicationReviewId === navigation.selectedApplicationReviewId
       && currentNavigation.selectedProjectDossierKey === navigation.selectedProjectDossierKey;
+    const isSameCaseArea = currentNavigation?.selectedProjectArea === navigation.selectedProjectArea;
     const isSameAccount = currentNavigation?.selectedAccountId === navigation.selectedAccountId;
 
-    if (isSameNavigation && isSameAccount && currentPath === targetPath) return;
+    if (isSameNavigation && isSameAccount && isSameCaseArea && currentPath === targetPath) return;
 
     window.history.pushState(
       createBrowserHistoryPayload(navigation),
@@ -457,6 +464,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     selectedProjectDossierKey,
     selectedProjectId,
     selectedProjectWorkspacePath,
+    selectedProjectArea,
     selectedAccountId,
   ]);
 
@@ -537,6 +545,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedProjectId(entityId);
       setSelectedProjectDossierKey(dossierKey ?? null);
       setSelectedProjectWorkspacePath(null);
+      setSelectedProjectArea("overview");
       setActiveView("project-detail");
       return;
     }
@@ -586,6 +595,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         setSelectedApplicationReviewId(navigation.selectedApplicationReviewId ?? null);
         setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? (typeof context?.dossier_key === "string" ? context.dossier_key : null));
         setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
+        setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
         return;
       }
     } catch {
@@ -1077,18 +1087,39 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             />
           ) : null}
           {activeView === "project-detail" && selectedProjectId && !customerPortalMode ? (
-            <CertificationProjectDetailScreen
-              initialDossierKey={selectedProjectDossierKey}
-              initialWorkspacePath={selectedProjectWorkspacePath}
-              onBack={() => {
-                setActiveView("projects");
-                setSelectedProjectId(null);
-                setSelectedProjectDossierKey(null);
-                setSelectedProjectWorkspacePath(null);
-              }}
-              projectId={selectedProjectId}
-              roles={session.user.roles}
-            />
+            accessQuery.isLoading ? <LoadingSkeleton variant="detail" rows={12} /> : !canReadCertificationCases ? (
+              <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
+            ) : selectedProjectWorkspacePath ? (
+              <CertificationProjectDetailScreen
+                initialDossierKey={selectedProjectDossierKey}
+                initialWorkspacePath={selectedProjectWorkspacePath}
+                onBack={() => {
+                  setSelectedProjectWorkspacePath(null);
+                  setSelectedProjectArea("overview");
+                }}
+                projectId={selectedProjectId}
+                roles={session.user.roles}
+              />
+            ) : (
+              <CertificationCaseWorkspace
+                caseId={selectedProjectId}
+                area={selectedProjectArea}
+                selectedCycleKey={selectedProjectDossierKey}
+                onBack={() => {
+                  setActiveView("projects");
+                  setSelectedProjectId(null);
+                  setSelectedProjectDossierKey(null);
+                  setSelectedProjectWorkspacePath(null);
+                  setSelectedProjectArea("overview");
+                }}
+                onNavigateArea={(area) => {
+                  setSelectedProjectArea(area);
+                  setSelectedProjectWorkspacePath(null);
+                }}
+                onCycleChange={(cycleKey) => setSelectedProjectDossierKey(cycleKey)}
+                onOpenCompatibility={(path) => openWorkspacePath(path, { dossier_key: selectedProjectDossierKey })}
+              />
+            )
           ) : activeView === "my-tasks" ? (
             <MyTasksScreen
               onOpenPath={openWorkspacePath}
@@ -1115,6 +1146,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
                 setSelectedProjectId(projectId);
                 setSelectedProjectDossierKey(null);
                 setSelectedProjectWorkspacePath(null);
+                setSelectedProjectArea("overview");
                 setActiveView("project-detail");
               }}
               roles={session.user.roles}
@@ -1146,6 +1178,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
                 setSelectedProjectId(projectId);
                 setSelectedProjectDossierKey(null);
                 setSelectedProjectWorkspacePath(null);
+                setSelectedProjectArea("overview");
                 setActiveView("project-detail");
               }}
             />
@@ -1153,11 +1186,15 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             customerPortalMode ? (
               <CustomerCorrectiveActionsScreen roles={session.user.roles} />
             ) : (
-              <CertificationProjectsScreen
-                mode="projects"
-                onOpenProject={(projectId) => {
-                  setSelectedProjectId(projectId);
+              <CertificationCaseRegistryPage
+                authorized={canReadCertificationCases}
+                accessPending={accessQuery.isLoading}
+                onExit={() => setActiveView("dashboard")}
+                onOpenCase={(caseId) => {
+                  setSelectedProjectId(caseId);
                   setSelectedProjectDossierKey(null);
+                  setSelectedProjectWorkspacePath(null);
+                  setSelectedProjectArea("overview");
                   setActiveView("project-detail");
                 }}
               />
@@ -1170,6 +1207,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               onOpenProject={(projectId, dossierKey) => {
                 setSelectedProjectId(projectId);
                 setSelectedProjectDossierKey(dossierKey ?? null);
+                setSelectedProjectWorkspacePath(null);
+                setSelectedProjectArea("overview");
                 setActiveView("project-detail");
               }}
               roles={session.user.roles}
@@ -1184,6 +1223,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <DocumentsScreen
               onOpenProject={(projectId) => {
                 setSelectedProjectId(projectId);
+                setSelectedProjectWorkspacePath(null);
+                setSelectedProjectArea("overview");
                 setActiveView("project-detail");
               }}
             />
