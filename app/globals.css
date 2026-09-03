@@ -1601,6 +1601,56 @@ input { font: inherit; }
   }
 }
 
+/* Step 16 — account and access workspace */
+.account-detail-page,
+.roles-permissions-page {
+  display: grid;
+  gap: var(--cmp-space-6);
+}
+
+.account-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cmp-space-2);
+  padding: var(--cmp-space-2);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  background: var(--cmp-surface-raised);
+}
+
+.role-permission-groups {
+  display: grid;
+  gap: var(--cmp-space-2);
+}
+
+.role-permission-groups details {
+  padding: var(--cmp-space-2);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  background: var(--cmp-surface-subtle);
+}
+
+.role-permission-groups summary {
+  cursor: pointer;
+  color: var(--cmp-text-primary);
+  font-weight: var(--cmp-font-weight-semibold);
+}
+
+.role-permission-groups details > div {
+  padding-top: var(--cmp-space-2);
+}
+
+@media (max-width: 768px) {
+  .account-detail-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .account-detail-nav .ant-btn {
+    white-space: normal;
+  }
+}
+
 /* Step 15 — route-level configuration workspace */
 .configuration-route-page {
   display: grid;

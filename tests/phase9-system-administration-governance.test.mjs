@@ -81,9 +81,10 @@ test("SystemAdminScreen integrates governance without duplicating Phase 7 direct
   assert.doesNotMatch(admin, /import \{ MasterDataConfigurationPanel/);
 });
 
-test("System Administration route remains ADMIN-only in frontend navigation", () => {
-  assert.match(shell, /if \(hasRole\("ADMIN"\)\) administration\.push\(\{ key: "system-admin"/);
-  assert.doesNotMatch(shell, /hasPermission\([^)]*users\.read[^)]*\)[^\n]*system-admin/);
+test("System Administration routes retain the ADMIN controller boundary and effective permission shaping", () => {
+  assert.match(shell, /canManageAccounts = hasRole\("ADMIN"\) && hasPermission\("users\.read"\)/);
+  assert.match(shell, /if \(canManageAccounts\)[\s\S]*key: "account-access-group"/);
+  assert.match(shell, /ForbiddenState/);
 });
 
 test("runtime role designer mutation is not added to Phase 9 UI", () => {

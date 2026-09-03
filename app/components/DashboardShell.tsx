@@ -8,7 +8,6 @@ import {
   FileDoneOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
-  IdcardOutlined,
   LogoutOutlined,
   MenuOutlined,
   NotificationOutlined,
@@ -93,6 +92,8 @@ import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
 import { SystemAdminScreen } from "./SystemAdminScreen";
 import { DelegationScreen } from "./DelegationScreen";
 import { ConfigurationRouteScreen, type ConfigurationRouteSection } from "./ConfigurationRouteScreen";
+import { AccountAccessDetailScreen, type AccountDetailSection } from "./AccountAccessDetailScreen";
+import { RolesPermissionsScreen } from "./RolesPermissionsScreen";
 
 const { Header, Content, Sider } = Layout;
 interface DashboardShellProps {
@@ -120,6 +121,20 @@ const configurationViewBySection: Record<ConfigurationRouteSection, ActiveView> 
   classifications: "configuration-classifications",
   mappings: "configuration-mappings",
   import: "configuration-import",
+};
+
+const accountSectionByView: Partial<Record<ActiveView, AccountDetailSection>> = {
+  "admin-account-overview": "overview",
+  "admin-account-access": "access",
+  "admin-account-sessions": "sessions",
+  "admin-account-activity": "activity",
+};
+
+const accountViewBySection: Record<AccountDetailSection, ActiveView> = {
+  overview: "admin-account-overview",
+  access: "admin-account-access",
+  sessions: "admin-account-sessions",
+  activity: "admin-account-activity",
 };
 
 interface SearchResult {
@@ -253,6 +268,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [selectedAuditPlanId, setSelectedAuditPlanId] = useState<string | null>(null);
   const [selectedProjectWorkspacePath, setSelectedProjectWorkspacePath] = useState<string | null>(null);
   const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [openingAlertId, setOpeningAlertId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -297,7 +313,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const hasPermission = (...permissions: string[]) =>
     normalizedAccessRoles.has("ADMIN") || permissions.some((permission) => effectivePermissions.has(permission.toLowerCase()));
   const canManageConfiguration = hasPermission("classifications.manage");
+  const canManageAccounts = hasRole("ADMIN") && hasPermission("users.read");
   const configurationSection = configurationSectionByView[activeView];
+  const accountDetailSection = accountSectionByView[activeView];
 
   const overviewQuery = useQuery({
     queryKey: ["dashboard", "overview", warningDays],
@@ -354,6 +372,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedApplicationReviewId(navigation.selectedApplicationReviewId ?? null);
       setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? null);
       setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
+      setSelectedAccountId(navigation.selectedAccountId ?? null);
     };
 
     const navigation = parseCanonicalLocation(
@@ -402,6 +421,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedApplicationReviewId,
       selectedProjectDossierKey,
       selectedProjectWorkspacePath,
+      selectedAccountId,
     };
 
     if (restoringHistoryRef.current) {
@@ -419,8 +439,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       && currentNavigation.selectedAuditPlanId === navigation.selectedAuditPlanId
       && currentNavigation.selectedApplicationReviewId === navigation.selectedApplicationReviewId
       && currentNavigation.selectedProjectDossierKey === navigation.selectedProjectDossierKey;
+    const isSameAccount = currentNavigation?.selectedAccountId === navigation.selectedAccountId;
 
-    if (isSameNavigation && currentPath === targetPath) return;
+    if (isSameNavigation && isSameAccount && currentPath === targetPath) return;
 
     window.history.pushState(
       createBrowserHistoryPayload(navigation),
@@ -436,6 +457,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     selectedProjectDossierKey,
     selectedProjectId,
     selectedProjectWorkspacePath,
+    selectedAccountId,
   ]);
 
   useEffect(() => {
@@ -747,7 +769,17 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });
 
     const administration: NonNullable<MenuProps["items"]> = [];
-    if (hasRole("ADMIN")) administration.push({ key: "system-admin", icon: <TeamOutlined />, label: "Tài khoản & phân quyền" });
+    if (canManageAccounts) {
+      administration.push({
+        key: "account-access-group",
+        icon: <TeamOutlined />,
+        label: "Tài khoản & truy cập",
+        children: [
+          { key: "admin-accounts", label: "Tài khoản" },
+          { key: "admin-roles-permissions", label: "Vai trò & quyền" },
+        ],
+      });
+    }
     if (canManageConfiguration) {
       administration.push({
         key: "configuration-group",
@@ -820,6 +852,12 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     experts: "Chuyên gia & năng lực",
     reports: "Báo cáo điều hành",
     "system-admin": "Quản trị hệ thống",
+    "admin-accounts": "Tài khoản",
+    "admin-account-overview": "Chi tiết tài khoản",
+    "admin-account-access": "Vai trò & quyền hiệu lực",
+    "admin-account-sessions": "Phiên & bảo mật",
+    "admin-account-activity": "Hoạt động tài khoản",
+    "admin-roles-permissions": "Vai trò & quyền",
     "configuration-schemes": "Chương trình chứng nhận",
     "configuration-standards": "Tiêu chuẩn & phiên bản",
     "configuration-capabilities": "Phạm vi năng lực",
@@ -962,6 +1000,13 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else if (key === "system-admin") {
             setActiveView("system-admin");
+            setSelectedProjectId(null);
+            setSelectedCertificateId(null);
+            setSelectedAuditPlanId(null);
+          }
+          else if (key === "admin-accounts" || key === "admin-roles-permissions") {
+            setActiveView(key as ActiveView);
+            setSelectedAccountId(null);
             setSelectedProjectId(null);
             setSelectedCertificateId(null);
             setSelectedAuditPlanId(null);
@@ -1146,6 +1191,32 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <ExpertsScreen roles={session.user.roles} />
           ) : activeView === "reports" ? (
             <ManagementCockpitScreen roles={session.user.roles} />
+          ) : activeView === "admin-accounts" ? (
+            canManageAccounts ? (
+              <SystemAdminScreen
+                currentUserId={session.user.id}
+                roles={effectiveAccess.roles}
+                routeMode
+                onOpenUser={(userId) => {
+                  setSelectedAccountId(userId);
+                  setActiveView("admin-account-overview");
+                }}
+              />
+            ) : <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
+          ) : activeView === "admin-roles-permissions" ? (
+            canManageAccounts ? <RolesPermissionsScreen /> : <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
+          ) : accountDetailSection && selectedAccountId ? (
+            canManageAccounts ? (
+              <AccountAccessDetailScreen
+                userId={selectedAccountId}
+                section={accountDetailSection}
+                onNavigate={(nextSection) => setActiveView(accountViewBySection[nextSection])}
+                onBack={() => {
+                  setSelectedAccountId(null);
+                  setActiveView("admin-accounts");
+                }}
+              />
+            ) : <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
           ) : configurationSection ? (
             canManageConfiguration ? (
               <ConfigurationRouteScreen

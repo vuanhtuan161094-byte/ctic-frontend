@@ -7,7 +7,6 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
-  SearchOutlined,
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
@@ -25,7 +24,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tabs,
   Tag,
   Tooltip,
@@ -36,13 +34,16 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { DataTable, PageHeader, SearchToolbar } from "./design-system";
 import { SystemGovernancePanel } from "./SystemGovernancePanel";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface SystemAdminScreenProps {
   currentUserId: string;
   roles: string[];
+  routeMode?: boolean;
+  onOpenUser?: (userId: string) => void;
 }
 
 interface UserRole {
@@ -156,6 +157,7 @@ const roleLabels: Record<string, string> = {
   technical_expert: "Chuyên gia kỹ thuật",
   technical_reviewer: "Thẩm xét viên kỹ thuật",
   decision_maker: "Người ra quyết định",
+  customer: "Người dùng khách hàng",
 };
 
 const permissionResourceLabels: Record<string, string> = {
@@ -438,7 +440,7 @@ function UserStatusTag({ status }: { status: string }) {
   );
 }
 
-export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenProps) {
+export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onOpenUser }: SystemAdminScreenProps) {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
   const [createForm] = Form.useForm<CreateUserValues>();
@@ -454,6 +456,7 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [audienceFilter, setAudienceFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [permissionEditorOpen, setPermissionEditorOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -488,8 +491,13 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
   });
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
-  const availableRoles = rolesQuery.data ?? [];
+  const availableRoles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
+  const openUser = (userId: string) => onOpenUser ? onOpenUser(userId) : setSelectedUserId(userId);
+  const openUserEditor = (userId: string) => {
+    setPermissionEditorOpen(false);
+    setSelectedUserId(userId);
+  };
   const persistedRoleNames = useMemo(
     () => selectedUser?.roles.map((role) => role.role_name) ?? [],
     [selectedUser],
@@ -512,7 +520,7 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
     ),
     [previewSelectedRoles],
   );
-  const createPreviewRoleNames = watchedCreateRoleNames ?? [];
+  const createPreviewRoleNames = useMemo(() => watchedCreateRoleNames ?? [], [watchedCreateRoleNames]);
   const createSelectedRoles = useMemo(
     () => availableRoles.filter((role) =>
       createPreviewRoleNames.some((roleName) => normalizeRole(roleName) === normalizeRole(role.role_name)),
@@ -563,7 +571,6 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
       rolesForm.resetFields();
       permissionForm.resetFields();
       passwordForm.resetFields();
-      setPermissionEditorOpen(false);
       return;
     }
 
@@ -579,7 +586,6 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
     });
 
     passwordForm.resetFields();
-    setPermissionEditorOpen(false);
   }, [editForm, passwordForm, permissionForm, rolesForm, selectedUser]);
 
   useEffect(() => {
@@ -691,10 +697,13 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
       const matchesRole =
         roleFilter === "all" ||
         user.roles.some((role) => normalizeRole(role.role_name) === normalizeRole(roleFilter));
+      const customerAudience = user.roles.some((role) => normalizeRole(role.role_name) === "customer");
+      const matchesAudience = audienceFilter === "all"
+        || (audienceFilter === "customer" ? customerAudience : !customerAudience);
 
-      return matchesSearch && matchesStatus && matchesRole;
+      return matchesSearch && matchesStatus && matchesRole && matchesAudience;
     });
-  }, [roleFilter, search, statusFilter, users]);
+  }, [audienceFilter, roleFilter, search, statusFilter, users]);
 
   const summary = useMemo(
     () => ({
@@ -726,7 +735,7 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
       render: (_, record) => (
         <button
           className="system-user-name-button"
-          onClick={() => setSelectedUserId(record.id)}
+          onClick={() => openUser(record.id)}
           type="button"
         >
           <span className="system-user-avatar"><UserOutlined /></span>
@@ -784,12 +793,13 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
     {
       title: "",
       key: "action",
-      width: 80,
+      width: routeMode ? 160 : 80,
       fixed: "right",
       render: (_, record) => (
-        <Button onClick={() => setSelectedUserId(record.id)} size="small">
-          Mở
-        </Button>
+        <Space size={6}>
+          <Button onClick={() => openUser(record.id)} size="small">Mở</Button>
+          {routeMode ? <Button onClick={() => openUserEditor(record.id)} size="small" type="link">Chỉnh sửa</Button> : null}
+        </Space>
       ),
     },
   ];
@@ -806,15 +816,11 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
     <div className="system-admin-screen">
       {contextHolder}
 
-      <div className="page-heading page-heading-v2">
-        <div>
-          <span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span>
-          <Title level={2}>Tài khoản người dùng</Title>
-          <Text type="secondary">
-            Quản lý thông tin đăng nhập, trạng thái, vai trò và mật khẩu của người dùng nội bộ.
-          </Text>
-        </div>
-        <Space>
+      <PageHeader
+        identity="TÀI KHOẢN & TRUY CẬP"
+        title="Tài khoản người dùng"
+        description="Quản lý tài khoản nội bộ và khách hàng, trạng thái, vai trò và quyền truy cập được backend kiểm soát."
+        secondaryActions={<Space>
           <Button
             icon={<ReloadOutlined />}
             loading={usersQuery.isFetching || rolesQuery.isFetching}
@@ -828,8 +834,8 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
           <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} type="primary">
             Thêm tài khoản
           </Button>
-        </Space>
-      </div>
+        </Space>}
+      />
 
       <section className="system-admin-kpi-grid">
         <Card><Statistic prefix={<TeamOutlined />} title="Tổng tài khoản" value={summary.total} /></Card>
@@ -838,36 +844,46 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
         <Card><Statistic prefix={<UserOutlined />} title="Ngừng hoạt động" value={summary.inactive} /></Card>
       </section>
 
-      <SystemGovernancePanel />
+      {!routeMode ? <SystemGovernancePanel /> : null}
 
       <Card className="system-admin-table-card" title="Danh sách tài khoản">
-        <div className="system-admin-filter-bar">
-          <Input
-            allowClear
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Tìm theo tên, tên đăng nhập hoặc thư điện tử..."
-            prefix={<SearchOutlined />}
-            value={search}
-          />
-          <Select
-            onChange={setStatusFilter}
-            options={[
-              { value: "all", label: "Tất cả trạng thái" },
-              { value: "active", label: "Đang hoạt động" },
-              { value: "locked", label: "Đã khóa" },
-              { value: "inactive", label: "Ngừng hoạt động" },
-            ]}
-            value={statusFilter}
-          />
-          <Select
-            onChange={setRoleFilter}
-            options={[{ value: "all", label: "Tất cả vai trò" }, ...roleFilterOptions]}
-            showSearch
-            value={roleFilter}
-          />
-        </div>
+        <SearchToolbar
+          placeholder="Tìm theo tên, tên đăng nhập hoặc thư điện tử..."
+          query={search}
+          onQueryChange={setSearch}
+          filterControl={<Space wrap>
+            <Select
+              aria-label="Lọc theo trạng thái"
+              onChange={setStatusFilter}
+              options={[
+                { value: "all", label: "Tất cả trạng thái" },
+                { value: "active", label: "Đang hoạt động" },
+                { value: "locked", label: "Đã khóa" },
+                { value: "inactive", label: "Ngừng hoạt động" },
+              ]}
+              value={statusFilter}
+            />
+            <Select
+              aria-label="Lọc theo vai trò"
+              onChange={setRoleFilter}
+              options={[{ value: "all", label: "Tất cả vai trò" }, ...roleFilterOptions]}
+              showSearch
+              value={roleFilter}
+            />
+            <Select
+              aria-label="Lọc theo nhóm tài khoản"
+              onChange={setAudienceFilter}
+              options={[
+                { value: "all", label: "Nội bộ & khách hàng" },
+                { value: "internal", label: "Tài khoản nội bộ" },
+                { value: "customer", label: "Tài khoản khách hàng" },
+              ]}
+              value={audienceFilter}
+            />
+          </Space>}
+        />
 
-        <Table<SystemUser>
+        <DataTable<SystemUser>
           columns={columns}
           dataSource={filteredUsers}
           loading={usersQuery.isLoading}
@@ -875,6 +891,17 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
           pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} tài khoản` }}
           rowKey="id"
           scroll={{ x: 1080 }}
+          responsiveCards={filteredUsers.map((user) => ({
+            key: user.id,
+            title: user.full_name || user.username,
+            status: <UserStatusTag status={user.status} />,
+            fields: [
+              { key: "identity", label: "Tài khoản", value: `@${user.username} · ${user.email}` },
+              { key: "roles", label: "Vai trò", value: user.roles.map((role) => getRoleLabel(role.role_name)).join(" · ") || "Chưa gán vai trò" },
+              { key: "audience", label: "Nhóm", value: user.roles.some((role) => normalizeRole(role.role_name) === "customer") ? "Khách hàng" : "Nội bộ" },
+            ],
+            actions: <Space><Button size="small" onClick={() => openUser(user.id)}>Mở tài khoản</Button>{routeMode ? <Button size="small" onClick={() => openUserEditor(user.id)}>Chỉnh sửa</Button> : null}</Space>,
+          }))}
         />
       </Card>
 
@@ -965,7 +992,10 @@ export function SystemAdminScreen({ currentUserId, roles }: SystemAdminScreenPro
 
       <Drawer
         destroyOnClose
-        onClose={() => setSelectedUserId(null)}
+        onClose={() => {
+          setPermissionEditorOpen(false);
+          setSelectedUserId(null);
+        }}
         open={Boolean(selectedUser)}
         title={
           selectedUser ? (

@@ -14,6 +14,12 @@ export type ActiveView =
   | "experts"
   | "reports"
   | "system-admin"
+  | "admin-accounts"
+  | "admin-account-overview"
+  | "admin-account-access"
+  | "admin-account-sessions"
+  | "admin-account-activity"
+  | "admin-roles-permissions"
   | "configuration-schemes"
   | "configuration-standards"
   | "configuration-capabilities"
@@ -39,12 +45,15 @@ export interface BrowserNavigationState {
   selectedApplicationReviewId?: string | null;
   selectedProjectDossierKey?: string | null;
   selectedProjectWorkspacePath?: string | null;
+  selectedAccountId?: string | null;
 }
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
   "customers", "applications", "projects", "project-detail", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
+  "admin-accounts", "admin-account-overview", "admin-account-access",
+  "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
   "configuration-schemes", "configuration-standards", "configuration-capabilities",
   "configuration-numbering", "configuration-branding", "configuration-classifications",
   "configuration-mappings", "configuration-import",
@@ -95,6 +104,7 @@ export function parseCanonicalLocation(
     selectedApplicationReviewId: params.get("review_id"),
     selectedProjectDossierKey: params.get("cycle") ?? params.get("dossier_key"),
     selectedProjectWorkspacePath: null,
+    selectedAccountId: null,
   };
 
   if (customerPortalMode) {
@@ -190,6 +200,21 @@ export function parseCanonicalLocation(
   if (path.startsWith("/customer-user-requests")) return { ...base, activeView: "customer-user-requests" };
   if (path.startsWith("/customer-document-requests")) return { ...base, activeView: "customer-document-requests" };
   if (path.startsWith("/analytics") || path.startsWith("/reports")) return { ...base, activeView: "reports" };
+  if (path === "/admin/roles-permissions") return { ...base, activeView: "admin-roles-permissions" };
+  const accountMatch = path.match(/^\/admin\/accounts\/([^/?#]+)(?:\/(access|sessions|activity))?$/);
+  if (accountMatch) {
+    const accountView: Record<string, ActiveView> = {
+      access: "admin-account-access",
+      sessions: "admin-account-sessions",
+      activity: "admin-account-activity",
+    };
+    return {
+      ...base,
+      activeView: accountView[accountMatch[2] ?? ""] ?? "admin-account-overview",
+      selectedAccountId: safeDecode(accountMatch[1]),
+    };
+  }
+  if (path === "/admin/accounts") return { ...base, activeView: "admin-accounts" };
   const configurationRoutes: Record<string, ActiveView> = {
     "/admin/configuration/schemes": "configuration-schemes",
     "/admin/configuration/standards": "configuration-standards",
@@ -255,6 +280,12 @@ export function canonicalPathForNavigation(
     experts: "/resources/experts",
     reports: "/analytics",
     "system-admin": "/admin/accounts",
+    "admin-accounts": "/admin/accounts",
+    "admin-account-overview": navigation.selectedAccountId ? `/admin/accounts/${encodeURIComponent(navigation.selectedAccountId)}` : "/admin/accounts",
+    "admin-account-access": navigation.selectedAccountId ? `/admin/accounts/${encodeURIComponent(navigation.selectedAccountId)}/access` : "/admin/accounts",
+    "admin-account-sessions": navigation.selectedAccountId ? `/admin/accounts/${encodeURIComponent(navigation.selectedAccountId)}/sessions` : "/admin/accounts",
+    "admin-account-activity": navigation.selectedAccountId ? `/admin/accounts/${encodeURIComponent(navigation.selectedAccountId)}/activity` : "/admin/accounts",
+    "admin-roles-permissions": "/admin/roles-permissions",
     "configuration-schemes": "/admin/configuration/schemes",
     "configuration-standards": "/admin/configuration/standards",
     "configuration-capabilities": "/admin/configuration/capabilities",
@@ -292,6 +323,7 @@ export function readBrowserNavigationState(rawState: unknown): BrowserNavigation
     selectedApplicationReviewId: typeof candidate.selectedApplicationReviewId === "string" ? candidate.selectedApplicationReviewId : null,
     selectedProjectDossierKey: typeof candidate.selectedProjectDossierKey === "string" ? candidate.selectedProjectDossierKey : null,
     selectedProjectWorkspacePath: typeof candidate.selectedProjectWorkspacePath === "string" ? candidate.selectedProjectWorkspacePath : null,
+    selectedAccountId: typeof candidate.selectedAccountId === "string" ? candidate.selectedAccountId : null,
   };
 }
 
