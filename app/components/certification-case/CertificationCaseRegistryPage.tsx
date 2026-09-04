@@ -4,7 +4,7 @@ import { FolderOpenOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import type { TableColumnsType } from "antd";
-import { Button, Select, Space, Typography } from "antd";
+import { Button, Select, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../../lib/api";
@@ -19,7 +19,7 @@ import {
   PageHeader,
   SearchToolbar,
 } from "../design-system";
-import { caseCustomer, caseScope, formatCaseDate, normalizeCaseValue } from "./case-model";
+import { caseCustomer, caseScope, normalizeCaseValue } from "./case-model";
 import type { CertificationCaseRecord } from "./types";
 
 interface RegistryFilters {
@@ -48,14 +48,16 @@ function replaceRegistryQuery(filters: RegistryFilters) {
   window.history.replaceState(window.history.state, "", next);
 }
 
-export interface CertificationCaseRegistryPageProps {
-  authorized: boolean;
-  accessPending?: boolean;
-  onExit: () => void;
+export interface CertificationCaseRegistryViewProps {
+  records: CertificationCaseRecord[];
+  loading?: boolean;
+  error?: unknown;
+  refreshing?: boolean;
+  onRefresh: () => void;
   onOpenCase: (caseId: string) => void;
 }
 
-export function CertificationCaseRegistryPage({ authorized, accessPending = false, onExit, onOpenCase }: CertificationCaseRegistryPageProps) {
+export function CertificationCaseRegistryView({ records, loading = false, error, refreshing = false, onRefresh, onOpenCase }: CertificationCaseRegistryViewProps) {
   const initialFilters = useMemo(() => filtersFromLocation(), []);
   const [query, setQuery] = useState(initialFilters.query);
   const [status, setStatus] = useState(initialFilters.status);
@@ -76,16 +78,6 @@ export function CertificationCaseRegistryPage({ authorized, accessPending = fals
     replaceRegistryQuery({ query, status, standard });
   }, [query, standard, status]);
 
-  const casesQuery = useQuery({
-    queryKey: ["certification-projects", "case-registry-v2"],
-    queryFn: async () => (await api.get<CertificationCaseRecord[]>("/certification-projects")).data,
-    enabled: authorized,
-    staleTime: 60_000,
-    gcTime: 10 * 60_000,
-    refetchOnWindowFocus: false,
-  });
-
-  const records = useMemo(() => casesQuery.data ?? [], [casesQuery.data]);
   const standardOptions = useMemo(() => Array.from(new Set(records.map((record) => record.standard_name).filter(Boolean)))
     .sort((left, right) => left.localeCompare(right, "vi"))
     .map((value) => ({ value, label: value })), [records]);
@@ -110,56 +102,51 @@ export function CertificationCaseRegistryPage({ authorized, accessPending = fals
     });
   }, [query, records, standard, status]);
 
-  if (accessPending) return <LoadingSkeleton variant="page" rows={8} />;
-  if (!authorized || (isAxiosError(casesQuery.error) && casesQuery.error.response?.status === 403)) {
-    return <ForbiddenState exit={{ label: "Về tổng quan", onAction: onExit }} />;
-  }
-
   const columns: TableColumnsType<CertificationCaseRecord> = [
     {
       title: "Mã hồ sơ",
       dataIndex: "project_code",
       key: "project_code",
-      fixed: "left",
-      width: 150,
+      width: 108,
+      ellipsis: true,
       render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
     },
     {
       title: "Khách hàng",
       key: "customer",
-      width: 230,
+      width: 178,
+      ellipsis: true,
       render: (_, record) => {
         const customer = caseCustomer(record);
         return <div className="cmp-case-table-identity"><strong>{customer?.company_name ?? "Chưa xác định"}</strong><span>{customer?.customer_code ?? "Chưa có mã khách hàng"}</span></div>;
       },
     },
-    { title: "Tiêu chuẩn / phiên bản", dataIndex: "standard_name", key: "standard_name", width: 210 },
+    { title: "Tiêu chuẩn / phiên bản", dataIndex: "standard_name", key: "standard_name", width: 164, ellipsis: true },
     {
       title: "Chu kỳ & bước hiện tại",
       key: "cycle",
-      width: 190,
-      render: () => <Typography.Text type="secondary">Mở hồ sơ để xem dữ liệu theo chu kỳ</Typography.Text>,
+      width: 144,
+      render: () => <span className="cmp-case-table-secondary">Xem dữ liệu theo chu kỳ trong hồ sơ</span>,
     },
     {
-      title: "Trách nhiệm & thời hạn",
+      title: "Trách nhiệm / thời hạn",
       key: "responsibility",
-      width: 190,
-      render: () => <Typography.Text type="secondary">Xem thông tin theo bước trong từng hồ sơ</Typography.Text>,
+      width: 148,
+      render: () => <span className="cmp-case-table-secondary">Xác nhận theo bước trong hồ sơ</span>,
     },
     {
-      title: "Trạng thái hồ sơ",
+      title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 170,
+      width: 120,
       render: (value: string) => <DomainStatusBadge domain="case" code={normalizeCaseValue(value)} />,
     },
-    { title: "Cập nhật", dataIndex: "updated_at", key: "updated_at", width: 120, render: formatCaseDate },
     {
-      title: "",
+      title: <span className="cmp-visually-hidden">Thao tác</span>,
       key: "action",
-      fixed: "right",
-      width: 112,
-      render: (_, record) => <Button icon={<FolderOpenOutlined />} onClick={() => onOpenCase(record.id)}>Mở hồ sơ</Button>,
+      width: 48,
+      align: "right",
+      render: (_, record) => <Button aria-label={`Mở hồ sơ ${record.project_code}`} icon={<FolderOpenOutlined />} onClick={() => onOpenCase(record.id)} type="text" />,
     },
   ];
 
@@ -173,21 +160,24 @@ export function CertificationCaseRegistryPage({ authorized, accessPending = fals
         { key: "customer", label: "Khách hàng", value: customer?.company_name ?? "Chưa xác định" },
         { key: "standard", label: "Tiêu chuẩn", value: record.standard_name },
         { key: "cycle", label: "Chu kỳ / bước", value: "Xem trong hồ sơ" },
-        { key: "attention", label: "Lưu ý / thời hạn", value: "Xem trong từng hồ sơ" },
+        { key: "attention", label: "Trách nhiệm / hạn", value: "Xác nhận trong hồ sơ" },
       ],
       actions: <Button block type="primary" onClick={() => onOpenCase(record.id)}>Mở hồ sơ</Button>,
     };
   });
 
   const appliedFilters = Number(status !== "all") + Number(standard !== "all");
+  const hasSearchOrFilters = Boolean(query.trim()) || appliedFilters > 0;
   const filterControl = (
-    <FilterPopover
-      appliedCount={appliedFilters}
-      onReset={() => { setStatus("all"); setStandard("all"); }}
-    >
+    <FilterPopover appliedCount={appliedFilters} onReset={() => { setStatus("all"); setStandard("all"); }}>
       <label className="cmp-case-filter-field"><span>Trạng thái hồ sơ</span><Select value={status} onChange={setStatus} options={[{ value: "all", label: "Tất cả" }, ...statusOptions]} /></label>
       <label className="cmp-case-filter-field"><span>Tiêu chuẩn / phiên bản</span><Select value={standard} onChange={setStandard} options={[{ value: "all", label: "Tất cả" }, ...standardOptions]} /></label>
     </FilterPopover>
+  );
+  const emptyState = records.length === 0 ? (
+    <EmptyState title="Chưa có hồ sơ chứng nhận" description="Hồ sơ chứng nhận sẽ xuất hiện sau khi đơn đăng ký và quy trình liên quan tạo hồ sơ." />
+  ) : (
+    <EmptyState title="Không tìm thấy hồ sơ phù hợp" description="Thử thay đổi từ khóa hoặc bộ lọc đang áp dụng." />
   );
 
   return (
@@ -195,39 +185,78 @@ export function CertificationCaseRegistryPage({ authorized, accessPending = fals
       <PageHeader
         identity="NGHIỆP VỤ CHỨNG NHẬN"
         title="Hồ sơ chứng nhận"
-        description="Theo dõi từng hồ sơ từ thông tin nhận diện đến chu kỳ, bước xử lý và các điểm cần chú ý."
-        metadata={<Typography.Text type="secondary">{filteredRecords.length} / {records.length} hồ sơ</Typography.Text>}
-        secondaryActions={<Button icon={<ReloadOutlined />} loading={casesQuery.isFetching} onClick={() => void casesQuery.refetch()}>Làm mới</Button>}
+        description="Theo dõi hồ sơ, chu kỳ xử lý và các điểm cần chú ý trong toàn bộ hành trình chứng nhận."
       />
 
-      <SearchToolbar
-        query={query}
-        onQueryChange={setQuery}
-        queryParam="q"
-        placeholder="Tìm theo mã hồ sơ, khách hàng, tiêu chuẩn hoặc phạm vi"
-        filterControl={filterControl}
-      />
-
-      {casesQuery.isLoading ? <LoadingSkeleton variant="list" rows={7} /> : casesQuery.isError ? (
-        <ErrorState description={getErrorMessage(casesQuery.error)} retry={{ label: "Thử lại", onAction: () => void casesQuery.refetch() }} />
-      ) : (
-        <DataTable
-          aria-label="Danh sách hồ sơ chứng nhận"
-          columns={columns}
-          dataSource={filteredRecords}
-          rowKey="id"
-          scroll={{ x: 1380 }}
-          pagination={{ pageSize: 12, showSizeChanger: true }}
-          responsiveCards={responsiveCards}
-          responsiveEmpty={<EmptyState title="Không tìm thấy hồ sơ" description="Thử thay đổi từ khóa hoặc bộ lọc đang áp dụng." />}
-          locale={{ emptyText: <EmptyState title="Không tìm thấy hồ sơ" description="Thử thay đổi từ khóa hoặc bộ lọc đang áp dụng." /> }}
-          onRow={(record) => ({ onDoubleClick: () => onOpenCase(record.id) })}
+      <section className="cmp-case-registry-surface" aria-label="Sổ hồ sơ chứng nhận">
+        <SearchToolbar
+          query={query}
+          onQueryChange={setQuery}
+          queryParam="q"
+          placeholder="Tìm mã hồ sơ, khách hàng hoặc tiêu chuẩn"
+          filterControl={filterControl}
+          actions={(
+            <div className="cmp-case-toolbar-actions">
+              <Typography.Text className="cmp-case-result-count">{filteredRecords.length} / {records.length} hồ sơ</Typography.Text>
+              <Button aria-label="Làm mới danh sách hồ sơ" icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh}>Làm mới</Button>
+            </div>
+          )}
         />
-      )}
 
-      <div className="cmp-case-projection-note">
-        <Space size={8}><Typography.Text type="secondary">Chu kỳ, bước, trách nhiệm và thời hạn được xác nhận khi mở từng hồ sơ.</Typography.Text></Space>
-      </div>
+        {loading ? <LoadingSkeleton variant="list" rows={7} /> : error ? (
+          <ErrorState description={getErrorMessage(error)} retry={{ label: "Thử lại", onAction: onRefresh }} />
+        ) : filteredRecords.length === 0 ? (
+          <div data-empty-kind={hasSearchOrFilters && records.length > 0 ? "filtered" : "registry"}>{emptyState}</div>
+        ) : (
+          <DataTable
+            aria-label="Danh sách hồ sơ chứng nhận"
+            columns={columns}
+            dataSource={filteredRecords}
+            rowKey="id"
+            scroll={{ x: 900 }}
+            tableLayout="fixed"
+            pagination={{ pageSize: 12, showSizeChanger: true }}
+            responsiveCards={responsiveCards}
+            onRow={(record) => ({ onDoubleClick: () => onOpenCase(record.id) })}
+          />
+        )}
+      </section>
+
+      <p className="cmp-case-projection-note">Chu kỳ, bước, trách nhiệm và thời hạn được xác nhận khi mở từng hồ sơ.</p>
     </main>
+  );
+}
+
+export interface CertificationCaseRegistryPageProps {
+  authorized: boolean;
+  accessPending?: boolean;
+  onExit: () => void;
+  onOpenCase: (caseId: string) => void;
+}
+
+export function CertificationCaseRegistryPage({ authorized, accessPending = false, onExit, onOpenCase }: CertificationCaseRegistryPageProps) {
+  const casesQuery = useQuery({
+    queryKey: ["certification-projects", "case-registry-v2"],
+    queryFn: async () => (await api.get<CertificationCaseRecord[]>("/certification-projects")).data,
+    enabled: authorized,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  if (accessPending) return <LoadingSkeleton variant="page" rows={8} />;
+  if (!authorized || (isAxiosError(casesQuery.error) && casesQuery.error.response?.status === 403)) {
+    return <ForbiddenState exit={{ label: "Về tổng quan", onAction: onExit }} />;
+  }
+
+  return (
+    <CertificationCaseRegistryView
+      records={casesQuery.data ?? []}
+      loading={casesQuery.isLoading}
+      error={casesQuery.isError ? casesQuery.error : undefined}
+      refreshing={casesQuery.isFetching}
+      onRefresh={() => void casesQuery.refetch()}
+      onOpenCase={onOpenCase}
+    />
   );
 }

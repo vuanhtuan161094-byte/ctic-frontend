@@ -1,3 +1,4 @@
+import { AimOutlined, CheckCircleOutlined, ClockCircleOutlined, MinusCircleOutlined, StopOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Empty, Space, Typography } from "antd";
 import type { ReactNode } from "react";
 
@@ -91,13 +92,24 @@ export interface LifecycleStep {
   state: "complete" | "current" | "blocked" | "upcoming" | "notApplicable";
 }
 
+const lifecyclePresentation: Record<LifecycleStep["state"], { icon: ReactNode; label: string }> = {
+  complete: { icon: <CheckCircleOutlined />, label: "Đã hoàn tất" },
+  current: { icon: <AimOutlined />, label: "Bước hiện tại" },
+  blocked: { icon: <StopOutlined />, label: "Đang bị chặn" },
+  upcoming: { icon: <ClockCircleOutlined />, label: "Sắp tới" },
+  notApplicable: { icon: <MinusCircleOutlined />, label: "Không áp dụng" },
+};
+
 export function LifecycleStepper({ steps }: { steps: LifecycleStep[] }) {
   return (
     <ol aria-label="Tiến trình vòng đời" className="cmp-section-stack" style={{ listStyle: "none", margin: 0, padding: 0 }}>
       {steps.map((step, index) => (
         <li key={step.key} aria-current={["current", "blocked"].includes(step.state) ? "step" : undefined} data-lifecycle-state={step.state}>
+          <span className="cmp-lifecycle-state" data-lifecycle-label={step.state}>
+            {lifecyclePresentation[step.state].icon}{lifecyclePresentation[step.state].label}
+          </span>
           <Typography.Text type={step.state === "notApplicable" ? "secondary" : undefined} strong={["current", "blocked"].includes(step.state)}>
-            {index + 1}. {step.title}{step.state === "notApplicable" ? " — Không áp dụng" : step.state === "blocked" ? " — Đang bị chặn" : ""}
+            {index + 1}. {step.title}
           </Typography.Text>
           {step.description ? <div><Typography.Text type="secondary">{step.description}</Typography.Text></div> : null}
         </li>

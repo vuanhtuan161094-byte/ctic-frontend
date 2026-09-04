@@ -56,14 +56,14 @@ test("registry uses canonical case terminology and useful source fields", () => 
   assert.match(registry, /Khách hàng/);
   assert.match(registry, /Tiêu chuẩn \/ phiên bản/);
   assert.match(registry, /Chu kỳ & bước hiện tại/);
-  assert.match(registry, /Trách nhiệm & thời hạn/);
+  assert.match(registry, /Trách nhiệm \/ thời hạn/);
   assert.doesNotMatch(registry, /title=["'](?:Projects|Dossier|Dự án)/);
 });
 
 test("registry avoids list N+1 and discloses bounded projection gaps", () => {
   assert.match(registry, /api\.get<CertificationCaseRecord\[]>\("\/certification-projects"\)/);
   assert.doesNotMatch(registry, /records\.map[\s\S]{0,500}api\.get/);
-  assert.match(registry, /Xem thông tin theo bước trong từng hồ sơ/);
+  assert.match(registry, /Xác nhận theo bước trong hồ sơ/);
   assert.match(registry, /được xác nhận khi mở từng hồ sơ/);
 });
 
@@ -88,9 +88,9 @@ test("workspace loads only the three approved Step 17.1 projections", () => {
 test("overview separates case cycle stage responsibility and SLA meaning", () => {
   assert.match(header, /domain="case"/);
   assert.match(header, /Chu kỳ đang xem/);
-  assert.match(header, /Bước nghiệp vụ hiện tại/);
-  assert.match(header, /Trách nhiệm tiếp theo/);
-  assert.match(header, /Thời hạn quan trọng/);
+  assert.match(header, /Bước hiện tại/);
+  assert.match(header, /Người xử lý/);
+  assert.match(header, /Hạn quan trọng/);
   assert.match(header, /<DeadlineSlaBadge/);
   assert.match(overview, /ReadinessBlockerPanel/);
 });

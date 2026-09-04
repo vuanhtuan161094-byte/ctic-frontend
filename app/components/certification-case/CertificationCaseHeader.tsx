@@ -34,6 +34,8 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
   const currentItem = currentCycleItem(cycle);
   const deadline = importantDeadline(data.alerts.alerts);
   const compatibilityPath = cycle ? actionWorkspacePath(data.project.id, cycle) : null;
+  const blockingCount = data.alerts.alerts.filter((alert) => alert.severity === "critical").length;
+  const warningCount = data.alerts.alerts.filter((alert) => alert.severity === "warning").length;
   const primaryAction: ProjectedAction | null = cycle?.next_action ? {
     code: cycle.next_action.code,
     label: cycle.next_action.label,
@@ -49,7 +51,12 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
       <PageHeader
         identity="HỒ SƠ CHỨNG NHẬN"
         title={<span id="certification-case-title">{data.project.project_code}</span>}
-        description={<><strong>{customer?.company_name ?? "Chưa xác định khách hàng"}</strong><span aria-hidden="true"> · </span>{data.project.standard_name}</>}
+        description={(
+          <div className="cmp-case-primary-identity">
+            <strong>{customer?.company_name ?? "Chưa xác định khách hàng"}</strong>
+            <span>{data.project.standard_name}</span>
+          </div>
+        )}
         metadata={(
           <>
             <DomainStatusBadge domain="case" code={normalizeCaseValue(data.project.status)} />
@@ -64,35 +71,35 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
         )}
       />
 
-      <div className="cmp-case-hero-grid">
-        <div className="cmp-case-hero-fact cmp-case-hero-fact--wide">
+      <div className="cmp-case-operational-context">
+        <div className="cmp-case-operational-scope">
           <span>Phạm vi chứng nhận</span>
           <strong>{scope}</strong>
         </div>
-        <div className="cmp-case-hero-fact">
-          <span>Chu kỳ đang xem</span>
-          <strong>{cycle ? cycleLabel(cycle) : "Chưa có dữ liệu chu kỳ"}</strong>
-        </div>
-        <div className="cmp-case-hero-fact">
-          <span>Bước nghiệp vụ hiện tại</span>
-          <strong>{currentItem?.document_name ?? "Chưa xác định"}</strong>
-        </div>
-        <div className="cmp-case-hero-fact">
-          <span>Trách nhiệm tiếp theo</span>
-          <strong>{cycle?.next_action?.responsible_label ?? "Chưa có thông tin tổng hợp"}</strong>
-        </div>
-        <div className="cmp-case-hero-fact">
-          <span>Thời hạn quan trọng</span>
-          {deadline ? (
-            <DeadlineSlaBadge
-              state={slaState(deadline.alert_type)}
-              dueAt={deadline.due_date}
-              formattedDueAt={formatCaseDate(deadline.due_date)}
-              explanation={deadline.message}
-            />
-          ) : <strong>Chưa có thời hạn tổng hợp từ nguồn</strong>}
+        <div className="cmp-case-operational-grid">
+          <div><span>Chu kỳ đang xem</span><strong>{cycle ? cycleLabel(cycle) : "Chưa có dữ liệu"}</strong></div>
+          <div><span>Bước hiện tại</span><strong>{currentItem?.document_name ?? "Chưa xác định"}</strong></div>
+          <div><span>Người xử lý</span><strong>{cycle?.next_action?.responsible_label ?? "Chưa có thông tin tổng hợp"}</strong></div>
+          <div>
+            <span>Hạn quan trọng</span>
+            {deadline ? (
+              <DeadlineSlaBadge
+                state={slaState(deadline.alert_type)}
+                dueAt={deadline.due_date}
+                formattedDueAt={formatCaseDate(deadline.due_date)}
+                explanation={deadline.message}
+              />
+            ) : <strong>Chưa có thời hạn tổng hợp</strong>}
+          </div>
         </div>
       </div>
+
+      {blockingCount || warningCount ? (
+        <div className="cmp-case-alert-summary" data-severity={blockingCount ? "blocking" : "warning"}>
+          <strong>{blockingCount ? `${blockingCount} điều kiện đang chặn` : `${warningCount} điểm cần chú ý`}</strong>
+          <span>{data.alerts.alerts[0]?.message}</span>
+        </div>
+      ) : null}
 
       <NextActionBar
         primaryAction={primaryAction}

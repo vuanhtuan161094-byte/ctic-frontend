@@ -5,7 +5,7 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import {
   type AuthSession,
@@ -19,6 +19,10 @@ import { DashboardShell } from "./DashboardShell";
 import { LoginScreen } from "./LoginScreen";
 
 dayjs.locale("vi");
+
+const DevCertificationCaseVisualShowcase = import.meta.env.DEV
+  ? lazy(() => import("./certification-case/CertificationCaseVisualShowcase").then((module) => ({ default: module.CertificationCaseVisualShowcase })))
+  : null;
 
 function ApplicationContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -76,6 +80,10 @@ function ApplicationContent() {
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     setSession(null);
   };
+
+  if (import.meta.env.DEV && window.location.pathname === "/__dev/certification-case-showcase" && DevCertificationCaseVisualShowcase) {
+    return <Suspense fallback={<div className="app-loading" aria-label="Đang tải bản trình diễn" />}><DevCertificationCaseVisualShowcase /></Suspense>;
+  }
 
   if (!sessionReady) {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;

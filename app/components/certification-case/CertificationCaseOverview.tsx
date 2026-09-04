@@ -1,7 +1,7 @@
 import { ArrowRightOutlined } from "@ant-design/icons";
 import { Button, Progress, Typography } from "antd";
 
-import { EntitySummary, ReadinessBlockerPanel, SectionHeader } from "../design-system";
+import { ReadinessBlockerPanel, SectionHeader } from "../design-system";
 import { alertBlockers, caseCustomer, caseScope, cycleLabel, formatCaseDate } from "./case-model";
 import type { CertificationCaseArea, CertificationCaseWorkspaceData, CertificationCycleGroup } from "./types";
 
@@ -49,7 +49,7 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
       </section>
 
       {data.alerts.alerts.length ? (
-        <section className="cmp-case-section" aria-label="Điểm cần chú ý">
+        <section className="cmp-case-blocker-section" aria-label="Điểm cần chú ý">
           <ReadinessBlockerPanel title="Điểm cần chú ý và điều kiện sẵn sàng" blockers={alertBlockers(data.alerts.alerts)} />
         </section>
       ) : null}
@@ -57,24 +57,24 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
       <section className="cmp-case-section">
         <SectionHeader title="Nhận diện chứng nhận" description="Thông tin gốc đã được xác nhận trên hồ sơ và đơn đăng ký liên kết." />
         <div className="cmp-case-identity-grid">
-          <EntitySummary
-            title="Khách hàng & phạm vi"
-            items={[
-              { label: "Khách hàng", value: customer?.company_name ?? "Chưa xác định" },
-              { label: "Mã khách hàng", value: customer?.customer_code ?? "Chưa có" },
-              { label: "Phạm vi", value: caseScope(data.project) },
-              { label: "Số địa điểm", value: sites.length || application?.site_count || "Chưa ghi nhận" },
-            ]}
-          />
-          <EntitySummary
-            title="Tiêu chuẩn & chương trình"
-            items={[
-              { label: "Tiêu chuẩn / phiên bản", value: data.project.standard_name },
-              { label: "Loại chứng nhận", value: application?.certification_type ?? "Chưa ghi nhận" },
-              { label: "Mã đơn đăng ký", value: application?.application_code ?? "Chưa liên kết" },
-              { label: "Trạng thái đơn", value: application?.status ?? "Chưa liên kết" },
-            ]}
-          />
+          <div className="cmp-case-identity-block">
+            <h3>Khách hàng & phạm vi</h3>
+            <dl>
+              <div><dt>Khách hàng</dt><dd>{customer?.company_name ?? "Chưa xác định"}</dd></div>
+              <div><dt>Mã khách hàng</dt><dd>{customer?.customer_code ?? "Chưa có"}</dd></div>
+              <div><dt>Phạm vi</dt><dd>{caseScope(data.project)}</dd></div>
+              <div><dt>Số địa điểm</dt><dd>{sites.length || application?.site_count || "Chưa ghi nhận"}</dd></div>
+            </dl>
+          </div>
+          <div className="cmp-case-identity-block">
+            <h3>Tiêu chuẩn & chương trình</h3>
+            <dl>
+              <div><dt>Tiêu chuẩn / phiên bản</dt><dd>{data.project.standard_name}</dd></div>
+              <div><dt>Loại chứng nhận</dt><dd>{application?.certification_type ?? "Chưa ghi nhận"}</dd></div>
+              <div><dt>Mã đơn đăng ký</dt><dd>{application?.application_code ?? "Chưa liên kết"}</dd></div>
+              <div><dt>Trạng thái đơn</dt><dd>{application?.status ?? "Chưa liên kết"}</dd></div>
+            </dl>
+          </div>
         </div>
       </section>
 

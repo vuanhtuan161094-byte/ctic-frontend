@@ -223,7 +223,7 @@ input { font: inherit; }
   white-space: nowrap;
 }
 .side-brand-copy strong { font-size: 14px; }
-.side-brand-copy small { font-size: 12px; margin-top: 2px; opacity: .72; }
+.side-brand-copy small { font-size: 12px; margin-top: 2px; opacity: .86; }
 
 .main-menu { border-inline-end: 0 !important; flex: 1; padding: 12px 8px 0; }
 .main-menu .ant-menu-item-group-title { color: rgba(255, 255, 255, .48) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }
@@ -232,6 +232,32 @@ input { font: inherit; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Keep one unmistakable sidebar selection; hover and keyboard focus remain separate. */
+.main-menu-v2.ant-menu-dark .ant-menu-item-selected {
+  background: #fff;
+  color: var(--cmp-brand-primary);
+  font-weight: 700;
+  box-shadow: inset 4px 0 0 var(--cmp-brand-accent);
+}
+
+.main-menu-v2.ant-menu-dark .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background: transparent;
+  color: rgba(255, 255, 255, .86);
+}
+
+.main-menu-v2.ant-menu-dark .ant-menu-item:not(.ant-menu-item-selected):hover,
+.main-menu-v2.ant-menu-dark .ant-menu-submenu-title:hover {
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  box-shadow: none;
+}
+
+.main-menu-v2.ant-menu-dark .ant-menu-item:focus-visible,
+.main-menu-v2.ant-menu-dark .ant-menu-submenu-title:focus-visible {
+  outline: 3px solid var(--cmp-focus-ring);
+  outline-offset: -3px;
 }
 
 .side-cycle {
@@ -5471,6 +5497,7 @@ input { font: inherit; }
 .cmp-shell-breadcrumb {
   margin: 0 0 var(--cmp-space-md);
   min-height: 28px;
+  color: var(--cmp-text-secondary);
 }
 
 .cmp-shell-breadcrumb .ant-btn-link {
