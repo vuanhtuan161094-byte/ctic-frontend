@@ -65,6 +65,11 @@ import type { PersonalWorkspace } from "../types/personal-workspace";
 import { CertificationProjectDetailScreen } from "./CertificationProjectDetailScreen";
 import { CertificationProjectsScreen } from "./CertificationProjectsScreen";
 import { CertificationCaseRegistryPage, CertificationCaseWorkspace } from "./certification-case";
+import {
+  CertificationAuditWorkspace,
+  type CertificationAuditExecutionView,
+  type CertificationAuditSection,
+} from "./certification-audit";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
 import { CustomerCorrectiveActionsScreen } from "./CustomerCorrectiveActionsScreen";
@@ -270,6 +275,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [selectedAuditPlanId, setSelectedAuditPlanId] = useState<string | null>(null);
   const [selectedProjectWorkspacePath, setSelectedProjectWorkspacePath] = useState<string | null>(null);
   const [selectedProjectArea, setSelectedProjectArea] = useState<CertificationCaseArea>("overview");
+  const [selectedAuditSection, setSelectedAuditSection] = useState<CertificationAuditSection>("overview");
+  const [selectedAuditExecutionView, setSelectedAuditExecutionView] = useState<CertificationAuditExecutionView>("report");
   const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [openingAlertId, setOpeningAlertId] = useState<string | null>(null);
@@ -377,6 +384,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? null);
       setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
       setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
+      setSelectedAuditSection(navigation.selectedAuditSection ?? "overview");
+      setSelectedAuditExecutionView(navigation.selectedAuditExecutionView ?? "report");
       setSelectedAccountId(navigation.selectedAccountId ?? null);
     };
 
@@ -427,6 +436,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedProjectDossierKey,
       selectedProjectWorkspacePath,
       selectedProjectArea,
+      selectedAuditSection,
+      selectedAuditExecutionView,
       selectedAccountId,
     };
 
@@ -446,9 +457,11 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       && currentNavigation.selectedApplicationReviewId === navigation.selectedApplicationReviewId
       && currentNavigation.selectedProjectDossierKey === navigation.selectedProjectDossierKey;
     const isSameCaseArea = currentNavigation?.selectedProjectArea === navigation.selectedProjectArea;
+    const isSameAuditLocation = currentNavigation?.selectedAuditSection === navigation.selectedAuditSection
+      && currentNavigation?.selectedAuditExecutionView === navigation.selectedAuditExecutionView;
     const isSameAccount = currentNavigation?.selectedAccountId === navigation.selectedAccountId;
 
-    if (isSameNavigation && isSameAccount && isSameCaseArea && currentPath === targetPath) return;
+    if (isSameNavigation && isSameAccount && isSameCaseArea && isSameAuditLocation && currentPath === targetPath) return;
 
     window.history.pushState(
       createBrowserHistoryPayload(navigation),
@@ -465,6 +478,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     selectedProjectId,
     selectedProjectWorkspacePath,
     selectedProjectArea,
+    selectedAuditSection,
+    selectedAuditExecutionView,
     selectedAccountId,
   ]);
 
@@ -535,6 +550,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     setSelectedProjectId(null);
     setSelectedCertificateId(null);
     setSelectedAuditPlanId(null);
+    setSelectedAuditSection("overview");
+    setSelectedAuditExecutionView("report");
 
     if (destination === "project-detail") {
       if (!entityId) {
@@ -582,7 +599,10 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
 
     try {
       const canonicalUrl = new URL(path, window.location.origin);
-      if (isCanonicalRoutePath(canonicalUrl.pathname, customerPortalMode)) {
+      if (
+        isCanonicalRoutePath(canonicalUrl.pathname, customerPortalMode)
+        || /^\/(?:projects|certification-projects)\//.test(canonicalUrl.pathname)
+      ) {
         const navigation = parseCanonicalLocation(
           canonicalUrl.pathname,
           canonicalUrl.search,
@@ -596,6 +616,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         setSelectedProjectDossierKey(navigation.selectedProjectDossierKey ?? (typeof context?.dossier_key === "string" ? context.dossier_key : null));
         setSelectedProjectWorkspacePath(navigation.selectedProjectWorkspacePath ?? null);
         setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
+        setSelectedAuditSection(navigation.selectedAuditSection ?? "overview");
+        setSelectedAuditExecutionView(navigation.selectedAuditExecutionView ?? "report");
         return;
       }
     } catch {
@@ -705,6 +727,25 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     }
 
     message.warning("Không xác định được màn hình nghiệp vụ của nội dung này.");
+  };
+
+  const openLegacyProjectWorkspace = (path: string) => {
+    try {
+      const url = new URL(path, window.location.origin);
+      const projectMatch = url.pathname.match(/^\/(?:projects|certification-projects)\/([^/?#]+)/);
+      if (!projectMatch) {
+        openWorkspacePath(path);
+        return;
+      }
+      setSelectedProjectId(decodeURIComponent(projectMatch[1]));
+      setSelectedProjectDossierKey(url.searchParams.get("dossier_key") ?? url.searchParams.get("cycle"));
+      setSelectedAuditPlanId(url.searchParams.get("audit_plan_id"));
+      setSelectedProjectWorkspacePath(`${url.pathname}${url.search}`);
+      setSelectedProjectArea("progress");
+      setActiveView("project-detail");
+    } catch {
+      openWorkspacePath(path);
+    }
   };
 
   const openResolvedTask = async (
@@ -854,6 +895,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     applications: "Đơn đăng ký",
     projects: customerPortalMode ? "Hành động khắc phục" : "Hồ sơ chứng nhận",
     "project-detail": "Chi tiết hồ sơ chứng nhận",
+    "audit-workspace": "Cuộc đánh giá",
     "customer-certifications": "Hồ sơ chứng nhận",
     "schedule-resources": customerPortalMode ? "Lịch" : "Lịch & nguồn lực",
     certificates: "Chứng chỉ",
@@ -1029,7 +1071,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else openPlannedScreen("Chức năng đã chọn");
         }}
-        selectedKeys={[activeView === "project-detail" ? "projects" : activeView]}
+        selectedKeys={[["project-detail", "audit-workspace"].includes(activeView) ? "projects" : activeView]}
         theme="dark"
       />
       <div className="side-module-switcher">
@@ -1086,7 +1128,31 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               description="Các mục nghiệp vụ có thể tạm thời bị ẩn. Hệ thống vẫn giữ nguyên kiểm soát quyền ở backend; thử tải lại trang khi kết nối ổn định."
             />
           ) : null}
-          {activeView === "project-detail" && selectedProjectId && !customerPortalMode ? (
+          {activeView === "audit-workspace" && selectedProjectId && selectedAuditPlanId && !customerPortalMode ? (
+            accessQuery.isLoading ? <LoadingSkeleton variant="detail" rows={12} /> : !canReadCertificationCases ? (
+              <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
+            ) : (
+              <CertificationAuditWorkspace
+                key={`${selectedProjectId}:${selectedAuditPlanId}`}
+                caseId={selectedProjectId}
+                auditId={selectedAuditPlanId}
+                roles={session.user.roles}
+                section={selectedAuditSection}
+                executionView={selectedAuditExecutionView}
+                onBack={() => {
+                  setActiveView("project-detail");
+                  setSelectedAuditPlanId(null);
+                  setSelectedAuditSection("overview");
+                  setSelectedAuditExecutionView("report");
+                  setSelectedProjectWorkspacePath(null);
+                  setSelectedProjectArea("progress");
+                }}
+                onNavigateSection={(nextSection) => setSelectedAuditSection(nextSection)}
+                onNavigateExecutionView={(nextView) => setSelectedAuditExecutionView(nextView)}
+                onOpenCompatibility={openLegacyProjectWorkspace}
+              />
+            )
+          ) : activeView === "project-detail" && selectedProjectId && !customerPortalMode ? (
             accessQuery.isLoading ? <LoadingSkeleton variant="detail" rows={12} /> : !canReadCertificationCases ? (
               <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
             ) : selectedProjectWorkspacePath ? (
@@ -1118,6 +1184,13 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
                 }}
                 onCycleChange={(cycleKey) => setSelectedProjectDossierKey(cycleKey)}
                 onOpenCompatibility={(path) => openWorkspacePath(path, { dossier_key: selectedProjectDossierKey })}
+                onOpenAudit={(auditId) => {
+                  setSelectedAuditPlanId(auditId);
+                  setSelectedAuditSection("overview");
+                  setSelectedAuditExecutionView("report");
+                  setSelectedProjectWorkspacePath(null);
+                  setActiveView("audit-workspace");
+                }}
               />
             )
           ) : activeView === "my-tasks" ? (

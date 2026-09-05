@@ -8,6 +8,7 @@ export type ActiveView =
   | "applications"
   | "projects"
   | "project-detail"
+  | "audit-workspace"
   | "schedule-resources"
   | "certificates"
   | "documents"
@@ -38,6 +39,8 @@ export type ActiveView =
   | "governance-cases";
 
 export type CertificationCaseArea = "overview" | "progress" | "team" | "documents" | "activity";
+export type CertificationAuditSection = "overview" | "team" | "plan" | "execution" | "findings" | "documents" | "activity";
+export type CertificationAuditExecutionView = "report" | "complete";
 
 export interface BrowserNavigationState {
   activeView: ActiveView;
@@ -48,12 +51,14 @@ export interface BrowserNavigationState {
   selectedProjectDossierKey?: string | null;
   selectedProjectWorkspacePath?: string | null;
   selectedProjectArea?: CertificationCaseArea;
+  selectedAuditSection?: CertificationAuditSection;
+  selectedAuditExecutionView?: CertificationAuditExecutionView;
   selectedAccountId?: string | null;
 }
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
-  "customers", "applications", "projects", "project-detail", "schedule-resources",
+  "customers", "applications", "projects", "project-detail", "audit-workspace", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
@@ -78,6 +83,16 @@ function normalizePathname(pathname: string) {
   const clean = (pathname || "/").replace(/\/{2,}/g, "/");
   if (clean.length > 1 && clean.endsWith("/")) return clean.slice(0, -1);
   return clean;
+}
+
+function auditSection(value?: string | null): CertificationAuditSection {
+  return ["overview", "team", "plan", "execution", "findings", "documents", "activity"].includes(value ?? "")
+    ? value as CertificationAuditSection
+    : "overview";
+}
+
+function auditExecutionView(value?: string | null): CertificationAuditExecutionView {
+  return value === "complete" ? "complete" : "report";
 }
 
 export function isCanonicalRoutePath(pathname: string, customerPortalMode: boolean) {
@@ -108,6 +123,8 @@ export function parseCanonicalLocation(
     selectedProjectDossierKey: params.get("cycle") ?? params.get("dossier_key"),
     selectedProjectWorkspacePath: null,
     selectedProjectArea: "overview",
+    selectedAuditSection: auditSection(params.get("section")),
+    selectedAuditExecutionView: auditExecutionView(params.get("view")),
     selectedAccountId: null,
   };
 
@@ -161,9 +178,18 @@ export function parseCanonicalLocation(
     const auditMatch = child.match(/^audits\/([^/?#]+)/);
     const findingMatch = child.match(/^findings\/([^/?#]+)/);
     if (auditMatch) {
-      selectedProjectArea = "progress";
       const auditId = safeDecode(auditMatch[1]);
-      workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=audit-execution&audit_plan_id=${encodeURIComponent(auditId ?? "")}`;
+      return {
+        ...base,
+        activeView: "audit-workspace",
+        selectedProjectId: caseId,
+        selectedAuditPlanId: auditId,
+        selectedProjectArea: "progress",
+        selectedProjectDossierKey: params.get("cycle") ?? params.get("dossier_key"),
+        selectedProjectWorkspacePath: null,
+        selectedAuditSection: auditSection(params.get("section")),
+        selectedAuditExecutionView: auditExecutionView(params.get("view")),
+      };
     } else if (findingMatch) {
       selectedProjectArea = "progress";
       const findingId = safeDecode(findingMatch[1]);
@@ -193,6 +219,31 @@ export function parseCanonicalLocation(
   const legacyProjectMatch = path.match(/^\/(?:projects|certification-projects)\/([^/?#]+)/);
   if (legacyProjectMatch) {
     const workspace = params.get("workspace") ?? "";
+    const auditId = params.get("audit_plan_id");
+    const auditSectionByLegacyWorkspace: Partial<Record<string, CertificationAuditSection>> = {
+      "audit-team": "team",
+      "audit-plan": "plan",
+      "audit-execution": "execution",
+      "audit-report": "execution",
+      report: "execution",
+      "audit-complete": "execution",
+      "audit-findings": "findings",
+      findings: "findings",
+      "audit-documents": "documents",
+    };
+    const migratedAuditSection = auditSectionByLegacyWorkspace[workspace];
+    if (auditId && migratedAuditSection && params.get("compatibility") !== "legacy") {
+      return {
+        ...base,
+        activeView: "audit-workspace",
+        selectedProjectId: safeDecode(legacyProjectMatch[1]),
+        selectedAuditPlanId: auditId,
+        selectedProjectDossierKey: params.get("dossier_key") ?? params.get("cycle"),
+        selectedProjectArea: "progress",
+        selectedAuditSection: migratedAuditSection,
+        selectedAuditExecutionView: workspace === "audit-complete" ? "complete" : "report",
+      };
+    }
     const selectedProjectArea: CertificationCaseArea = workspace === "audit-team"
       ? "team"
       : workspace === "certificate-issue"
@@ -256,6 +307,18 @@ export function parseCanonicalLocation(
   return base;
 }
 
+function auditWorkspaceSuffix(navigation: BrowserNavigationState) {
+  const query = new URLSearchParams();
+  if (navigation.selectedAuditSection && navigation.selectedAuditSection !== "overview") {
+    query.set("section", navigation.selectedAuditSection);
+  }
+  if (navigation.selectedAuditSection === "execution" && navigation.selectedAuditExecutionView === "complete") {
+    query.set("view", "complete");
+  }
+  if (navigation.selectedProjectDossierKey) query.set("cycle", navigation.selectedProjectDossierKey);
+  return query.size ? `?${query.toString()}` : "";
+}
+
 export function canonicalPathForNavigation(
   navigation: BrowserNavigationState,
   customerPortalMode: boolean,
@@ -284,6 +347,15 @@ export function canonicalPathForNavigation(
     return portalMap[navigation.activeView] ?? "/portal";
   }
 
+  // Preserve exact compatibility context across refresh and bookmarks.
+  if (navigation.activeView === "project-detail" && navigation.selectedProjectWorkspacePath) {
+    const legacy = new URL(navigation.selectedProjectWorkspacePath, "http://cmp.local");
+    if (/^\/(?:projects|certification-projects)\//.test(legacy.pathname)) {
+      legacy.searchParams.set("compatibility", "legacy");
+      return `${legacy.pathname}${legacy.search}`;
+    }
+  }
+
   const internalMap: Partial<Record<ActiveView, string>> = {
     dashboard: "/workspace",
     "my-tasks": "/work",
@@ -295,6 +367,9 @@ export function canonicalPathForNavigation(
     projects: "/certifications",
     "project-detail": navigation.selectedProjectId
       ? `/certifications/${encodeURIComponent(navigation.selectedProjectId)}${navigation.selectedProjectArea && navigation.selectedProjectArea !== "overview" ? `/${navigation.selectedProjectArea}` : ""}${suffix()}`
+      : "/certifications",
+    "audit-workspace": navigation.selectedProjectId && navigation.selectedAuditPlanId
+      ? `/certifications/${encodeURIComponent(navigation.selectedProjectId)}/audits/${encodeURIComponent(navigation.selectedAuditPlanId)}${auditWorkspaceSuffix(navigation)}`
       : "/certifications",
     "schedule-resources": `/schedule${suffix()}`,
     certificates: navigation.selectedCertificateId ? `/certificates/${encodeURIComponent(navigation.selectedCertificateId)}` : "/certificates",
@@ -348,6 +423,8 @@ export function readBrowserNavigationState(rawState: unknown): BrowserNavigation
     selectedProjectArea: ["overview", "progress", "team", "documents", "activity"].includes(candidate.selectedProjectArea ?? "")
       ? candidate.selectedProjectArea
       : "overview",
+    selectedAuditSection: auditSection(candidate.selectedAuditSection),
+    selectedAuditExecutionView: auditExecutionView(candidate.selectedAuditExecutionView),
     selectedAccountId: typeof candidate.selectedAccountId === "string" ? candidate.selectedAccountId : null,
   };
 }

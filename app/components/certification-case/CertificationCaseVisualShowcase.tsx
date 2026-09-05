@@ -1,5 +1,5 @@
 import { CloseOutlined, MenuOutlined } from "@ant-design/icons";
-import { App, Button, Select, Tag } from "antd";
+import { Alert, App, Button, Card, Select, Space, Tag, Typography } from "antd";
 import { useMemo, useState } from "react";
 
 import "./certification-case-visual-showcase.css";
@@ -7,8 +7,16 @@ import { CertificationCaseRegistryView } from "./CertificationCaseRegistryPage";
 import { CertificationCaseWorkspaceView } from "./CertificationCaseWorkspace";
 import { DEV_CERTIFICATION_CASE_RECORDS, DEV_CERTIFICATION_CASE_WORKSPACE } from "./dev-certification-case-fixture";
 import type { CertificationCaseArea } from "./types";
+import { CertificationAuditWorkspaceView, type CertificationAuditSection } from "../certification-audit";
+import {
+  DEV_AUDIT_DOCUMENTS,
+  DEV_AUDIT_EXECUTION_WORKSPACE,
+  DEV_AUDIT_ID,
+  DEV_AUDIT_READINESS,
+  DEV_CERTIFICATION_AUDIT_CASE_WORKSPACE,
+} from "../certification-audit/dev-certification-audit-fixture";
 
-type ShowcaseView = "registry" | "empty" | CertificationCaseArea;
+type ShowcaseView = "registry" | "empty" | "audit" | CertificationCaseArea;
 
 const viewLabels: Array<{ key: ShowcaseView; label: string }> = [
   { key: "registry", label: "Registry" },
@@ -18,7 +26,15 @@ const viewLabels: Array<{ key: ShowcaseView; label: string }> = [
   { key: "team", label: "Team" },
   { key: "documents", label: "Documents" },
   { key: "activity", label: "Activity" },
+  { key: "audit", label: "Audit Workspace" },
 ];
+
+function initialAuditSection(): CertificationAuditSection {
+  const value = new URLSearchParams(window.location.search).get("section");
+  return ["overview", "team", "plan", "execution", "findings", "documents", "activity"].includes(value ?? "")
+    ? value as CertificationAuditSection
+    : "overview";
+}
 
 function initialView(): ShowcaseView {
   const value = new URLSearchParams(window.location.search).get("view");
@@ -29,7 +45,8 @@ export function CertificationCaseVisualShowcase() {
   const { message } = App.useApp();
   const [view, setView] = useState<ShowcaseView>(() => initialView());
   const [menuOpen, setMenuOpen] = useState(false);
-  const area = useMemo<CertificationCaseArea>(() => view === "registry" || view === "empty" ? "overview" : view, [view]);
+  const [auditSection, setAuditSection] = useState<CertificationAuditSection>(() => initialAuditSection());
+  const area = useMemo<CertificationCaseArea>(() => view === "registry" || view === "empty" || view === "audit" ? "overview" : view, [view]);
 
   const navigate = (next: ShowcaseView) => {
     const params = new URLSearchParams();
@@ -37,6 +54,13 @@ export function CertificationCaseVisualShowcase() {
     window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
     setView(next);
     setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+
+  const navigateAuditSection = (next: CertificationAuditSection) => {
+    const params = new URLSearchParams({ view: "audit", section: next });
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}?${params.toString()}`);
+    setAuditSection(next);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
@@ -81,6 +105,33 @@ export function CertificationCaseVisualShowcase() {
               onRefresh={() => undefined}
               onOpenCase={() => navigate("overview")}
             />
+          ) : view === "audit" ? (
+            <CertificationAuditWorkspaceView
+              caseId="dev-case-001"
+              auditId={DEV_AUDIT_ID}
+              data={DEV_CERTIFICATION_AUDIT_CASE_WORKSPACE}
+              workspace={DEV_AUDIT_EXECUTION_WORKSPACE}
+              readiness={DEV_AUDIT_READINESS}
+              documents={DEV_AUDIT_DOCUMENTS}
+              activity={DEV_CERTIFICATION_AUDIT_CASE_WORKSPACE.recent_activity}
+              section={auditSection}
+              executionView="report"
+              executionContent={(
+                <Card title="Báo cáo đánh giá · dữ liệu minh họa">
+                  <Space direction="vertical" size={12} style={{ width: "100%" }}>
+                    <Alert showIcon type="warning" title="2 phát hiện đang mở" description="Mutation không được kích hoạt trong bản trình diễn DEV." />
+                    <Typography.Text>Kết luận hiện hành được quản lý bởi workflow báo cáo audit hiện hữu.</Typography.Text>
+                    <Button type="primary">Lưu bản nháp</Button>
+                  </Space>
+                </Card>
+              )}
+              onBack={() => navigate("progress")}
+              onRefresh={() => message.info("Đã làm mới dữ liệu minh họa.")}
+              onNavigateSection={navigateAuditSection}
+              onNavigateExecutionView={() => undefined}
+              onOpenCompatibility={() => message.info("Bản trình diễn không mở workspace tương thích.")}
+              onOpenDocument={(_, filename) => message.info(`Bản trình diễn không tải tệp: ${filename}`)}
+            />
           ) : (
             <CertificationCaseWorkspaceView
               data={DEV_CERTIFICATION_CASE_WORKSPACE}
@@ -91,6 +142,7 @@ export function CertificationCaseVisualShowcase() {
               onNavigateArea={navigate}
               onCycleChange={() => undefined}
               onOpenCompatibility={() => message.info("Bản trình diễn DEV chỉ mô phỏng điều hướng; không gọi thao tác nghiệp vụ.")}
+              onOpenAudit={() => message.info("Bản trình diễn DEV sẽ mở Audit Workspace ở chế độ dữ liệu minh họa riêng.")}
               onOpenFile={(file) => message.info(`Bản trình diễn không tải tệp: ${file.original_name}`)}
             />
           )}

@@ -110,5 +110,10 @@ export const DOCUMENT_GROUP_LABELS: Record<string, string> = {
 };
 
 export function actionWorkspacePath(data: CertificationCaseWorkspaceProjection) {
-  return data.next_action?.destination.legacy_path ?? null;
+  const destination = data.next_action?.destination;
+  const auditId = destination?.query.audit_plan_id;
+  if (destination && auditId && /(audit|report|plan)/i.test(`${data.next_action?.code ?? ""} ${destination.route_name}`)) {
+    return `/certifications/${encodeURIComponent(data.identity.id)}/audits/${encodeURIComponent(auditId)}`;
+  }
+  return destination ? destination.legacy_path : null;
 }

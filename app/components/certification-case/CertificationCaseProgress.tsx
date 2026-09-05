@@ -1,4 +1,4 @@
-import { Typography } from "antd";
+import { Button, Typography } from "antd";
 
 import { LifecycleStepper, SectionHeader } from "../design-system";
 import { cycleLabel, formatCaseDate, lifecycleSteps, normalizeCaseValue } from "./case-model";
@@ -12,7 +12,7 @@ const sourceStateLabel = (status: string) => {
   return status;
 };
 
-export function CertificationCaseProgress({ data, cycle }: { data: CertificationCaseWorkspaceProjection; cycle: CertificationCaseProjectionCycle | null }) {
+export function CertificationCaseProgress({ data, cycle, onOpenAudit }: { data: CertificationCaseWorkspaceProjection; cycle: CertificationCaseProjectionCycle | null; onOpenAudit: (auditId: string) => void }) {
   if (!cycle) return <Typography.Text type="secondary">Chưa có dữ liệu chu kỳ để dựng tiến trình.</Typography.Text>;
   const steps = lifecycleSteps(data, cycle);
 
@@ -48,6 +48,7 @@ export function CertificationCaseProgress({ data, cycle }: { data: Certification
               <article key={planId}>
                 <div><strong>{cycle.plan_codes[index] ?? "Kế hoạch chưa có mã"}</strong><span>Nguồn kế hoạch canonical của chu kỳ</span></div>
                 <div><span>{formatCaseDate(cycle.planned_start_date)}</span><span aria-hidden="true">→</span><span>{formatCaseDate(cycle.planned_end_date ?? cycle.planned_start_date)}</span></div>
+                <Button onClick={() => onOpenAudit(planId)}>Mở cuộc đánh giá</Button>
               </article>
             ))}
           </div>

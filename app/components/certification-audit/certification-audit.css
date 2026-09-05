@@ -1,0 +1,209 @@
+.cmp-audit-page {
+  width: min(100%, 1480px);
+  min-width: 0;
+  margin: 0 auto;
+  padding: 0 4px 32px;
+  box-sizing: border-box;
+}
+
+.cmp-audit-page .cmp-page-header {
+  align-items: stretch;
+  flex-direction: column;
+  margin-top: 12px;
+}
+
+.cmp-audit-page .cmp-page-header__actions {
+  width: 100%;
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.cmp-audit-page .cmp-next-action-bar {
+  box-sizing: border-box;
+  flex: 1 1 620px;
+  min-width: min(520px, 100%);
+  max-width: 100%;
+}
+
+.cmp-audit-page .cmp-page-header__description,
+.cmp-audit-page .cmp-page-header h1 {
+  overflow-wrap: anywhere;
+}
+
+.cmp-audit-secondary-nav {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0 0;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--cmp-color-border, #d8e1eb);
+  border-radius: 12px;
+  background: #fff;
+  scrollbar-width: thin;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.cmp-audit-secondary-nav button {
+  min-height: 40px;
+  padding: 8px 14px;
+  white-space: nowrap;
+  color: #425466;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cmp-audit-secondary-nav button[aria-current="page"] {
+  color: var(--cmp-color-primary, #1261a0);
+  background: #eaf3fb;
+  font-weight: 650;
+}
+
+.cmp-audit-secondary-nav button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--cmp-color-primary, #1261a0) 32%, transparent);
+  outline-offset: 1px;
+}
+
+.cmp-audit-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 12px 0 18px;
+  padding: 10px 14px;
+  color: #526579;
+  border-bottom: 1px solid #dfe7ef;
+}
+
+.cmp-audit-context-strip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cmp-audit-section {
+  min-width: 0;
+  padding: 18px 0;
+}
+
+.cmp-audit-section > * + * {
+  margin-top: 16px;
+}
+
+.cmp-audit-summary-grid,
+.cmp-audit-document-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  min-width: 0;
+}
+
+.cmp-audit-document-grid > *,
+.cmp-audit-summary-grid > * {
+  min-width: 0;
+}
+
+.cmp-audit-team-list {
+  border: 1px solid #dfe7ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cmp-audit-team-list .ant-list-item {
+  gap: 12px;
+  padding-inline: 16px;
+}
+
+.cmp-audit-local-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cmp-audit-local-nav button[aria-pressed="true"] {
+  border-color: var(--cmp-brand-primary);
+  background: var(--cmp-state-info-bg);
+}
+
+.cmp-audit-page .ant-tag,
+.cmp-audit-page .ant-card-head-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cmp-audit-page .ant-btn {
+  max-width: 100%;
+  height: auto;
+  min-height: 32px;
+  white-space: normal;
+}
+
+.cmp-audit-route-content {
+  min-width: 0;
+}
+
+.cmp-audit-route-content .ant-tabs-content,
+.cmp-audit-route-content .ant-card,
+.cmp-audit-route-content .ant-list-item,
+.cmp-audit-route-content .ant-form {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .cmp-audit-page .cmp-page-header__actions {
+    width: 100%;
+  }
+
+  .cmp-audit-page .cmp-next-action-bar {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  .cmp-audit-route-content .cmp-audit-execution-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .cmp-audit-page {
+    padding-inline: 0;
+  }
+
+  .cmp-audit-secondary-nav {
+    margin-inline: -2px;
+  }
+
+  .cmp-audit-secondary-nav button {
+    min-height: 44px;
+  }
+
+  .cmp-audit-summary-grid,
+  .cmp-audit-document-grid,
+  .cmp-audit-route-content .cmp-audit-execution-metrics,
+  .cmp-audit-route-content .cmp-audit-finding-row,
+  .cmp-audit-dialog-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .cmp-audit-team-list .ant-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 390px) {
+  .cmp-audit-context-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cmp-audit-section {
+    padding-top: 12px;
+  }
+
+  .cmp-audit-route-content .ant-space,
+  .cmp-audit-route-content .ant-space-item {
+    max-width: 100%;
+  }
+}

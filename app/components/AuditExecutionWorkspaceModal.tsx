@@ -57,12 +57,16 @@ interface AuditExecutionWorkspaceModalProps {
   planId: string | null;
   roles: string[];
   mode?: AuditExecutionWorkspaceMode;
+  presentation?: "modal" | "page";
+  mutationAuthorized?: boolean;
+  onOpenFinding?: (findingId: string) => void;
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
 }
 
-interface AuditPlanExecutionDetail {
+export interface AuditPlanExecutionDetail {
   id: string;
+  project_id?: string | null;
   plan_code?: string | null;
   audit_type?: string | null;
   planned_start_date?: string | null;
@@ -101,7 +105,7 @@ interface AuditPlanExecutionDetail {
   } | null;
 }
 
-interface AuditTeamMember {
+export interface AuditTeamMember {
   id: string;
   team_role?: string | null;
   planned_start_date?: string | null;
@@ -117,14 +121,14 @@ interface AuditTeamMember {
   } | null;
 }
 
-interface AuditTeamAppointment {
+export interface AuditTeamAppointment {
   id: string;
   appointment_number?: string | null;
   status?: string | null;
   members?: AuditTeamMember[];
 }
 
-interface AuditReport {
+export interface AuditReport {
   id: string;
   report_code?: string | null;
   version_no?: number | null;
@@ -137,7 +141,7 @@ interface AuditReport {
   form_data?: Record<string, unknown> | null;
 }
 
-interface AuditFinding {
+export interface AuditFinding {
   id: string;
   report_id: string;
   finding_code?: string | null;
@@ -151,7 +155,7 @@ interface AuditFinding {
   status?: string | null;
 }
 
-interface GeneratedDocumentFile {
+export interface GeneratedDocumentFile {
   id: string;
   document_type?: string | null;
   file_kind?: string | null;
@@ -190,7 +194,7 @@ interface GenerateReportDocumentResponse {
   document: GeneratedDocumentFile;
 }
 
-interface ExecutionWorkspace {
+export interface ExecutionWorkspace {
   plan: AuditPlanExecutionDetail;
   appointment: AuditTeamAppointment | null;
   reports: AuditReport[];
@@ -359,11 +363,27 @@ async function optionalData<T>(promise: Promise<{ data: T }>): Promise<T | null>
   }
 }
 
+export async function loadAuditExecutionWorkspace(planId: string): Promise<ExecutionWorkspace> {
+  const [planResponse, appointment, reportsResponse] = await Promise.all([
+    api.get<AuditPlanExecutionDetail>(`/audit-plans/${planId}`),
+    optionalData(api.get<AuditTeamAppointment>(`/audit-team-appointments/plan/${planId}`)),
+    api.get<AuditReport[]>(`/reports/plan/${planId}`),
+  ]);
+  return {
+    plan: planResponse.data,
+    appointment,
+    reports: reportsResponse.data,
+  };
+}
+
 export default function AuditExecutionWorkspaceModal({
   open,
   planId,
   roles,
   mode = "full",
+  presentation = "modal",
+  mutationAuthorized,
+  onOpenFinding,
   onClose,
   onChanged,
 }: AuditExecutionWorkspaceModalProps) {
@@ -396,25 +416,17 @@ export default function AuditExecutionWorkspaceModal({
   };
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canExecute = normalizedRoles.some((role) =>
+  const workspaceVisible = presentation === "page" || open;
+  const canExecute = mutationAuthorized ?? normalizedRoles.some((role) =>
     ["auditor", "lead_auditor"].includes(role),
   );
 
   const workspaceQuery = useQuery<ExecutionWorkspace>({
-    enabled: open && Boolean(planId),
+    enabled: workspaceVisible && Boolean(planId),
     queryKey: ["audit-execution", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
-      const [planResponse, appointment, reportsResponse] = await Promise.all([
-        api.get<AuditPlanExecutionDetail>(`/audit-plans/${planId}`),
-        optionalData(api.get<AuditTeamAppointment>(`/audit-team-appointments/plan/${planId}`)),
-        api.get<AuditReport[]>(`/reports/plan/${planId}`),
-      ]);
-      return {
-        plan: planResponse.data,
-        appointment,
-        reports: reportsResponse.data,
-      };
+      return loadAuditExecutionWorkspace(planId);
     },
   });
 
@@ -435,7 +447,7 @@ export default function AuditExecutionWorkspaceModal({
   const selectedReport = reports.find((item) => item.id === selectedReportId) ?? reports[0] ?? null;
 
   const findingsQuery = useQuery<AuditFinding[]>({
-    enabled: open && Boolean(selectedReport?.id),
+    enabled: workspaceVisible && Boolean(selectedReport?.id),
     queryKey: ["audit-execution", "findings", selectedReport?.id],
     queryFn: async () => (
       await api.get<AuditFinding[]>(`/audit-findings/report/${selectedReport!.id}`)
@@ -444,7 +456,7 @@ export default function AuditExecutionWorkspaceModal({
 
   const findings = findingsQuery.data ?? [];
   const generatedDocumentsQuery = useQuery<GeneratedDocumentFile[]>({
-    enabled: open && Boolean(selectedReport?.id),
+    enabled: workspaceVisible && Boolean(selectedReport?.id),
     queryKey: ["audit-execution", "generated-documents", selectedReport?.id],
     queryFn: async () => (
       await api.get<GeneratedDocumentFile[]>(`/document-files/entity/report/${selectedReport!.id}`)
@@ -805,7 +817,7 @@ export default function AuditExecutionWorkspaceModal({
           label: "Tổng quan",
           children: (
             <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+              <div className="cmp-audit-execution-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
                 <Card size="small"><Statistic prefix={<ClockCircleOutlined />} title="Trạng thái" value={statusLabel(plan.status)} /></Card>
                 <Card size="small"><Statistic prefix={<TeamOutlined />} title="Đoàn đánh giá" value={appointment?.members?.length ?? 0} suffix="người" /></Card>
                 <Card size="small"><Statistic prefix={<FileDoneOutlined />} title="Báo cáo" value={reports.length} /></Card>
@@ -1241,7 +1253,7 @@ export default function AuditExecutionWorkspaceModal({
                   locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa ghi nhận phát hiện" /> }}
                   renderItem={(finding) => (
                     <List.Item>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, width: "100%" }}>
+                      <div className="cmp-audit-finding-row" style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 16, width: "100%" }}>
                         <div>
                           <Space wrap>
                             <strong>{finding.finding_code || "Chưa cấp mã"}</strong>
@@ -1256,6 +1268,11 @@ export default function AuditExecutionWorkspaceModal({
                         <div style={{ textAlign: "right" }}>
                           <Tag color={statusColor(finding.status)}>{statusLabel(finding.status)}</Tag>
                           <div><Text type="secondary">Hạn: {formatDate(finding.due_date)}</Text></div>
+                          {onOpenFinding && ["major_nc", "minor_nc"].includes(normalize(finding.finding_type)) ? (
+                            <Button onClick={() => onOpenFinding(finding.id)} size="small" style={{ marginTop: 8 }}>
+                              Mở HĐKP tương thích
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     </List.Item>
@@ -1322,7 +1339,10 @@ export default function AuditExecutionWorkspaceModal({
 
   return (
     <>
-      <Modal
+      {presentation === "page" ? (
+        <section className="cmp-audit-route-content">{mainContent}</section>
+      ) : (
+        <Modal
         cancelText="Đóng"
         destroyOnHidden
         footer={null}
@@ -1349,7 +1369,8 @@ export default function AuditExecutionWorkspaceModal({
         width={mode === "report" ? 1180 : 1120}
       >
         {mainContent}
-      </Modal>
+        </Modal>
+      )}
 
       <Modal
         cancelText="Đóng"
@@ -1430,7 +1451,7 @@ export default function AuditExecutionWorkspaceModal({
               options={Object.entries(findingTypeLabels).map(([value, label]) => ({ value, label }))}
             />
           </Form.Item>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="cmp-audit-dialog-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Form.Item name="clause" label="Điều khoản"><Input placeholder="Ví dụ: 7.5" /></Form.Item>
             <Form.Item name="detected_date" label="Ngày phát hiện" rules={[{ required: true, message: "Chọn ngày phát hiện" }]}>
               <DatePicker
@@ -1501,7 +1522,7 @@ export default function AuditExecutionWorkspaceModal({
                       title={`${member?.experts?.full_name || "Thành viên"} · ${teamRoleLabels[normalize(member?.team_role)] ?? statusLabel(member?.team_role)}`}
                     >
                       <Form.Item name={[field.name, "member_id"]} hidden><Input /></Form.Item>
-                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+                      <div className="cmp-audit-dialog-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
                         <Form.Item name={[field.name, "actual_dates"]} label="Ngày tham gia thực tế" rules={[{ required: true, message: "Chọn ngày tham gia" }]}>
                           <RangePicker allowClear={false} format="DD/MM/YYYY" style={{ width: "100%" }} />
                         </Form.Item>

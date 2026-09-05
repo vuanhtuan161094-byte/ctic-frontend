@@ -36,13 +36,14 @@ export interface CertificationCaseWorkspaceViewProps {
   onNavigateArea: (area: CertificationCaseArea) => void;
   onCycleChange: (cycleKey: string) => void;
   onOpenCompatibility: (path: string) => void;
+  onOpenAudit: (auditId: string) => void;
   onOpenFile: (file: CertificationCaseProjectedFile) => void;
   activity?: CertificationCaseActivityPage;
   activityLoading?: boolean;
   onLoadMoreActivity?: () => void;
 }
 
-export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, refreshing = false, onBack, onRefresh, onNavigateArea, onCycleChange, onOpenCompatibility, onOpenFile, activity = data.recent_activity, activityLoading = false, onLoadMoreActivity }: CertificationCaseWorkspaceViewProps) {
+export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, refreshing = false, onBack, onRefresh, onNavigateArea, onCycleChange, onOpenCompatibility, onOpenAudit, onOpenFile, activity = data.recent_activity, activityLoading = false, onLoadMoreActivity }: CertificationCaseWorkspaceViewProps) {
   const cycles = orderedCycles(data);
   const cycle = selectedCycle(data, selectedCycleKey);
 
@@ -51,7 +52,7 @@ export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, r
   }, [cycle, onCycleChange, selectedCycleKey]);
 
   const content = area === "progress"
-    ? <CertificationCaseProgress data={data} cycle={cycle} />
+    ? <CertificationCaseProgress data={data} cycle={cycle} onOpenAudit={onOpenAudit} />
     : area === "team"
       ? <CertificationCaseTeam data={data} cycle={cycle} />
       : area === "documents"
@@ -103,9 +104,10 @@ export interface CertificationCaseWorkspaceProps {
   onNavigateArea: (area: CertificationCaseArea) => void;
   onCycleChange: (cycleKey: string) => void;
   onOpenCompatibility: (path: string) => void;
+  onOpenAudit: (auditId: string) => void;
 }
 
-export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onBack, onNavigateArea, onCycleChange, onOpenCompatibility }: CertificationCaseWorkspaceProps) {
+export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onBack, onNavigateArea, onCycleChange, onOpenCompatibility, onOpenAudit }: CertificationCaseWorkspaceProps) {
   const workspaceQuery = useQuery({
     queryKey: ["certification-case", caseId, "workspace-v2"],
     queryFn: async (): Promise<CertificationCaseWorkspaceProjection> => {
@@ -165,6 +167,7 @@ export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onB
       onNavigateArea={onNavigateArea}
       onCycleChange={onCycleChange}
       onOpenCompatibility={onOpenCompatibility}
+      onOpenAudit={onOpenAudit}
       onOpenFile={(file) => void openFile(file)}
       activity={activity ?? workspaceQuery.data.recent_activity}
       activityLoading={activityLoading}
