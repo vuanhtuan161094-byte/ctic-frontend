@@ -38,7 +38,7 @@ test("selected certification cycle remains URL-backed and derived", () => {
   assert.match(navigation, /query\.set\("cycle", navigation\.selectedProjectDossierKey\)/);
   assert.match(workspace, /<CycleSelector/);
   assert.match(workspace, /onCycleChange/);
-  assert.match(model, /data\.dossier\.current_dossier_key/);
+  assert.match(model, /data\.current_cycle\?\.key/);
   assert.doesNotMatch(model, /cycle table|createCycle|post<.*cycle/i);
 });
 
@@ -76,12 +76,9 @@ test("registry has URL-capable search filters and responsive table cards", () =>
   assert.match(styles, /@media \(max-width: 768px\)/);
 });
 
-test("workspace loads only the three approved Step 17.1 projections", () => {
-  for (const endpoint of [
-    "/certification-projects/${caseId}",
-    "/certification-projects/${caseId}/dossier",
-    "/certification-projects/${caseId}/alerts?warning_days=90",
-  ]) assert.ok(workspace.includes(endpoint), `missing ${endpoint}`);
+test("Step 17.1 workspace composition migrates to the approved Step 17.2 projection", () => {
+  assert.match(workspace, /`\/certification-cases\/\$\{caseId\}\/workspace`/);
+  assert.doesNotMatch(workspace, /Promise\.all\(\[\s*api\.get/);
   assert.doesNotMatch(workspace, /api\.(post|put|patch|delete)/);
 });
 
@@ -98,7 +95,7 @@ test("overview separates case cycle stage responsibility and SLA meaning", () =>
 test("one primary action is navigation-only and never frontend authority", () => {
   assert.match(header, /const primaryAction: ProjectedAction \| null/);
   assert.match(header, /<NextActionBar[\s\S]*primaryAction=\{primaryAction\}/);
-  assert.match(header, /Tiếp tục tại không gian nghiệp vụ hiện có/);
+  assert.match(header, /data\.next_action\.business_meaning/);
   assert.doesNotMatch(header, /api\.(post|put|patch|delete)/);
 });
 
@@ -111,13 +108,13 @@ test("progress distinguishes blocked and not-applicable without merging domains"
   assert.match(styles, /data-lifecycle-state="notApplicable"/);
 });
 
-test("team documents and activity are truthful read-first foundations", () => {
-  assert.match(team, /ReadOnlyState/);
-  assert.match(team, /chưa cung cấp bản tổng hợp thành viên/);
+test("team documents and activity keep truthful read-first composition", () => {
+  assert.match(team, /data\.team_summary/);
+  assert.match(team, /Điều kiện sẵn sàng/);
   assert.match(documents, /DOCUMENT_GROUP_LABELS/);
   assert.match(documents, /<EvidenceList/);
   assert.match(activity, /<ActivityTimeline/);
-  assert.match(activity, /chưa cung cấp dòng hoạt động hợp nhất/);
+  assert.match(activity, /nhật ký bảo mật thô/);
 });
 
 test("forbidden state is non-disclosing before case identity renders", () => {

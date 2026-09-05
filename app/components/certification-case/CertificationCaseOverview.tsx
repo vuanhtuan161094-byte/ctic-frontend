@@ -2,26 +2,21 @@ import { ArrowRightOutlined } from "@ant-design/icons";
 import { Button, Progress, Typography } from "antd";
 
 import { ReadinessBlockerPanel, SectionHeader } from "../design-system";
-import { alertBlockers, caseCustomer, caseScope, cycleLabel, formatCaseDate } from "./case-model";
-import type { CertificationCaseArea, CertificationCaseWorkspaceData, CertificationCycleGroup } from "./types";
+import { caseCustomer, caseScope, cycleLabel, formatCaseDate, projectionBlockers } from "./case-model";
+import type { CertificationCaseArea, CertificationCaseProjectionCycle, CertificationCaseWorkspaceProjection } from "./types";
 
 export interface CertificationCaseOverviewProps {
-  data: CertificationCaseWorkspaceData;
-  cycle: CertificationCycleGroup | null;
+  data: CertificationCaseWorkspaceProjection;
+  cycle: CertificationCaseProjectionCycle | null;
   onNavigateArea: (area: CertificationCaseArea) => void;
 }
 
 export function CertificationCaseOverview({ data, cycle, onNavigateArea }: CertificationCaseOverviewProps) {
-  const customer = caseCustomer(data.project) ?? data.dossier.project.customer;
-  const application = data.project.certification_applications;
-  const sites = application?.sites ?? [];
-  const plans = cycle ? data.project.audit_plans.filter((plan) => cycle.plan_ids.includes(plan.id)) : [];
-  const reviewActions = (application?.application_reviews ?? [])
-    .flatMap((review) => review.workflow_actions ?? [])
-    .filter((action) => action.created_at)
-    .sort((left, right) => new Date(right.created_at ?? 0).getTime() - new Date(left.created_at ?? 0).getTime())
-    .slice(0, 3);
-  const recentFiles = [...data.dossier.files]
+  const customer = caseCustomer(data);
+  const sites = data.standards_scope.sites;
+  const reviewActions = data.recent_activity.items.slice(0, 3);
+  const recentFiles = data.document_summary.groups
+    .flatMap((group) => group.latest ? [group.latest] : [])
     .sort((left, right) => new Date(right.uploaded_at).getTime() - new Date(left.uploaded_at).getTime())
     .slice(0, 3);
 
@@ -38,19 +33,19 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           <div className="cmp-case-metric">
             <span>Mức hoàn thiện nguồn hồ sơ</span>
             <Progress percent={cycle?.summary.completion_percentage ?? 0} size="small" strokeColor="var(--cmp-brand-primary)" />
-            <small>{cycle ? `${cycle.summary.completed_items}/${cycle.summary.total_items} thành phần đã hoàn tất` : "Chưa có thành phần"}</small>
+            <small>{cycle ? `${cycle.summary.completed_items ?? 0}/${cycle.summary.total_items ?? 0} thành phần đã hoàn tất` : "Chưa có thành phần"}</small>
           </div>
           <div className="cmp-case-metric">
             <span>Điểm cần chú ý</span>
-            <strong>{data.alerts.summary.total}</strong>
-            <small>{data.alerts.summary.critical} nghiêm trọng · {data.alerts.summary.warning} cảnh báo</small>
+            <strong>{data.blockers.length}</strong>
+            <small>{data.blockers.filter((item) => item.severity === "CRITICAL").length} nghiêm trọng · {data.blockers.filter((item) => item.severity === "WARNING").length} cảnh báo</small>
           </div>
         </div>
       </section>
 
-      {data.alerts.alerts.length ? (
+      {data.blockers.length ? (
         <section className="cmp-case-blocker-section" aria-label="Điểm cần chú ý">
-          <ReadinessBlockerPanel title="Điểm cần chú ý và điều kiện sẵn sàng" blockers={alertBlockers(data.alerts.alerts)} />
+          <ReadinessBlockerPanel title="Điểm cần chú ý và điều kiện sẵn sàng" blockers={projectionBlockers(data)} />
         </section>
       ) : null}
 
@@ -60,19 +55,19 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           <div className="cmp-case-identity-block">
             <h3>Khách hàng & phạm vi</h3>
             <dl>
-              <div><dt>Khách hàng</dt><dd>{customer?.company_name ?? "Chưa xác định"}</dd></div>
-              <div><dt>Mã khách hàng</dt><dd>{customer?.customer_code ?? "Chưa có"}</dd></div>
-              <div><dt>Phạm vi</dt><dd>{caseScope(data.project)}</dd></div>
-              <div><dt>Số địa điểm</dt><dd>{sites.length || application?.site_count || "Chưa ghi nhận"}</dd></div>
+              <div><dt>Khách hàng</dt><dd>{customer.name}</dd></div>
+              <div><dt>Mã khách hàng</dt><dd>{customer.code ?? "Chưa có"}</dd></div>
+              <div><dt>Phạm vi</dt><dd>{caseScope(data)}</dd></div>
+              <div><dt>Số địa điểm</dt><dd>{sites.length || "Chưa ghi nhận"}</dd></div>
             </dl>
           </div>
           <div className="cmp-case-identity-block">
             <h3>Tiêu chuẩn & chương trình</h3>
             <dl>
-              <div><dt>Tiêu chuẩn / phiên bản</dt><dd>{data.project.standard_name}</dd></div>
-              <div><dt>Loại chứng nhận</dt><dd>{application?.certification_type ?? "Chưa ghi nhận"}</dd></div>
-              <div><dt>Mã đơn đăng ký</dt><dd>{application?.application_code ?? "Chưa liên kết"}</dd></div>
-              <div><dt>Trạng thái đơn</dt><dd>{application?.status ?? "Chưa liên kết"}</dd></div>
+              <div><dt>Tiêu chuẩn / phiên bản</dt><dd>{data.standards_scope.display_name}</dd></div>
+              <div><dt>Loại chứng nhận</dt><dd>{data.standards_scope.certification_type ?? "Chưa ghi nhận"}</dd></div>
+              <div><dt>Mã đơn đăng ký</dt><dd>{data.identity.application_reference}</dd></div>
+              <div><dt>Phiên bản contract</dt><dd>{data.contract_version}</dd></div>
             </dl>
           </div>
         </div>
@@ -85,9 +80,9 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           actions={<Button type="link" icon={<ArrowRightOutlined />} onClick={() => onNavigateArea("progress")}>Xem toàn bộ tiến trình</Button>}
         />
         <div className="cmp-case-plan-strip">
-          <div><span>Bắt đầu dự kiến</span><strong>{formatCaseDate(cycle?.planned_start_date ?? plans[0]?.planned_start_date)}</strong></div>
-          <div><span>Kết thúc dự kiến</span><strong>{formatCaseDate(cycle?.planned_end_date ?? plans.at(-1)?.planned_end_date)}</strong></div>
-          <div><span>Kế hoạch liên quan</span><strong>{plans.length || cycle?.plan_ids.length || 0}</strong></div>
+          <div><span>Bắt đầu dự kiến</span><strong>{formatCaseDate(cycle?.planned_start_date)}</strong></div>
+          <div><span>Kết thúc dự kiến</span><strong>{formatCaseDate(cycle?.planned_end_date)}</strong></div>
+          <div><span>Kế hoạch liên quan</span><strong>{cycle?.plan_ids.length || 0}</strong></div>
           <div><span>Ngày công dự kiến</span><strong>{cycle?.planned_mandays ?? "Chưa ghi nhận"}</strong></div>
         </div>
       </section>
@@ -100,8 +95,8 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           />
           {reviewActions.length ? reviewActions.map((action) => (
             <div className="cmp-case-preview-row" key={action.id}>
-              <strong>{action.action?.replaceAll("_", " ") ?? "Cập nhật thẩm xét"}</strong>
-              <span>{action.actor?.full_name ?? action.actor?.username ?? "Người dùng hệ thống"} · {formatCaseDate(action.created_at)}</span>
+              <strong>{action.title}</strong>
+              <span>{action.actor?.display_name ?? "Hệ thống nghiệp vụ"} · {formatCaseDate(action.occurred_at)}</span>
             </div>
           )) : <Typography.Text type="secondary">Chưa có hoạt động nghiệp vụ có cấu trúc để hiển thị.</Typography.Text>}
         </section>

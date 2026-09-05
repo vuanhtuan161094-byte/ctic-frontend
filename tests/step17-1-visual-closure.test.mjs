@@ -78,11 +78,7 @@ test("production bundle contains neither the DEV path nor typed mock payload", (
 test("real case routes and read projections remain unchanged", () => {
   assert.match(navigation, /if \(path === "\/certifications"\)/);
   assert.match(navigation, /\^\\\/certifications/);
-  for (const endpoint of [
-    "/certification-projects/${caseId}",
-    "/certification-projects/${caseId}/dossier",
-    "/certification-projects/${caseId}/alerts?warning_days=90",
-  ]) assert.ok(workspace.includes(endpoint), `missing real projection ${endpoint}`);
+  assert.match(workspace, /`\/certification-cases\/\$\{caseId\}\/workspace`/);
   assert.doesNotMatch([registry, workspace].join("\n"), /api\.(post|put|patch|delete)/);
 });
 

@@ -1,45 +1,35 @@
 import { Typography } from "antd";
 
 import { EvidenceList, SectionHeader } from "../design-system";
-import { DOCUMENT_GROUP_LABELS, documentGroup, formatCaseDate, type DocumentGroupKey } from "./case-model";
-import type { CertificationCaseFile, CertificationCaseWorkspaceData } from "./types";
+import { DOCUMENT_GROUP_LABELS, formatCaseDate } from "./case-model";
+import type { CertificationCaseProjectedFile, CertificationCaseWorkspaceProjection } from "./types";
 
-const groupOrder: DocumentGroupKey[] = ["customer", "audit", "cap", "review", "decision", "certificate", "other"];
-
-export function CertificationCaseDocuments({ data, onOpenFile }: { data: CertificationCaseWorkspaceData; onOpenFile: (file: CertificationCaseFile) => void }) {
-  const grouped = new Map<DocumentGroupKey, CertificationCaseFile[]>();
-  for (const file of data.dossier.files) {
-    const key = documentGroup(file);
-    grouped.set(key, [...(grouped.get(key) ?? []), file]);
-  }
-  const visibleGroups = groupOrder.filter((key) => grouped.has(key));
+export function CertificationCaseDocuments({ data, onOpenFile }: { data: CertificationCaseWorkspaceProjection; onOpenFile: (file: CertificationCaseProjectedFile) => void }) {
+  const visibleGroups = data.document_summary.groups.filter((group) => group.count > 0);
 
   return (
     <div className="cmp-case-area" data-case-area="documents">
       <section className="cmp-case-section">
         <SectionHeader
           title="Tài liệu"
-          description="Tệp được nhóm theo ý nghĩa nghiệp vụ từ metadata hiện có; không trộn thành một bảng kỹ thuật duy nhất."
+          description={`${data.document_summary.total} tệp hiện hành được nhóm theo ý nghĩa nghiệp vụ; danh sách đầy đủ và tải xuống vẫn dùng endpoint tài liệu đã được phân quyền.`}
         />
         {visibleGroups.length ? (
           <div className="cmp-case-document-groups">
-            {visibleGroups.map((key) => {
-              const files = [...(grouped.get(key) ?? [])].sort((left, right) => new Date(right.uploaded_at).getTime() - new Date(left.uploaded_at).getTime());
-              return (
-                <section className="cmp-case-document-group" key={key}>
-                  <SectionHeader title={DOCUMENT_GROUP_LABELS[key]} description={`${files.length} tệp có thể truy cập`} />
-                  <EvidenceList items={files.map((file) => ({
-                    key: file.id,
-                    name: file.original_name,
-                    owner: `Phiên bản ${file.version_no}`,
-                    metadata: formatCaseDate(file.uploaded_at),
-                    preview: () => onOpenFile(file),
-                  }))} />
-                </section>
-              );
-            })}
+            {visibleGroups.map((group) => (
+              <section className="cmp-case-document-group" key={group.key} data-document-ready={group.ready}>
+                <SectionHeader title={DOCUMENT_GROUP_LABELS[group.key]} description={`${group.count} tệp · ${group.ready ? "Đã có tài liệu hiện hành" : "Chưa sẵn sàng"}`} />
+                <EvidenceList items={group.items.map((file) => ({
+                  key: file.id,
+                  name: file.original_name,
+                  owner: `Phiên bản ${file.version_no}`,
+                  metadata: formatCaseDate(file.uploaded_at),
+                  preview: () => onOpenFile(file),
+                }))} />
+              </section>
+            ))}
           </div>
-        ) : <Typography.Text type="secondary">Chưa có tệp nào được nguồn nghiệp vụ liên kết với hồ sơ này.</Typography.Text>}
+        ) : <Typography.Text type="secondary">Chưa có tệp hiện hành được liên kết với hồ sơ này.</Typography.Text>}
       </section>
     </div>
   );

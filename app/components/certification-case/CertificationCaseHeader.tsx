@@ -9,19 +9,19 @@ import {
   type DeadlineSlaState,
   type ProjectedAction,
 } from "../design-system";
-import { actionWorkspacePath, caseCustomer, caseScope, currentCycleItem, cycleLabel, formatCaseDate, importantDeadline, normalizeCaseValue } from "./case-model";
-import type { CertificationCaseWorkspaceData, CertificationCycleGroup } from "./types";
+import { actionWorkspacePath, caseCustomer, caseScope, currentCycleItem, cycleLabel, formatCaseDate, normalizeCaseValue } from "./case-model";
+import type { CertificationCaseProjectionCycle, CertificationCaseWorkspaceProjection } from "./types";
 
-function slaState(alertType: string): DeadlineSlaState {
-  const normalized = normalizeCaseValue(alertType);
-  if (normalized.includes("overdue") || normalized.includes("expired")) return "OVERDUE";
-  if (normalized.includes("upcoming") || normalized.includes("expiring")) return "DUE_SOON";
+function slaState(status: CertificationCaseWorkspaceProjection["sla"]["status"]): DeadlineSlaState {
+  if (status === "OVERDUE") return "OVERDUE";
+  if (status === "WARNING") return "DUE_SOON";
+  if (status === "NOT_APPLICABLE" || status === "NOT_CONFIGURED") return status;
   return "ON_TRACK";
 }
 
 export interface CertificationCaseHeaderProps {
-  data: CertificationCaseWorkspaceData;
-  cycle: CertificationCycleGroup | null;
+  data: CertificationCaseWorkspaceProjection;
+  cycle: CertificationCaseProjectionCycle | null;
   refreshing?: boolean;
   onBack: () => void;
   onRefresh: () => void;
@@ -29,19 +29,18 @@ export interface CertificationCaseHeaderProps {
 }
 
 export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRefresh, onOpenCompatibility }: CertificationCaseHeaderProps) {
-  const customer = caseCustomer(data.project) ?? data.dossier.project.customer;
-  const scope = caseScope(data.project);
+  const customer = caseCustomer(data);
+  const scope = caseScope(data);
   const currentItem = currentCycleItem(cycle);
-  const deadline = importantDeadline(data.alerts.alerts);
-  const compatibilityPath = cycle ? actionWorkspacePath(data.project.id, cycle) : null;
-  const blockingCount = data.alerts.alerts.filter((alert) => alert.severity === "critical").length;
-  const warningCount = data.alerts.alerts.filter((alert) => alert.severity === "warning").length;
-  const primaryAction: ProjectedAction | null = cycle?.next_action ? {
-    code: cycle.next_action.code,
-    label: cycle.next_action.label,
-    businessMeaning: `Tiếp tục tại không gian nghiệp vụ hiện có. Trách nhiệm: ${cycle.next_action.responsible_label ?? "được xác định trong bước xử lý"}.`,
-    enabled: Boolean(compatibilityPath),
-    disabledReason: "Nguồn hiện tại chưa cung cấp đích nghiệp vụ an toàn.",
+  const compatibilityPath = actionWorkspacePath(data);
+  const blockingCount = data.blockers.filter((blocker) => blocker.severity === "CRITICAL").length;
+  const warningCount = data.blockers.filter((blocker) => blocker.severity === "WARNING").length;
+  const primaryAction: ProjectedAction | null = data.next_action ? {
+    code: data.next_action.code,
+    label: data.next_action.label,
+    businessMeaning: data.next_action.business_meaning,
+    enabled: data.next_action.authorized && Boolean(compatibilityPath),
+    disabledReason: data.next_action.disabled_reason ?? "Chưa có đích nghiệp vụ tương thích.",
     severity: "IMPORTANT",
     onAction: compatibilityPath ? () => onOpenCompatibility(compatibilityPath) : undefined,
   } : null;
@@ -50,17 +49,17 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
     <section className="cmp-case-hero" aria-labelledby="certification-case-title">
       <PageHeader
         identity="HỒ SƠ CHỨNG NHẬN"
-        title={<span id="certification-case-title">{data.project.project_code}</span>}
+        title={<span id="certification-case-title">{data.identity.case_reference}</span>}
         description={(
           <div className="cmp-case-primary-identity">
-            <strong>{customer?.company_name ?? "Chưa xác định khách hàng"}</strong>
-            <span>{data.project.standard_name}</span>
+            <strong>{customer.name}</strong>
+            <span>{data.standards_scope.display_name}</span>
           </div>
         )}
         metadata={(
           <>
-            <DomainStatusBadge domain="case" code={normalizeCaseValue(data.project.status)} />
-            <Typography.Text type="secondary">Cập nhật {formatCaseDate(data.project.updated_at)}</Typography.Text>
+            <DomainStatusBadge domain="case" code={normalizeCaseValue(data.case_status)} />
+            <Typography.Text type="secondary">Cập nhật {formatCaseDate(data.identity.updated_at)}</Typography.Text>
           </>
         )}
         secondaryActions={(
@@ -79,17 +78,17 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
         <div className="cmp-case-operational-grid">
           <div><span>Chu kỳ đang xem</span><strong>{cycle ? cycleLabel(cycle) : "Chưa có dữ liệu"}</strong></div>
           <div><span>Bước hiện tại</span><strong>{currentItem?.document_name ?? "Chưa xác định"}</strong></div>
-          <div><span>Người xử lý</span><strong>{cycle?.next_action?.responsible_label ?? "Chưa có thông tin tổng hợp"}</strong></div>
+          <div><span>Người xử lý</span><strong>{data.responsibility?.label ?? "Chưa có thông tin tổng hợp"}</strong></div>
           <div>
             <span>Hạn quan trọng</span>
-            {deadline ? (
+            {data.sla.applicability === "APPLICABLE" ? (
               <DeadlineSlaBadge
-                state={slaState(deadline.alert_type)}
-                dueAt={deadline.due_date}
-                formattedDueAt={formatCaseDate(deadline.due_date)}
-                explanation={deadline.message}
+                state={slaState(data.sla.status)}
+                dueAt={data.sla.due_at}
+                formattedDueAt={formatCaseDate(data.sla.due_at)}
+                explanation={data.sla.remaining_days === null ? undefined : `${data.sla.remaining_days} ngày còn lại theo nguồn thời hạn hiện có.`}
               />
-            ) : <strong>Chưa có thời hạn tổng hợp</strong>}
+            ) : <DeadlineSlaBadge state={slaState(data.sla.status)} />}
           </div>
         </div>
       </div>
@@ -97,7 +96,7 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
       {blockingCount || warningCount ? (
         <div className="cmp-case-alert-summary" data-severity={blockingCount ? "blocking" : "warning"}>
           <strong>{blockingCount ? `${blockingCount} điều kiện đang chặn` : `${warningCount} điểm cần chú ý`}</strong>
-          <span>{data.alerts.alerts[0]?.message}</span>
+          <span>{data.blockers[0]?.message}</span>
         </div>
       ) : null}
 

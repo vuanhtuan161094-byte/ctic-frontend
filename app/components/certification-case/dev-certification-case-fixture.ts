@@ -1,4 +1,4 @@
-import type { CertificationCaseRecord, CertificationCaseWorkspaceData } from "./types";
+import type { CertificationCaseRecord, CertificationCaseWorkspaceData, CertificationCaseWorkspaceProjection } from "./types";
 
 const mockCustomer = {
   id: "dev-customer-001",
@@ -96,7 +96,7 @@ export const DEV_CERTIFICATION_CASE_RECORDS: CertificationCaseRecord[] = [
   },
 ];
 
-export const DEV_CERTIFICATION_CASE_WORKSPACE: CertificationCaseWorkspaceData = {
+const LEGACY_DEV_CERTIFICATION_CASE_WORKSPACE: CertificationCaseWorkspaceData = {
   project: {
     ...baseCase,
     audit_plans: [{
@@ -181,4 +181,116 @@ export const DEV_CERTIFICATION_CASE_WORKSPACE: CertificationCaseWorkspaceData = 
       { alert_type: "decision_upcoming", severity: "warning", message: "Mốc dự kiến hoàn tất quyết định chứng nhận còn 5 ngày làm việc.", reference_id: "dev-decision-001", due_date: "2026-09-11T17:00:00+07:00" },
     ],
   },
+};
+
+const legacyCycle = LEGACY_DEV_CERTIFICATION_CASE_WORKSPACE.dossier.dossiers![0];
+const projectedFiles = LEGACY_DEV_CERTIFICATION_CASE_WORKSPACE.dossier.files.map((file) => ({
+  id: file.id,
+  entity_type: file.entity_type,
+  entity_id: file.entity_id,
+  document_type: file.document_type,
+  file_kind: file.file_kind,
+  original_name: file.original_name,
+  version_no: file.version_no,
+  uploaded_at: file.uploaded_at,
+}));
+
+export const DEV_CERTIFICATION_CASE_WORKSPACE: CertificationCaseWorkspaceProjection = {
+  contract_version: "2.0",
+  identity: {
+    id: baseCase.id,
+    case_reference: baseCase.project_code,
+    application_id: mockApplication.id,
+    application_reference: mockApplication.application_code,
+    created_at: baseCase.created_at,
+    updated_at: baseCase.updated_at,
+  },
+  customer: { id: mockCustomer.id, code: mockCustomer.customer_code, name: mockCustomer.company_name },
+  standards_scope: {
+    standards: mockApplication.standard_name.split(" · ").map((display_name) => ({ display_name })),
+    display_name: mockApplication.standard_name,
+    certification_scope: mockApplication.certification_scope,
+    certification_type: mockApplication.certification_type,
+    sites: mockApplication.sites,
+  },
+  cycles: [{
+    key: legacyCycle.dossier_key,
+    type: legacyCycle.dossier_type,
+    label: legacyCycle.dossier_label,
+    description: legacyCycle.dossier_description,
+    sequence_no: legacyCycle.sequence_no,
+    plan_ids: legacyCycle.plan_ids,
+    plan_codes: legacyCycle.plan_codes ?? [],
+    planned_start_date: legacyCycle.planned_start_date,
+    planned_end_date: legacyCycle.planned_end_date,
+    planned_mandays: legacyCycle.planned_mandays as number,
+    summary: legacyCycle.summary,
+    stages: [...(LEGACY_DEV_CERTIFICATION_CASE_WORKSPACE.dossier.common_items ?? []), ...legacyCycle.items],
+  }],
+  current_cycle: { key: legacyCycle.dossier_key, label: legacyCycle.dossier_label },
+  case_status: baseCase.status,
+  current_stage: { code: "technical_review_report", label: "Thẩm xét kỹ thuật hồ sơ chứng nhận", status: "pending", source_id: "dev-tech-review-001" },
+  responsibility: { label: "Chuyên gia thẩm xét kỹ thuật — Trần Hải Yến", action_code: "technical_review.perform", work_item_id: "dev-work-001" },
+  next_action: {
+    code: "TECHNICAL_REVIEW",
+    label: "Mở thẩm xét kỹ thuật",
+    business_meaning: "Điều hướng đến không gian nghiệp vụ tương thích; không tự cấp quyền thao tác.",
+    authorized: true,
+    disabled_reason: null,
+    destination: {
+      route_name: "certification_case.technical_review",
+      params: { id: baseCase.id },
+      query: { workspace: "technical-review", dossier_key: legacyCycle.dossier_key, audit_plan_id: "dev-plan-001" },
+      legacy_path: `/projects/${baseCase.id}?workspace=technical-review&dossier_key=${legacyCycle.dossier_key}&audit_plan_id=dev-plan-001`,
+      contract_version: "2.0",
+    },
+  },
+  allowed_actions: [],
+  blockers: [
+    { code: "TECHNICAL_REVIEW_INDEPENDENCE", severity: "CRITICAL", message: "Thẩm xét kỹ thuật đang chờ xác nhận tính độc lập của người thẩm xét.", due_at: "2026-09-06T17:00:00+07:00", source_id: "dev-tech-review-001" },
+    { code: "DECISION_DUE", severity: "WARNING", message: "Mốc dự kiến hoàn tất quyết định chứng nhận còn 5 ngày làm việc.", due_at: "2026-09-11T17:00:00+07:00", source_id: "dev-decision-001" },
+  ],
+  sla: { applicability: "APPLICABLE", status: "WARNING", due_at: "2026-09-06T17:00:00+07:00", remaining_days: 2 },
+  team_summary: {
+    status: "BLOCKED",
+    appointment: { id: "dev-team-001", plan_id: "dev-plan-001", number: "QD-MAU-2026-0044", appointment_date: "2026-08-24T08:00:00+07:00", status: "issued", team_lead: "Nguyễn Minh An", audit_start_date: "2026-09-14T08:00:00+07:00", audit_end_date: "2026-09-17T17:00:00+07:00" },
+    members: [
+      { id: "dev-member-001", expert: { id: "dev-expert-001", employee_code: "CG-014", display_name: "Nguyễn Minh An" }, role: "TEAM_LEADER", planned_start_date: "2026-09-14T08:00:00+07:00", planned_end_date: "2026-09-17T17:00:00+07:00", planned_mandays: 4, assignment_status: "assigned", competency_status: "qualified", confirmed: true },
+      { id: "dev-member-002", expert: { id: "dev-expert-002", employee_code: "CG-029", display_name: "Lê Quốc Bảo" }, role: "AUDITOR", planned_start_date: "2026-09-14T08:00:00+07:00", planned_end_date: "2026-09-17T17:00:00+07:00", planned_mandays: 3, assignment_status: "assigned", competency_status: "qualified", confirmed: true },
+      { id: "dev-member-003", expert: { id: "dev-expert-003", employee_code: "CG-041", display_name: "Phạm Thu Hà" }, role: "TECHNICAL_EXPERT", planned_start_date: "2026-09-15T08:00:00+07:00", planned_end_date: "2026-09-16T17:00:00+07:00", planned_mandays: 1.5, assignment_status: "assigned", competency_status: "qualified", confirmed: false },
+    ],
+    planned_mandays: 8.5,
+    competence: { status: "READY", reasons: [] },
+    independence: { status: "BLOCKED", reasons: [{ code: "INDEPENDENCE_RESTRICTED", severity: "BLOCK", message: "Cần hoàn tất xác nhận độc lập trước khi ban hành." }] },
+    blockers: [{ code: "INDEPENDENCE_RESTRICTED", severity: "BLOCK", message: "Cần hoàn tất xác nhận độc lập trước khi ban hành." }],
+  },
+  document_summary: {
+    total: projectedFiles.length,
+    groups: [
+      { key: "customer_evidence", count: 1, ready: true, latest: projectedFiles[2], items: [projectedFiles[2]] },
+      { key: "audit", count: 2, ready: true, latest: projectedFiles[0], items: [projectedFiles[0], projectedFiles[1]] },
+      { key: "cap", count: 0, ready: false, latest: null, items: [] },
+      { key: "technical_review", count: 1, ready: true, latest: projectedFiles[3], items: [projectedFiles[3]] },
+      { key: "decision_result", count: 0, ready: false, latest: null, items: [] },
+      { key: "certificate", count: 0, ready: false, latest: null, items: [] },
+      { key: "other", count: 0, ready: false, latest: null, items: [] },
+    ],
+  },
+  recent_activity: {
+    contract_version: "2.0",
+    items: [
+      { id: "technical-review:dev-activity-003", occurred_at: "2026-09-03T16:05:00+07:00", type: "TECHNICAL_REVIEW", title: "Thẩm xét kỹ thuật được tiếp nhận", description: "Hồ sơ đã được chuyển đến người thẩm xét được phân công.", actor: { display_name: "Trần Hải Yến" }, cycle_key: legacyCycle.dossier_key, stage: "technical_review", destination: null, importance: "IMPORTANT" },
+      { id: "audit-report:dev-activity-002", occurred_at: "2026-09-02T15:35:00+07:00", type: "AUDIT_REPORT", title: "Báo cáo đánh giá được ban hành", description: "Bản chính thức phiên bản 2 đã được ghi nhận.", actor: { display_name: "Nguyễn Minh An" }, cycle_key: legacyCycle.dossier_key, stage: "audit_report", destination: null, importance: "INFO" },
+      { id: "work-item:dev-activity-001", occurred_at: "2026-08-24T08:00:00+07:00", type: "WORK_ITEM", title: "Đoàn đánh giá được chỉ định", description: "Quyết định bố trí đoàn đã được ban hành.", actor: { display_name: "Lê Quốc Bảo" }, cycle_key: legacyCycle.dossier_key, stage: "audit_team.issue", destination: null, importance: "INFO" },
+    ],
+    page: { limit: 8, next_cursor: null, has_more: false },
+  },
+  links: {
+    self: { route_name: "certification_case.overview", params: { id: baseCase.id }, query: {}, legacy_path: null, contract_version: "2.0" },
+    activity: { route_name: "certification_case.activity", params: { id: baseCase.id }, query: {}, legacy_path: null, contract_version: "2.0" },
+    legacy_project: `/certification-projects/${baseCase.id}`,
+    legacy_dossier: `/certification-projects/${baseCase.id}/dossier`,
+    legacy_alerts: `/certification-projects/${baseCase.id}/alerts`,
+  },
+  projection_meta: { generated_at: "2026-09-04T08:00:00+07:00", bounded: true, mutation_capable: false },
 };

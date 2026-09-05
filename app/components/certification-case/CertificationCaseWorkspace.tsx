@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { message } from "antd";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { api, getErrorMessage } from "../../lib/api";
 import { isPdfDocument, openDocumentFile, previewDocumentFile } from "../../lib/document-file-client";
@@ -15,7 +15,7 @@ import { CertificationCaseOverview } from "./CertificationCaseOverview";
 import { CertificationCaseProgress } from "./CertificationCaseProgress";
 import { CertificationCaseTeam } from "./CertificationCaseTeam";
 import { cycleLabel, orderedCycles, selectedCycle } from "./case-model";
-import type { CertificationCaseAlerts, CertificationCaseArea, CertificationCaseDetail, CertificationCaseDossier, CertificationCaseFile, CertificationCaseWorkspaceData } from "./types";
+import type { CertificationCaseActivityPage, CertificationCaseArea, CertificationCaseProjectedFile, CertificationCaseWorkspaceProjection } from "./types";
 
 const areaLabels: Record<CertificationCaseArea, string> = {
   overview: "Tổng quan",
@@ -26,9 +26,8 @@ const areaLabels: Record<CertificationCaseArea, string> = {
 };
 
 const areas = Object.keys(areaLabels) as CertificationCaseArea[];
-
 export interface CertificationCaseWorkspaceViewProps {
-  data: CertificationCaseWorkspaceData;
+  data: CertificationCaseWorkspaceProjection;
   area: CertificationCaseArea;
   selectedCycleKey?: string | null;
   refreshing?: boolean;
@@ -37,15 +36,18 @@ export interface CertificationCaseWorkspaceViewProps {
   onNavigateArea: (area: CertificationCaseArea) => void;
   onCycleChange: (cycleKey: string) => void;
   onOpenCompatibility: (path: string) => void;
-  onOpenFile: (file: CertificationCaseFile) => void;
+  onOpenFile: (file: CertificationCaseProjectedFile) => void;
+  activity?: CertificationCaseActivityPage;
+  activityLoading?: boolean;
+  onLoadMoreActivity?: () => void;
 }
 
-export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, refreshing = false, onBack, onRefresh, onNavigateArea, onCycleChange, onOpenCompatibility, onOpenFile }: CertificationCaseWorkspaceViewProps) {
+export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, refreshing = false, onBack, onRefresh, onNavigateArea, onCycleChange, onOpenCompatibility, onOpenFile, activity = data.recent_activity, activityLoading = false, onLoadMoreActivity }: CertificationCaseWorkspaceViewProps) {
   const cycles = orderedCycles(data);
   const cycle = selectedCycle(data, selectedCycleKey);
 
   useEffect(() => {
-    if (cycle && selectedCycleKey !== cycle.dossier_key) onCycleChange(cycle.dossier_key);
+    if (cycle && selectedCycleKey !== cycle.key) onCycleChange(cycle.key);
   }, [cycle, onCycleChange, selectedCycleKey]);
 
   const content = area === "progress"
@@ -55,7 +57,7 @@ export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, r
       : area === "documents"
         ? <CertificationCaseDocuments data={data} onOpenFile={onOpenFile} />
         : area === "activity"
-          ? <CertificationCaseActivity data={data} />
+          ? <CertificationCaseActivity activity={activity} loadingMore={activityLoading} onLoadMore={onLoadMoreActivity} />
           : <CertificationCaseOverview data={data} cycle={cycle} onNavigateArea={onNavigateArea} />;
 
   return (
@@ -81,8 +83,8 @@ export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, r
         <div className="cmp-case-cycle-bar">
           <span>Chu kỳ đang xem</span>
           <CycleSelector
-            cycles={cycles.map((item) => ({ key: item.dossier_key, label: cycleLabel(item), sourceIds: item.plan_ids }))}
-            value={cycle?.dossier_key}
+            cycles={cycles.map((item) => ({ key: item.key, label: cycleLabel(item), sourceIds: item.plan_ids }))}
+            value={cycle?.key}
             onChange={onCycleChange}
           />
         </div>
@@ -105,17 +107,15 @@ export interface CertificationCaseWorkspaceProps {
 
 export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onBack, onNavigateArea, onCycleChange, onOpenCompatibility }: CertificationCaseWorkspaceProps) {
   const workspaceQuery = useQuery({
-    queryKey: ["certification-project", caseId, "case-workspace-v2"],
-    queryFn: async (): Promise<CertificationCaseWorkspaceData> => {
-      const [projectResponse, dossierResponse, alertsResponse] = await Promise.all([
-        api.get<CertificationCaseDetail>(`/certification-projects/${caseId}`),
-        api.get<CertificationCaseDossier>(`/certification-projects/${caseId}/dossier`),
-        api.get<CertificationCaseAlerts>(`/certification-projects/${caseId}/alerts?warning_days=90`),
-      ]);
-      return { project: projectResponse.data, dossier: dossierResponse.data, alerts: alertsResponse.data };
+    queryKey: ["certification-case", caseId, "workspace-v2"],
+    queryFn: async (): Promise<CertificationCaseWorkspaceProjection> => {
+      const response = await api.get<CertificationCaseWorkspaceProjection>(`/certification-cases/${caseId}/workspace`);
+      return response.data;
     },
     retry: false,
   });
+  const [activity, setActivity] = useState<CertificationCaseActivityPage | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   if (workspaceQuery.isLoading) return <LoadingSkeleton variant="detail" rows={12} />;
   if (isAxiosError(workspaceQuery.error) && workspaceQuery.error.response?.status === 403) {
@@ -128,13 +128,29 @@ export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onB
     return <ErrorState description={getErrorMessage(workspaceQuery.error)} retry={{ label: "Thử lại", onAction: () => void workspaceQuery.refetch() }} />;
   }
 
-  const openFile = async (file: CertificationCaseFile) => {
+  const openFile = async (file: CertificationCaseProjectedFile) => {
     try {
       const request = { url: `/document-files/${file.id}/download`, filename: file.original_name };
       if (isPdfDocument(file.original_name)) await previewDocumentFile({ ...request, title: file.original_name });
       else await openDocumentFile(request);
     } catch (error) {
       message.error(getErrorMessage(error));
+    }
+  };
+
+  const loadMoreActivity = async () => {
+    const current = activity ?? workspaceQuery.data.recent_activity;
+    if (!current.page.next_cursor || activityLoading) return;
+    setActivityLoading(true);
+    try {
+      const query = new URLSearchParams({ cursor: current.page.next_cursor, limit: String(current.page.limit) });
+      if (selectedCycleKey) query.set("cycle", selectedCycleKey);
+      const response = await api.get<CertificationCaseActivityPage>(`/certification-cases/${caseId}/activity?${query.toString()}`);
+      setActivity({ ...response.data, items: [...current.items, ...response.data.items] });
+    } catch (error) {
+      message.error(getErrorMessage(error));
+    } finally {
+      setActivityLoading(false);
     }
   };
 
@@ -145,11 +161,14 @@ export function CertificationCaseWorkspace({ caseId, area, selectedCycleKey, onB
       selectedCycleKey={selectedCycleKey}
       refreshing={workspaceQuery.isFetching}
       onBack={onBack}
-      onRefresh={() => void workspaceQuery.refetch()}
+      onRefresh={() => { setActivity(null); void workspaceQuery.refetch(); }}
       onNavigateArea={onNavigateArea}
       onCycleChange={onCycleChange}
       onOpenCompatibility={onOpenCompatibility}
       onOpenFile={(file) => void openFile(file)}
+      activity={activity ?? workspaceQuery.data.recent_activity}
+      activityLoading={activityLoading}
+      onLoadMoreActivity={() => void loadMoreActivity()}
     />
   );
 }
