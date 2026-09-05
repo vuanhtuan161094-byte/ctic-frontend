@@ -1270,7 +1270,7 @@ export default function AuditExecutionWorkspaceModal({
                           <div><Text type="secondary">Hạn: {formatDate(finding.due_date)}</Text></div>
                           {onOpenFinding && ["major_nc", "minor_nc"].includes(normalize(finding.finding_type)) ? (
                             <Button onClick={() => onOpenFinding(finding.id)} size="small" style={{ marginTop: 8 }}>
-                              Mở HĐKP tương thích
+                              Mở HĐKP
                             </Button>
                           ) : null}
                         </div>

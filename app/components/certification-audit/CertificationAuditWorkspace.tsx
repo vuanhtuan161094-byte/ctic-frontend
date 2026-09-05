@@ -550,7 +550,7 @@ export function CertificationAuditWorkspace({
       presentation="page"
       mutationAuthorized={Boolean(serverAction)}
       onOpenFinding={(findingId) => onOpenCompatibility(
-        `${planCompatibilityPath(caseId, auditId, "cap", cycle?.key)}&finding_id=${encodeURIComponent(findingId)}`,
+        `/certifications/${encodeURIComponent(caseId)}/findings/${encodeURIComponent(findingId)}?audit_plan_id=${encodeURIComponent(auditId)}`,
       )}
       onClose={() => undefined}
       onChanged={refresh}

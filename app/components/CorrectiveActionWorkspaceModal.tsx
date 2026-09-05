@@ -38,12 +38,14 @@ import {
   Typography,
   Upload,
 } from "antd";
-import type { UploadFile } from "antd";
+import type { ModalProps, UploadFile } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile } from "../lib/document-file-client";
+import { CapWorkspaceView } from "./certification-cap/CapWorkspaceView";
+import type { CapSection, CapWorkspaceProjection } from "./certification-cap/cap-model";
 import type {
   AuditDocumentCard,
   AuditDocumentPreview,
@@ -58,6 +60,15 @@ interface CorrectiveActionWorkspaceModalProps {
   roles: string[];
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
+  onOpenFinding?: (findingId: string) => void;
+  page?: {
+    data: CapWorkspaceProjection;
+    section: CapSection;
+    versionId: string | null;
+    onSection: (section: CapSection) => void;
+    onVersion: (id: string | null) => void;
+    onOpenPath: (path: string) => void;
+  };
 }
 
 interface UserSummary {
@@ -204,6 +215,15 @@ function isNc(finding: AuditFindingDetail) {
   return ["minor_nc", "major_nc"].includes(normalize(finding.finding_type));
 }
 
+function ResponseContainer({ page, ...props }: Omit<ModalProps, "onCancel"> & { page: boolean; onCancel?: () => void }) {
+  if (!page) return <Modal {...props} />;
+  if (!props.open) return null;
+  return <section className="cmp-cap-response" aria-label="Soạn phản hồi HĐKP">
+    <Title level={4}>{props.title}</Title>{props.children}
+    <Space wrap><Button onClick={props.onCancel}>Hủy</Button><Button type="primary" loading={props.okButtonProps?.loading} onClick={props.onOk}>Lưu và gửi phản hồi</Button></Space>
+  </section>;
+}
+
 export default function CorrectiveActionWorkspaceModal({
   open,
   planId,
@@ -211,6 +231,8 @@ export default function CorrectiveActionWorkspaceModal({
   roles,
   onClose,
   onChanged,
+  onOpenFinding,
+  page,
 }: CorrectiveActionWorkspaceModalProps) {
   const { message } = App.useApp();
   const [responseForm] = Form.useForm<CorrectiveActionFormValues>();
@@ -231,6 +253,7 @@ export default function CorrectiveActionWorkspaceModal({
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
   const isCustomer = normalizedRoles.includes("customer");
+  const legacyOpen = open && !page;
   const canEnterResponse = normalizedRoles.some((role) =>
     ["admin", "staff", "coordinator", "auditor", "lead_auditor", "customer"].includes(role),
   );
@@ -242,7 +265,7 @@ export default function CorrectiveActionWorkspaceModal({
   );
 
   const customerWorkspaceQuery = useQuery<CustomerCorrectiveActionWorkspace>({
-    enabled: open && Boolean(planId) && isCustomer,
+    enabled: legacyOpen && Boolean(planId) && isCustomer,
     queryKey: ["corrective-action-workspace", "customer", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
@@ -255,7 +278,7 @@ export default function CorrectiveActionWorkspaceModal({
   });
 
   const planQuery = useQuery<AuditPlanSummary>({
-    enabled: open && Boolean(planId) && !isCustomer,
+    enabled: legacyOpen && Boolean(planId) && !isCustomer,
     queryKey: ["corrective-action-workspace", "plan", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
@@ -264,7 +287,7 @@ export default function CorrectiveActionWorkspaceModal({
   });
 
   const findingsQuery = useQuery<AuditFindingDetail[]>({
-    enabled: open && Boolean(planId) && !isCustomer,
+    enabled: legacyOpen && Boolean(planId) && !isCustomer,
     queryKey: ["corrective-action-workspace", "findings", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
@@ -273,7 +296,7 @@ export default function CorrectiveActionWorkspaceModal({
   });
 
   const documentsQuery = useQuery<AuditDocumentPreview>({
-    enabled: open && Boolean(planId) && !isCustomer,
+    enabled: legacyOpen && Boolean(planId) && !isCustomer,
     queryKey: ["corrective-action-workspace", "documents", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
@@ -301,6 +324,7 @@ export default function CorrectiveActionWorkspaceModal({
     : findingsQuery.error ?? planQuery.error;
 
   const refresh = async () => {
+    if (page) { await onChanged?.(); return; }
     if (isCustomer) {
       await Promise.all([
         customerWorkspaceQuery.refetch(),
@@ -378,6 +402,7 @@ export default function CorrectiveActionWorkspaceModal({
 
   const createResponseMutation = useMutation({
     mutationFn: async (values: CorrectiveActionFormValues) => {
+      if (page && !page.data.allowed_actions.respond) throw new Error("Thao tác không còn khả dụng. Vui lòng tải lại.");
       if (!responseFinding) throw new Error("Chưa chọn điểm không phù hợp");
       const customerRole = normalizedRoles.includes("customer");
       const endpoint = customerRole
@@ -407,6 +432,7 @@ export default function CorrectiveActionWorkspaceModal({
 
   const uploadEvidenceMutation = useMutation({
     mutationFn: async () => {
+      if (page && !page.data.allowed_actions.upload_evidence) throw new Error("Không có quyền tải bằng chứng.");
       const rawFile = evidenceFiles[0]?.originFileObj;
       if (!evidenceTarget || !rawFile) throw new Error("Chưa chọn tệp bằng chứng");
       const formData = new FormData();
@@ -445,6 +471,7 @@ export default function CorrectiveActionWorkspaceModal({
 
   const reviewMutation = useMutation({
     mutationFn: async (values: ReviewFormValues) => {
+      if (page && !page.data.allowed_actions.review) throw new Error("Không có quyền thẩm xét CAP.");
       if (!reviewTarget) throw new Error("Chưa chọn phản hồi để xem xét");
       return (
         await api.patch(
@@ -467,6 +494,7 @@ export default function CorrectiveActionWorkspaceModal({
 
   const closeMutation = useMutation({
     mutationFn: async (values: CloseFormValues) => {
+      if (page && !page.data.allowed_actions.close) throw new Error("Không có quyền đóng NC.");
       if (!closeFinding) throw new Error("Chưa chọn NC cần đóng");
       return (
         await api.patch(`/audit-findings/${closeFinding.id}/close`, {
@@ -760,6 +788,7 @@ export default function CorrectiveActionWorkspaceModal({
                         {latest ? "Gửi phiên bản CAP mới" : "Nhập phản hồi khắc phục"}
                       </Button>
                     ) : null}
+                    {onOpenFinding ? <Button onClick={() => onOpenFinding(finding.id)}>Mở trang HĐKP</Button> : null}
                     {canClose ? (
                       <Button icon={<CheckCircleOutlined />} onClick={() => setCloseFinding(finding)}>
                         Đóng NC
@@ -820,7 +849,20 @@ export default function CorrectiveActionWorkspaceModal({
 
   return (
     <>
-      <Modal
+      {page ? <CapWorkspaceView
+        {...page}
+        editing={Boolean(responseFinding || reviewTarget || closeFinding)}
+        onRefresh={() => void refresh()}
+        onRespond={() => {
+          page.onVersion(null);
+          page.onSection("response");
+          openResponse(page.data.finding);
+        }}
+        onReview={(action) => openReview(page.data.finding, action)}
+        onClose={() => setCloseFinding(page.data.finding)}
+        onUpload={(action) => { setEvidenceFiles([]); setEvidenceTarget({ finding: page.data.finding, action }); }}
+        onDownload={(file) => void downloadFile(file)}
+      /> : <Modal
         destroyOnHidden
         footer={null}
         maskClosable={false}
@@ -840,9 +882,10 @@ export default function CorrectiveActionWorkspaceModal({
         width={1180}
       >
         {content}
-      </Modal>
+      </Modal>}
 
-      <Modal
+      <ResponseContainer
+        page={Boolean(page)}
         cancelText="Hủy"
         destroyOnHidden
         maskClosable={false}
@@ -853,7 +896,7 @@ export default function CorrectiveActionWorkspaceModal({
           responseForm.resetFields();
         }}
         onOk={() => responseForm.submit()}
-        open={Boolean(responseFinding)}
+        open={Boolean(responseFinding) && (!page || (page.section === "response" && !page.versionId))}
         title={`Phản hồi CAP · ${responseFinding?.finding_code ?? ""}`}
         width={820}
       >
@@ -878,7 +921,7 @@ export default function CorrectiveActionWorkspaceModal({
           <Form.Item name="corrective_action_plan" label="Kế hoạch hành động khắc phục" rules={[{ required: true, message: "Nhập kế hoạch hành động khắc phục" }]}>
             <Input.TextArea rows={4} />
           </Form.Item>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className={page ? "cmp-cap-response-grid" : undefined} style={page ? undefined : { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <Form.Item name="responsible_person" label="Người phụ trách">
               <Input />
             </Form.Item>
@@ -890,7 +933,7 @@ export default function CorrectiveActionWorkspaceModal({
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
-      </Modal>
+      </ResponseContainer>
 
       <Modal
         cancelText="Hủy"

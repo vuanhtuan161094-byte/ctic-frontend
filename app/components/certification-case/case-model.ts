@@ -112,6 +112,10 @@ export const DOCUMENT_GROUP_LABELS: Record<string, string> = {
 export function actionWorkspacePath(data: CertificationCaseWorkspaceProjection) {
   const destination = data.next_action?.destination;
   const auditId = destination?.query.audit_plan_id;
+  const findingId = destination?.query.finding_id;
+  if (destination && findingId && /cap/i.test(`${data.next_action?.code ?? ""} ${destination.route_name}`)) {
+    return `/certifications/${encodeURIComponent(data.identity.id)}/findings/${encodeURIComponent(findingId)}`;
+  }
   if (destination && auditId && /(audit|report|plan)/i.test(`${data.next_action?.code ?? ""} ${destination.route_name}`)) {
     return `/certifications/${encodeURIComponent(data.identity.id)}/audits/${encodeURIComponent(auditId)}`;
   }

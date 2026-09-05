@@ -9,6 +9,7 @@ export type ActiveView =
   | "projects"
   | "project-detail"
   | "audit-workspace"
+  | "cap-workspace"
   | "schedule-resources"
   | "certificates"
   | "documents"
@@ -41,6 +42,7 @@ export type ActiveView =
 export type CertificationCaseArea = "overview" | "progress" | "team" | "documents" | "activity";
 export type CertificationAuditSection = "overview" | "team" | "plan" | "execution" | "findings" | "documents" | "activity";
 export type CertificationAuditExecutionView = "report" | "complete";
+export type CertificationCapSection = "overview" | "response" | "evidence" | "versions" | "review" | "activity";
 
 export interface BrowserNavigationState {
   activeView: ActiveView;
@@ -54,11 +56,14 @@ export interface BrowserNavigationState {
   selectedAuditSection?: CertificationAuditSection;
   selectedAuditExecutionView?: CertificationAuditExecutionView;
   selectedAccountId?: string | null;
+  selectedFindingId?: string | null;
+  selectedCapSection?: CertificationCapSection;
+  selectedCapVersionId?: string | null;
 }
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
-  "customers", "applications", "projects", "project-detail", "audit-workspace", "schedule-resources",
+  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
@@ -95,6 +100,10 @@ function auditExecutionView(value?: string | null): CertificationAuditExecutionV
   return value === "complete" ? "complete" : "report";
 }
 
+function capSection(value?: string | null): CertificationCapSection {
+  return ["overview", "response", "evidence", "versions", "review", "activity"].includes(value ?? "") ? value as CertificationCapSection : "overview";
+}
+
 export function isCanonicalRoutePath(pathname: string, customerPortalMode: boolean) {
   const path = normalizePathname(pathname);
   if (customerPortalMode) return path === "/portal" || path.startsWith("/portal/");
@@ -126,9 +135,15 @@ export function parseCanonicalLocation(
     selectedAuditSection: auditSection(params.get("section")),
     selectedAuditExecutionView: auditExecutionView(params.get("view")),
     selectedAccountId: null,
+    selectedFindingId: null,
+    selectedCapSection: capSection(params.get("section")),
+    selectedCapVersionId: params.get("version"),
   };
 
   if (customerPortalMode) {
+    const capMatch = path.match(/^\/portal\/corrective-actions\/([^/?#]+)$/);
+    const legacyFinding = /^\/customer-portal\/corrective-actions/.test(path) ? params.get("finding_id") : null;
+    if (capMatch || legacyFinding) return { ...base, activeView: "cap-workspace", selectedFindingId: capMatch ? safeDecode(capMatch[1]) : legacyFinding, selectedProjectId: params.get("case_id") };
     if (path === "/" || path === "/portal" || path === "/workspace") return base;
     if (path.startsWith("/portal/organization")) return { ...base, activeView: params.get("tab") === "access" ? "customer-portal-users" : "customers" };
     if (path.startsWith("/portal/applications")) return { ...base, activeView: "applications" };
@@ -191,10 +206,8 @@ export function parseCanonicalLocation(
         selectedAuditExecutionView: auditExecutionView(params.get("view")),
       };
     } else if (findingMatch) {
-      selectedProjectArea = "progress";
-      const findingId = safeDecode(findingMatch[1]);
-      const planId = params.get("audit_plan_id");
-      if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=cap&audit_plan_id=${encodeURIComponent(planId)}&finding_id=${encodeURIComponent(findingId ?? "")}`;
+      return { ...base, activeView: "cap-workspace", selectedProjectId: caseId,
+        selectedFindingId: safeDecode(findingMatch[1]), selectedAuditPlanId: params.get("audit_plan_id") };
     } else if (child === "technical-review") {
       selectedProjectArea = "progress";
       const planId = params.get("audit_plan_id");
@@ -220,6 +233,10 @@ export function parseCanonicalLocation(
   if (legacyProjectMatch) {
     const workspace = params.get("workspace") ?? "";
     const auditId = params.get("audit_plan_id");
+    if (workspace === "cap" && params.get("finding_id") && params.get("compatibility") !== "legacy") {
+      return { ...base, activeView: "cap-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]),
+        selectedFindingId: params.get("finding_id"), selectedAuditPlanId: auditId };
+    }
     const auditSectionByLegacyWorkspace: Partial<Record<string, CertificationAuditSection>> = {
       "audit-team": "team",
       "audit-plan": "plan",
@@ -329,6 +346,18 @@ export function canonicalPathForNavigation(
   if (navigation.selectedAuditPlanId && navigation.activeView === "schedule-resources") query.set("audit_plan_id", navigation.selectedAuditPlanId);
   const suffix = () => query.size ? `?${query.toString()}` : "";
 
+  if (navigation.activeView === "cap-workspace" && navigation.selectedFindingId) {
+    const capQuery = new URLSearchParams();
+    if (navigation.selectedCapSection && navigation.selectedCapSection !== "overview") capQuery.set("section", navigation.selectedCapSection);
+    if (navigation.selectedCapVersionId) capQuery.set("version", navigation.selectedCapVersionId);
+    if (customerPortalMode && navigation.selectedProjectId) capQuery.set("case_id", navigation.selectedProjectId);
+    if (!customerPortalMode && navigation.selectedAuditPlanId) capQuery.set("audit_plan_id", navigation.selectedAuditPlanId);
+    if (navigation.selectedProjectDossierKey) capQuery.set("cycle", navigation.selectedProjectDossierKey);
+    const basePath = customerPortalMode ? `/portal/corrective-actions/${encodeURIComponent(navigation.selectedFindingId)}`
+      : `/certifications/${encodeURIComponent(navigation.selectedProjectId ?? "")}/findings/${encodeURIComponent(navigation.selectedFindingId)}`;
+    return basePath + (capQuery.size ? `?${capQuery.toString()}` : "");
+  }
+
   if (customerPortalMode) {
     const portalMap: Partial<Record<ActiveView, string>> = {
       dashboard: "/portal",
@@ -426,6 +455,9 @@ export function readBrowserNavigationState(rawState: unknown): BrowserNavigation
     selectedAuditSection: auditSection(candidate.selectedAuditSection),
     selectedAuditExecutionView: auditExecutionView(candidate.selectedAuditExecutionView),
     selectedAccountId: typeof candidate.selectedAccountId === "string" ? candidate.selectedAccountId : null,
+    selectedFindingId: typeof candidate.selectedFindingId === "string" ? candidate.selectedFindingId : null,
+    selectedCapSection: capSection(candidate.selectedCapSection),
+    selectedCapVersionId: typeof candidate.selectedCapVersionId === "string" ? candidate.selectedCapVersionId : null,
   };
 }
 

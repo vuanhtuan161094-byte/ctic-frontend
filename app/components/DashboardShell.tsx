@@ -70,6 +70,8 @@ import {
   type CertificationAuditExecutionView,
   type CertificationAuditSection,
 } from "./certification-audit";
+import { CertificationCapWorkspace } from "./certification-cap/CertificationCapWorkspace";
+import type { CapSection } from "./certification-cap/cap-model";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
 import { CustomerCorrectiveActionsScreen } from "./CustomerCorrectiveActionsScreen";
@@ -275,6 +277,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [selectedAuditPlanId, setSelectedAuditPlanId] = useState<string | null>(null);
   const [selectedProjectWorkspacePath, setSelectedProjectWorkspacePath] = useState<string | null>(null);
   const [selectedProjectArea, setSelectedProjectArea] = useState<CertificationCaseArea>("overview");
+  const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
+  const [selectedCapSection, setSelectedCapSection] = useState<CapSection>("overview");
+  const [selectedCapVersionId, setSelectedCapVersionId] = useState<string | null>(null);
   const [selectedAuditSection, setSelectedAuditSection] = useState<CertificationAuditSection>("overview");
   const [selectedAuditExecutionView, setSelectedAuditExecutionView] = useState<CertificationAuditExecutionView>("report");
   const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
@@ -386,6 +391,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
       setSelectedAuditSection(navigation.selectedAuditSection ?? "overview");
       setSelectedAuditExecutionView(navigation.selectedAuditExecutionView ?? "report");
+      setSelectedFindingId(navigation.selectedFindingId ?? null);
+      setSelectedCapSection(navigation.selectedCapSection ?? "overview");
+      setSelectedCapVersionId(navigation.selectedCapVersionId ?? null);
       setSelectedAccountId(navigation.selectedAccountId ?? null);
     };
 
@@ -439,6 +447,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedAuditSection,
       selectedAuditExecutionView,
       selectedAccountId,
+      selectedFindingId, selectedCapSection, selectedCapVersionId,
     };
 
     if (restoringHistoryRef.current) {
@@ -481,6 +490,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     selectedAuditSection,
     selectedAuditExecutionView,
     selectedAccountId,
+    selectedFindingId, selectedCapSection, selectedCapVersionId,
   ]);
 
   useEffect(() => {
@@ -602,6 +612,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       if (
         isCanonicalRoutePath(canonicalUrl.pathname, customerPortalMode)
         || /^\/(?:projects|certification-projects)\//.test(canonicalUrl.pathname)
+        || (customerPortalMode && canonicalUrl.pathname.startsWith("/customer-portal/corrective-actions"))
       ) {
         const navigation = parseCanonicalLocation(
           canonicalUrl.pathname,
@@ -618,6 +629,9 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         setSelectedProjectArea(navigation.selectedProjectArea ?? "overview");
         setSelectedAuditSection(navigation.selectedAuditSection ?? "overview");
         setSelectedAuditExecutionView(navigation.selectedAuditExecutionView ?? "report");
+        setSelectedFindingId(navigation.selectedFindingId ?? null);
+        setSelectedCapSection(navigation.selectedCapSection ?? "overview");
+        setSelectedCapVersionId(navigation.selectedCapVersionId ?? null);
         return;
       }
     } catch {
@@ -896,6 +910,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     projects: customerPortalMode ? "Hành động khắc phục" : "Hồ sơ chứng nhận",
     "project-detail": "Chi tiết hồ sơ chứng nhận",
     "audit-workspace": "Cuộc đánh giá",
+    "cap-workspace": "Hành động khắc phục",
     "customer-certifications": "Hồ sơ chứng nhận",
     "schedule-resources": customerPortalMode ? "Lịch" : "Lịch & nguồn lực",
     certificates: "Chứng chỉ",
@@ -1071,7 +1086,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else openPlannedScreen("Chức năng đã chọn");
         }}
-        selectedKeys={[["project-detail", "audit-workspace"].includes(activeView) ? "projects" : activeView]}
+        selectedKeys={[["project-detail", "audit-workspace", "cap-workspace"].includes(activeView) ? "projects" : activeView]}
         theme="dark"
       />
       <div className="side-module-switcher">
@@ -1128,7 +1143,12 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               description="Các mục nghiệp vụ có thể tạm thời bị ẩn. Hệ thống vẫn giữ nguyên kiểm soát quyền ở backend; thử tải lại trang khi kết nối ổn định."
             />
           ) : null}
-          {activeView === "audit-workspace" && selectedProjectId && selectedAuditPlanId && !customerPortalMode ? (
+          {activeView === "cap-workspace" && selectedFindingId ? (
+            <CertificationCapWorkspace caseId={selectedProjectId} findingId={selectedFindingId}
+              customerMode={customerPortalMode} roles={session.user.roles}
+              section={selectedCapSection} versionId={selectedCapVersionId}
+              onSection={setSelectedCapSection} onVersion={setSelectedCapVersionId} onOpenPath={openWorkspacePath} />
+          ) : activeView === "audit-workspace" && selectedProjectId && selectedAuditPlanId && !customerPortalMode ? (
             accessQuery.isLoading ? <LoadingSkeleton variant="detail" rows={12} /> : !canReadCertificationCases ? (
               <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />
             ) : (
@@ -1257,7 +1277,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             />
           ) : activeView === "projects" || (activeView === "project-detail" && customerPortalMode) ? (
             customerPortalMode ? (
-              <CustomerCorrectiveActionsScreen roles={session.user.roles} />
+              <CustomerCorrectiveActionsScreen roles={session.user.roles} onOpenPath={openWorkspacePath} />
             ) : (
               <CertificationCaseRegistryPage
                 authorized={canReadCertificationCases}

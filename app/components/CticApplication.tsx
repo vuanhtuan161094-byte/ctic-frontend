@@ -24,6 +24,10 @@ const DevCertificationCaseVisualShowcase = import.meta.env.DEV
   ? lazy(() => import("./certification-case/CertificationCaseVisualShowcase").then((module) => ({ default: module.CertificationCaseVisualShowcase })))
   : null;
 
+const DevCapWorkspace = import.meta.env.DEV
+  ? lazy(() => import("./certification-cap/DevCapWorkspace").then((module) => ({ default: module.DevCapWorkspace })))
+  : null;
+
 function ApplicationContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -87,6 +91,10 @@ function ApplicationContent() {
 
   if (!sessionReady) {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;
+  }
+
+  if (import.meta.env.DEV && DevCapWorkspace && (window.location.pathname === "/__dev/cap-workspace" || window.sessionStorage.getItem("cmp-cap-isolated-qa"))) {
+    return <Suspense fallback={<div className="app-loading" />}><DevCapWorkspace /></Suspense>;
   }
 
   if (!session) {

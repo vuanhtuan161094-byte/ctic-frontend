@@ -85,13 +85,13 @@ test("canonical nested audit route owns direct refresh and browser history state
   assert.match(shell, /<CertificationAuditWorkspace/);
 });
 
-test("legacy audit destinations normalize safely while CAP remains in compatibility workspace", () => {
+test("legacy audit destinations normalize safely and retain explicit compatibility", () => {
   for (const workspace of ["audit-team", "audit-plan", "audit-execution", "audit-report", "audit-complete", "audit-findings", "audit-documents"]) {
     assert.ok(navigation.includes(`"${workspace}"`) || navigation.includes(`${workspace}:`), `missing legacy adapter ${workspace}`);
   }
   assert.doesNotMatch(navigation, /cap: "findings"/);
   assert.match(shell, /openLegacyProjectWorkspace/);
-  assert.match(audit, /planCompatibilityPath\(caseId, auditId, "cap"/);
+  assert.match(audit, /\/findings\/\$\{encodeURIComponent\(findingId\)\}/);
 });
 
 test("audit page presents exact case and audit context before the seven approved areas", () => {
@@ -141,9 +141,9 @@ test("page presentation reuses the established audit and report mutations", () =
   ]) assert.ok(execution.includes(operation), `existing operation changed or missing: ${operation}`);
 });
 
-test("Step 17.3 does not migrate CAP, technical review, decision, or certificate mutations", () => {
+test("audit keeps CAP mutations outside itself and links the Step 17.4 finding page", () => {
   assert.match(audit, /Mở HĐKP từ từng NC/);
-  assert.match(audit, /planCompatibilityPath\(caseId, auditId, "cap"/);
+  assert.match(audit, /\/findings\/\$\{encodeURIComponent\(findingId\)\}/);
   assert.doesNotMatch(audit, /api\.(post|put|patch|delete)/);
   assert.doesNotMatch(audit, /technical-review.*api|certification-decision.*api|certificate-issue.*api/is);
 });

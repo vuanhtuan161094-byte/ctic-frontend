@@ -57,6 +57,7 @@ interface CustomerWorkspaceSummary {
 
 interface CustomerCorrectiveActionsScreenProps {
   roles: string[];
+  onOpenPath?: (path: string) => void;
 }
 
 function formatDate(value?: string | null) {
@@ -73,7 +74,7 @@ function customerSafeError(error: unknown) {
   return getErrorMessage(error);
 }
 
-export function CustomerCorrectiveActionsScreen({ roles }: CustomerCorrectiveActionsScreenProps) {
+export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerCorrectiveActionsScreenProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const workspacesQuery = useQuery({
@@ -202,6 +203,7 @@ export function CustomerCorrectiveActionsScreen({ roles }: CustomerCorrectiveAct
       </Card>
 
       <CorrectiveActionWorkspaceModal
+        onOpenFinding={onOpenPath ? (id) => onOpenPath(`/portal/corrective-actions/${encodeURIComponent(id)}`) : undefined}
         onChanged={async () => {
           await workspacesQuery.refetch();
         }}
