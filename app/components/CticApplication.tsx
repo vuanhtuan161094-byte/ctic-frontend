@@ -28,6 +28,10 @@ const DevCapWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-cap/DevCapWorkspace").then((module) => ({ default: module.DevCapWorkspace })))
   : null;
 
+const DevTechnicalReviewWorkspace = import.meta.env.DEV
+  ? lazy(() => import("./certification-review/DevTechnicalReviewWorkspace").then((module) => ({ default: module.DevTechnicalReviewWorkspace })))
+  : null;
+
 function ApplicationContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -91,6 +95,10 @@ function ApplicationContent() {
 
   if (!sessionReady) {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;
+  }
+
+  if (import.meta.env.DEV && DevTechnicalReviewWorkspace && (window.location.pathname === "/__dev/technical-review-workspace" || window.sessionStorage.getItem("cmp-review-isolated-qa"))) {
+    return <Suspense fallback={<div className="app-loading" />}><DevTechnicalReviewWorkspace /></Suspense>;
   }
 
   if (import.meta.env.DEV && DevCapWorkspace && (window.location.pathname === "/__dev/cap-workspace" || window.sessionStorage.getItem("cmp-cap-isolated-qa"))) {

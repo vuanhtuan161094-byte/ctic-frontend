@@ -14,7 +14,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { TableColumnsType } from "antd";
+import type { ModalProps, TableColumnsType, TableProps } from "antd";
 import {
   Alert,
   App,
@@ -22,6 +22,7 @@ import {
   Card,
   DatePicker,
   Descriptions,
+  Drawer,
   Empty,
   Form,
   Input,
@@ -39,7 +40,8 @@ import {
   Typography,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useEffect, useMemo, useState, type SetStateAction, type ReactNode } from "react";
+import { DataTable, PageHeader, ReadOnlyState, DomainStatusBadge } from "./design-system";
 
 import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile, previewDocumentFile } from "../lib/document-file-client";
@@ -127,7 +129,9 @@ interface TechnicalReviewRecord {
   } | null;
 }
 
-interface TechnicalReviewWorkspace {
+export interface TechnicalReviewWorkspace {
+  case_id?: string;
+  assignment_history?: Array<{ id: string; status: string; assigned_at?: string | null; due_at?: string | null; reason?: string | null; note?: string | null; reviewer?: { full_name?: string | null; username?: string | null } | null }>;
   plan: {
     id: string;
     plan_code?: string | null;
@@ -195,6 +199,26 @@ interface TechnicalReviewWorkspaceModalProps {
   roles: string[];
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
+  page?: { data: TechnicalReviewWorkspace; section: string; onSection: (key: string) => void; context?: ReactNode };
+}
+
+function ReviewContainer({ page, children, footer, ...props }: ModalProps & { page: boolean }) {
+  if (!page) return <Modal {...props} footer={footer}>{children}</Modal>;
+  return <section className="cmp-review-content"><div className="cmp-review-actions">{typeof footer === "function" ? null : footer}</div>{children}</section>;
+}
+
+function ReviewTable<T extends object>({ page, ...props }: TableProps<T> & { page: boolean }) {
+  if (!page) return <Table<T> {...props} />;
+  return <DataTable<T> {...props} rowKey={props.rowKey} responsiveCards={(props.dataSource ?? []).map((row, index) => ({
+    key: index,
+    title: `Hạng mục ${index + 1}`,
+    fields: (props.columns ?? []).flatMap((column, columnIndex) => {
+      if ("children" in column) return [];
+      const field = typeof column.dataIndex === "string" ? (row as Record<string, unknown>)[column.dataIndex] : undefined;
+      return [{ key: String(columnIndex), label: typeof column.title === "function" ? "Nội dung" : column.title,
+        value: (column.render ? column.render(field, row, index) : field) as ReactNode }];
+    }),
+  }))} />;
 }
 
 function normalize(value?: string | null) {
@@ -302,6 +326,7 @@ export default function TechnicalReviewWorkspaceModal({
   roles,
   onClose,
   onChanged,
+  page,
 }: TechnicalReviewWorkspaceModalProps) {
   const { message, modal } = App.useApp();
   const [form] = Form.useForm<WorkspaceFormValues>();
@@ -313,10 +338,10 @@ export default function TechnicalReviewWorkspaceModal({
   const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canAssign = normalizedRoles.some((role) => ["admin", "coordinator"].includes(role));
+  const canAssign = page ? page.data.can_assign : normalizedRoles.some((role) => ["admin", "coordinator"].includes(role));
 
   const workspaceQuery = useQuery<TechnicalReviewWorkspace>({
-    enabled: open && Boolean(planId),
+    enabled: open && Boolean(planId) && !page,
     queryKey: ["technical-review-workspace", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
@@ -324,7 +349,7 @@ export default function TechnicalReviewWorkspaceModal({
     },
   });
 
-  const workspace = workspaceQuery.data;
+  const workspace = page?.data ?? workspaceQuery.data;
   const canPerform = Boolean(workspace?.can_perform);
   const review = workspace?.review ?? null;
   const reviewItems = review?.form_data?.review_items ?? [];
@@ -385,7 +410,7 @@ export default function TechnicalReviewWorkspaceModal({
 
   const refresh = async () => {
     await Promise.all([
-      workspaceQuery.refetch(),
+      page ? undefined : workspaceQuery.refetch(),
       onChanged?.(),
     ]);
   };
@@ -793,7 +818,7 @@ export default function TechnicalReviewWorkspaceModal({
                 status: "accepted",
               })}
               size="small"
-              type="primary"
+              type={page ? "default" : "primary"}
             >
               Chấp nhận
             </Button>
@@ -822,7 +847,8 @@ export default function TechnicalReviewWorkspaceModal({
   ];
 
   return (
-    <Modal
+    <ReviewContainer
+      page={Boolean(page)}
       cancelText="Đóng"
       destroyOnHidden
       footer={[
@@ -832,7 +858,7 @@ export default function TechnicalReviewWorkspaceModal({
             icon={<SaveOutlined />}
             key="save"
             loading={saveMutation.isPending}
-            onClick={() => void form.validateFields().then((values) => saveMutation.mutate(values))}
+            onClick={() => void form.validateFields().then(() => saveMutation.mutate(form.getFieldsValue(true))).catch(() => undefined)}
           >
             Lưu dự thảo F.11
           </Button>,
@@ -868,7 +894,7 @@ export default function TechnicalReviewWorkspaceModal({
       width="min(1580px, 96vw)"
       styles={{ body: { maxHeight: "78vh", overflowY: "auto", paddingTop: 12 } }}
     >
-      {workspaceQuery.isLoading ? <Skeleton active /> : workspaceQuery.isError ? (
+      {!page && workspaceQuery.isLoading ? <Skeleton active /> : !page && workspaceQuery.isError ? (
         <Alert
           action={<Button icon={<ReloadOutlined />} onClick={() => workspaceQuery.refetch()}>Thử lại</Button>}
           message="Không tải được không gian thẩm xét"
@@ -878,6 +904,7 @@ export default function TechnicalReviewWorkspaceModal({
         />
       ) : !workspace ? <Empty description="Không có dữ liệu" /> : (
         <Space direction="vertical" size={14} style={{ width: "100%" }}>
+          {page ? <><PageHeader title="Thẩm xét kỹ thuật" description={workspace.plan.organization_name} metadata={<DomainStatusBadge domain="technicalReview" code={review?.status ?? "pending"} />} />{page.context}{!canPerform && !canAssign ? <ReadOnlyState reason="Bạn có quyền xem hồ sơ; thao tác thẩm xét chỉ dành cho người được phân công hoặc ủy quyền hợp lệ và đủ quyền." /> : null}</> : null}
           <Card size="small">
             <Descriptions column={{ xs: 1, sm: 2, lg: 4 }} size="small">
               <Descriptions.Item label="Khách hàng">{workspace.plan.organization_name || "—"}</Descriptions.Item>
@@ -926,7 +953,7 @@ export default function TechnicalReviewWorkspaceModal({
                   </Button>
                 </div>
               ) : null}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+              <div className={page ? "cmp-review-metrics" : undefined} style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
                 <Card size="small"><Statistic title="Hạng mục hồ sơ" value={`${acceptedCount}/${reviewItems.length}`} /></Card>
                 <Card size="small"><Statistic title="Tiêu chí F.11" value={`${answeredCount}/${criteriaTotal}`} /></Card>
                 <Card size="small"><Statistic title="Phiên bản F.11" value={workspace.document_history.length} /></Card>
@@ -941,6 +968,8 @@ export default function TechnicalReviewWorkspaceModal({
 
               <Form form={form} layout="vertical">
                 <Tabs
+                  activeKey={page?.section}
+                  onChange={page?.onSection}
                   items={[
                     {
                       key: "documents",
@@ -963,7 +992,7 @@ export default function TechnicalReviewWorkspaceModal({
                             showIcon
                             type="info"
                           />
-                          <Table
+                          <ReviewTable page={Boolean(page)}
                             columns={reviewItemColumns}
                             dataSource={reviewItems}
                             pagination={false}
@@ -988,7 +1017,7 @@ export default function TechnicalReviewWorkspaceModal({
                               Tất cả đạt
                             </Button>
                           </div>
-                          <Table
+                          <ReviewTable page={Boolean(page)}
                             columns={criterionColumns(preliminaryRows, setPreliminaryRows)}
                             dataSource={preliminaryRows}
                             pagination={false}
@@ -1016,7 +1045,7 @@ export default function TechnicalReviewWorkspaceModal({
                               Tất cả đạt
                             </Button>
                           </div>
-                          <Table
+                          <ReviewTable page={Boolean(page)}
                             columns={criterionColumns(technicalRows, setTechnicalRows)}
                             dataSource={technicalRows}
                             pagination={false}
@@ -1032,11 +1061,12 @@ export default function TechnicalReviewWorkspaceModal({
                     },
                     {
                       key: "recommendation",
+                      forceRender: true,
                       label: "Kiến nghị & F.11 Word/PDF",
                       children: (
                         <Space direction="vertical" size={14} style={{ width: "100%" }}>
                           <Card size="small" title="Thông tin lập F.11-P.09">
-                            <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
+                            <div className={page ? "cmp-review-form-grid" : undefined} style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
                               <Form.Item
                                 label="Ngày thẩm xét"
                                 name="review_date"
@@ -1074,7 +1104,7 @@ export default function TechnicalReviewWorkspaceModal({
                                   icon={<FileWordOutlined />}
                                   loading={generateMutation.isPending}
                                   onClick={() => generateMutation.mutate("docx")}
-                                  type="primary"
+                                  type={page ? "default" : "primary"}
                                 >
                                   Xuất Word
                                 </Button>
@@ -1124,6 +1154,13 @@ export default function TechnicalReviewWorkspaceModal({
                         </Space>
                       ),
                     },
+                    ...(page ? [{ key: "history", label: "Phân công & hoạt động", children: <Space direction="vertical" style={{ width: "100%" }}>
+                      {(workspace.assignment_history ?? []).length ? workspace.assignment_history?.map((item) => <Card key={item.id} size="small" title={item.reviewer?.full_name || item.reviewer?.username || "Người thẩm xét"}>
+                        <p>{item.status === "CURRENT" ? "Phân công hiện tại" : item.status === "COMPLETED" ? "Đã hoàn tất" : "Đã phân công lại"} · {formatDate(item.assigned_at, true)}</p>
+                        <p>Hạn: {formatDate(item.due_at)} · {item.reason || item.note || "Không có ghi chú bổ sung"}</p>
+                      </Card>) : <Empty description="Chưa có lịch sử phân công" />}
+                      <Alert type="info" showIcon message="Lịch sử từ hồ sơ phân công và kết quả thẩm xét" description={review.completed_at ? `Hoàn thành: ${formatDate(review.completed_at, true)}` : "Chưa có mốc hoàn tất. Nhận xét từng hạng mục nằm trong Hồ sơ thẩm xét."} />
+                    </Space> }] : []),
                   ]}
                 />
               </Form>
@@ -1150,9 +1187,9 @@ export default function TechnicalReviewWorkspaceModal({
           )}
         </Space>
       )}
-      <Modal
+      <Drawer
         footer={<Button onClick={() => setItemPreviewOpen(false)}>Đóng</Button>}
-        onCancel={() => setItemPreviewOpen(false)}
+        onClose={() => setItemPreviewOpen(false)}
         open={itemPreviewOpen}
         title={itemPreview?.document_name || "Xem hồ sơ/tài liệu"}
         width={920}
@@ -1209,7 +1246,7 @@ export default function TechnicalReviewWorkspaceModal({
             ) : <Empty description="Chưa có tệp đính kèm/biểu mẫu đã sinh" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </Card>
         </Space>
-      </Modal>
+      </Drawer>
       <Modal
         cancelText="Hủy"
         confirmLoading={assignmentMutation.isPending}
@@ -1248,6 +1285,6 @@ export default function TechnicalReviewWorkspaceModal({
           ) : null}
         </Form>
       </Modal>
-    </Modal>
+    </ReviewContainer>
   );
 }

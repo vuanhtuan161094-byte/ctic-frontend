@@ -10,6 +10,7 @@ export type ActiveView =
   | "project-detail"
   | "audit-workspace"
   | "cap-workspace"
+  | "technical-review-workspace"
   | "schedule-resources"
   | "certificates"
   | "documents"
@@ -59,11 +60,13 @@ export interface BrowserNavigationState {
   selectedFindingId?: string | null;
   selectedCapSection?: CertificationCapSection;
   selectedCapVersionId?: string | null;
+  selectedTechnicalReviewId?: string | null;
+  selectedTechnicalReviewSection?: string;
 }
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
-  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "schedule-resources",
+  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
@@ -138,6 +141,8 @@ export function parseCanonicalLocation(
     selectedFindingId: null,
     selectedCapSection: capSection(params.get("section")),
     selectedCapVersionId: params.get("version"),
+    selectedTechnicalReviewId: params.get("technical_review_id"),
+    selectedTechnicalReviewSection: params.get("section") ?? "documents",
   };
 
   if (customerPortalMode) {
@@ -209,9 +214,7 @@ export function parseCanonicalLocation(
       return { ...base, activeView: "cap-workspace", selectedProjectId: caseId,
         selectedFindingId: safeDecode(findingMatch[1]), selectedAuditPlanId: params.get("audit_plan_id") };
     } else if (child === "technical-review") {
-      selectedProjectArea = "progress";
-      const planId = params.get("audit_plan_id");
-      if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=technical-review&audit_plan_id=${encodeURIComponent(planId)}`;
+      return { ...base, activeView: "technical-review-workspace", selectedProjectId: caseId, selectedAuditPlanId: params.get("audit_plan_id") };
     } else if (child === "decision") {
       selectedProjectArea = "progress";
       const planId = params.get("audit_plan_id");
@@ -233,6 +236,9 @@ export function parseCanonicalLocation(
   if (legacyProjectMatch) {
     const workspace = params.get("workspace") ?? "";
     const auditId = params.get("audit_plan_id");
+    if (workspace === "technical-review" && params.get("compatibility") !== "legacy") {
+      return { ...base, activeView: "technical-review-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]), selectedAuditPlanId: auditId };
+    }
     if (workspace === "cap" && params.get("finding_id") && params.get("compatibility") !== "legacy") {
       return { ...base, activeView: "cap-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]),
         selectedFindingId: params.get("finding_id"), selectedAuditPlanId: auditId };
@@ -385,6 +391,14 @@ export function canonicalPathForNavigation(
     }
   }
 
+  if (navigation.activeView === "technical-review-workspace" && navigation.selectedProjectId) {
+    const reviewParams = new URLSearchParams();
+    if (navigation.selectedAuditPlanId) reviewParams.set("audit_plan_id", navigation.selectedAuditPlanId);
+    if (navigation.selectedTechnicalReviewId) reviewParams.set("technical_review_id", navigation.selectedTechnicalReviewId);
+    if (navigation.selectedProjectDossierKey) reviewParams.set("cycle", navigation.selectedProjectDossierKey);
+    if (["documents", "preliminary", "technical", "recommendation", "history"].includes(navigation.selectedTechnicalReviewSection ?? "")) reviewParams.set("section", navigation.selectedTechnicalReviewSection!);
+    return `/certifications/${encodeURIComponent(navigation.selectedProjectId)}/technical-review${reviewParams.size ? `?${reviewParams}` : ""}`;
+  }
   const internalMap: Partial<Record<ActiveView, string>> = {
     dashboard: "/workspace",
     "my-tasks": "/work",
@@ -458,6 +472,8 @@ export function readBrowserNavigationState(rawState: unknown): BrowserNavigation
     selectedFindingId: typeof candidate.selectedFindingId === "string" ? candidate.selectedFindingId : null,
     selectedCapSection: capSection(candidate.selectedCapSection),
     selectedCapVersionId: typeof candidate.selectedCapVersionId === "string" ? candidate.selectedCapVersionId : null,
+    selectedTechnicalReviewId: typeof candidate.selectedTechnicalReviewId === "string" ? candidate.selectedTechnicalReviewId : null,
+    selectedTechnicalReviewSection: typeof candidate.selectedTechnicalReviewSection === "string" ? candidate.selectedTechnicalReviewSection : "documents",
   };
 }
 

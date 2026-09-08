@@ -71,6 +71,7 @@ import {
   type CertificationAuditSection,
 } from "./certification-audit";
 import { CertificationCapWorkspace } from "./certification-cap/CertificationCapWorkspace";
+import { CertificationTechnicalReviewWorkspace } from "./certification-review/CertificationTechnicalReviewWorkspace";
 import type { CapSection } from "./certification-cap/cap-model";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
@@ -280,6 +281,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [selectedCapSection, setSelectedCapSection] = useState<CapSection>("overview");
   const [selectedCapVersionId, setSelectedCapVersionId] = useState<string | null>(null);
+  const [selectedTechnicalReviewId, setSelectedTechnicalReviewId] = useState<string | null>(null);
+  const [selectedTechnicalReviewSection, setSelectedTechnicalReviewSection] = useState("documents");
   const [selectedAuditSection, setSelectedAuditSection] = useState<CertificationAuditSection>("overview");
   const [selectedAuditExecutionView, setSelectedAuditExecutionView] = useState<CertificationAuditExecutionView>("report");
   const [selectedApplicationReviewId, setSelectedApplicationReviewId] = useState<string | null>(null);
@@ -394,6 +397,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       setSelectedFindingId(navigation.selectedFindingId ?? null);
       setSelectedCapSection(navigation.selectedCapSection ?? "overview");
       setSelectedCapVersionId(navigation.selectedCapVersionId ?? null);
+      setSelectedTechnicalReviewId(navigation.selectedTechnicalReviewId ?? null);
+      setSelectedTechnicalReviewSection(navigation.selectedTechnicalReviewSection ?? "documents");
       setSelectedAccountId(navigation.selectedAccountId ?? null);
     };
 
@@ -448,6 +453,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       selectedAuditExecutionView,
       selectedAccountId,
       selectedFindingId, selectedCapSection, selectedCapVersionId,
+      selectedTechnicalReviewId, selectedTechnicalReviewSection,
     };
 
     if (restoringHistoryRef.current) {
@@ -491,6 +497,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     selectedAuditExecutionView,
     selectedAccountId,
     selectedFindingId, selectedCapSection, selectedCapVersionId,
+    selectedTechnicalReviewId, selectedTechnicalReviewSection,
   ]);
 
   useEffect(() => {
@@ -632,6 +639,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         setSelectedFindingId(navigation.selectedFindingId ?? null);
         setSelectedCapSection(navigation.selectedCapSection ?? "overview");
         setSelectedCapVersionId(navigation.selectedCapVersionId ?? null);
+        setSelectedTechnicalReviewId(navigation.selectedTechnicalReviewId ?? null);
+        setSelectedTechnicalReviewSection(navigation.selectedTechnicalReviewSection ?? "documents");
         return;
       }
     } catch {
@@ -771,7 +780,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
 
     try {
       const target = await resolveTaskNavigation(entityType, entityId);
-      openTaskDestination(target.destination, target.entityId);
+      if (target.workspacePath) openWorkspacePath(target.workspacePath);
+      else openTaskDestination(target.destination, target.entityId);
     } catch (error) {
       const detail = error instanceof Error && error.constructor === Error
         ? error.message
@@ -911,6 +921,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     "project-detail": "Chi tiết hồ sơ chứng nhận",
     "audit-workspace": "Cuộc đánh giá",
     "cap-workspace": "Hành động khắc phục",
+    "technical-review-workspace": "Thẩm xét kỹ thuật",
     "customer-certifications": "Hồ sơ chứng nhận",
     "schedule-resources": customerPortalMode ? "Lịch" : "Lịch & nguồn lực",
     certificates: "Chứng chỉ",
@@ -1086,7 +1097,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else openPlannedScreen("Chức năng đã chọn");
         }}
-        selectedKeys={[["project-detail", "audit-workspace", "cap-workspace"].includes(activeView) ? "projects" : activeView]}
+        selectedKeys={[["project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace"].includes(activeView) ? "projects" : activeView]}
         theme="dark"
       />
       <div className="side-module-switcher">
@@ -1148,6 +1159,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               customerMode={customerPortalMode} roles={session.user.roles}
               section={selectedCapSection} versionId={selectedCapVersionId}
               onSection={setSelectedCapSection} onVersion={setSelectedCapVersionId} onOpenPath={openWorkspacePath} />
+          ) : activeView === "technical-review-workspace" && selectedProjectId && !customerPortalMode ? (
+            <CertificationTechnicalReviewWorkspace caseId={selectedProjectId} planId={selectedAuditPlanId} reviewId={selectedTechnicalReviewId} section={selectedTechnicalReviewSection} cycleKey={selectedProjectDossierKey} roles={session.user.roles} onOpenPath={openWorkspacePath} />
           ) : activeView === "audit-workspace" && selectedProjectId && selectedAuditPlanId && !customerPortalMode ? (
             accessQuery.isLoading ? <LoadingSkeleton variant="detail" rows={12} /> : !canReadCertificationCases ? (
               <ForbiddenState exit={{ label: "Về tổng quan", onAction: () => setActiveView("dashboard") }} />

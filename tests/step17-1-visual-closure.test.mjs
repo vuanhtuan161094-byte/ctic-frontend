@@ -46,7 +46,7 @@ test("registry keeps a compact table and card fallback contract", () => {
 });
 
 test("sidebar has one active child route and separate hover and focus states", () => {
-  assert.match(shell, /selectedKeys=\{\[\["project-detail", "audit-workspace", "cap-workspace"\]\.includes\(activeView\) \? "projects" : activeView\]\}/);
+  assert.match(shell, /selectedKeys=\{\[\["project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace"\]\.includes\(activeView\) \? "projects" : activeView\]\}/);
   assert.match(globalStyles, /\.main-menu-v2\.ant-menu-dark \.ant-menu-item-selected/);
   assert.match(globalStyles, /\.ant-menu-item:not\(\.ant-menu-item-selected\):hover/);
   assert.match(globalStyles, /\.ant-menu-item:focus-visible/);

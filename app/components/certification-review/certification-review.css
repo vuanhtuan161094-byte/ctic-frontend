@@ -1,0 +1,17 @@
+.cmp-review-page { display:grid; gap:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.cmp-review-context { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+.cmp-review-context .ant-select { flex:1; min-width:200px; max-width:100%; }
+.cmp-review-content { min-width:0; max-width:100%; }
+.cmp-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.cmp-review-page .ant-space, .cmp-review-page .ant-space-item, .cmp-review-page .ant-tabs, .cmp-review-page .ant-tabs-content-holder { min-width:0; max-width:100%; }
+.cmp-review-page .ant-table-wrapper { max-width:100%; overflow:auto; }
+.cmp-review-page .ant-card-head-wrapper, .cmp-review-page .ant-space { flex-wrap:wrap; }
+.cmp-review-page .ant-card-extra { margin-inline-start:0; }
+@media(max-width:768px) {
+  .cmp-review-page .cmp-review-metrics { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .cmp-review-page .cmp-review-form-grid { grid-template-columns:minmax(0,1fr) !important; }
+  .cmp-review-page .ant-btn, .cmp-review-page .ant-select-selector, .cmp-review-page .ant-tabs-tab { min-height:44px; }
+  .cmp-review-page .ant-btn { white-space:normal; height:auto; }
+  .cmp-review-page .cmp-card-field { grid-template-columns:1fr; }
+  .cmp-review-page .cmp-card-field > span { min-width:0; }
+}

@@ -10,6 +10,7 @@ export type TaskDestination =
 export interface TaskNavigationTarget {
   destination: TaskDestination;
   entityId?: string | null;
+  workspacePath?: string;
 }
 
 interface AuditPlanReference {
@@ -117,7 +118,9 @@ export async function resolveTaskNavigation(
       `/technical-reviews/${reviewId}`,
     );
 
-    return resolveProjectFromAuditPlan(response.data.reports?.audit_plan_id);
+    const planId = response.data.reports?.audit_plan_id;
+    const target = await resolveProjectFromAuditPlan(planId);
+    return { ...target, workspacePath: `/certifications/${encodeURIComponent(target.entityId!)}/technical-review?audit_plan_id=${encodeURIComponent(planId!)}&technical_review_id=${encodeURIComponent(reviewId)}` };
   }
 
   if (normalizedType === "audit_result_notification") {
