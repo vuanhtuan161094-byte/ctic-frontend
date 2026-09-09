@@ -17,6 +17,7 @@ import {
   Card,
   DatePicker,
   Descriptions,
+  Drawer,
   Empty,
   Form,
   Input,
@@ -30,9 +31,11 @@ import {
   Tabs,
   Tag,
   Typography,
+  type ModalProps,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { PageHeader, ReadOnlyState, DomainStatusBadge } from "./design-system";
 
 import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile } from "../lib/document-file-client";
@@ -131,7 +134,13 @@ interface NotificationRecord {
   sent_at?: string | null;
 }
 
-interface Workspace {
+export interface DecisionWorkspace {
+  case_id?: string;
+  can_generate_decision?: boolean;
+  independence?: string;
+  assignment_basis?: string;
+  upstream_errors?: string[];
+  supporting_documents?: GeneratedFile[];
   plan: {
     id: string;
     plan_code?: string | null;
@@ -264,6 +273,11 @@ interface Props {
   preferredDecisionType?: DecisionType | null;
   onClose: () => void;
   onChanged?: () => void | Promise<void>;
+  page?: { data: DecisionWorkspace; section: "overview" | "decision"; onSection: (key: string) => void; context?: ReactNode };
+}
+
+function ResultContainer({ page, children, ...props }: ModalProps & { page: boolean }) {
+  return page ? <section className="cmp-decision-content">{children}</section> : <Modal {...props}>{children}</Modal>;
 }
 
 function normalize(value?: string | null) {
@@ -278,6 +292,8 @@ function formatDate(value?: string | null) {
 
 function resultLabel(value?: string | null) {
   const labels: Record<string, string> = {
+    certification_recommended: "Kiến nghị chứng nhận",
+    certification_not_recommended: "Không kiến nghị chứng nhận",
     approved: "Chấp thuận",
     rejected: "Không chấp thuận",
     deferred: "Hoãn quyết định",
@@ -340,6 +356,7 @@ export default function CertificationResultWorkspaceModal({
   preferredDecisionType,
   onClose,
   onChanged,
+  page,
 }: Props) {
   const { message, modal } = App.useApp();
   const [decisionForm] = Form.useForm<DecisionFormValues>();
@@ -349,29 +366,31 @@ export default function CertificationResultWorkspaceModal({
     context: string;
     tab: FocusTab;
   } | null>(null);
-  const activeTab = tabSelection?.context === tabContext
+  const activeTab = page?.section ?? (tabSelection?.context === tabContext
     ? tabSelection.tab
-    : focus;
+    : focus);
   const setActiveTab = (tab: FocusTab) => {
+    if (page) { page.onSection(tab === "notification" ? "decision" : tab); return; }
     setTabSelection({ context: tabContext, tab });
   };
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [documentsOpen, setDocumentsOpen] = useState(false);
 
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
-  const canDecision = normalizedRoles.includes("decisionmaker");
+  const canDecision = normalizedRoles.includes("decisionmaker") && (!page || page.data.can_issue_decision);
   const canCreateNotification = normalizedRoles.some((role) => ["admin", "decisionmaker"].includes(role));
   const canManageNotification = normalizedRoles.some((role) => ["admin", "decisionmaker", "coordinator"].includes(role));
 
-  const workspaceQuery = useQuery<Workspace>({
-    enabled: open && Boolean(planId),
+  const workspaceQuery = useQuery<DecisionWorkspace>({
+    enabled: !page && open && Boolean(planId),
     queryKey: ["certification-result-workspace", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch đánh giá");
-      return (await api.get<Workspace>(`/certification-results/plan/${planId}/workspace`)).data;
+      return (await api.get<DecisionWorkspace>(`/certification-results/plan/${planId}/workspace`)).data;
     },
   });
 
-  const workspace = workspaceQuery.data;
+  const workspace = page?.data ?? workspaceQuery.data;
   const currentCertificate = workspace?.current_certificate ?? workspace?.active_certificate ?? null;
   const selectedDecisionType = Form.useWatch("decision_type", decisionForm);
   const selectedDecisionResult = Form.useWatch("decision_result", decisionForm);
@@ -419,7 +438,7 @@ export default function CertificationResultWorkspaceModal({
   }, [decisionForm, preferredDecisionType, workspace]);
 
   useEffect(() => {
-    if (!workspace || workspace.notification) return;
+    if (page || !workspace || workspace.notification) return;
     const value = workspace.defaults;
     notificationForm.setFieldsValue({
       notification_number: value.notification_number,
@@ -439,10 +458,10 @@ export default function CertificationResultWorkspaceModal({
       signatory_name: value.signatory_name || "",
       signatory_title: value.signatory_title || "Tổng Giám đốc",
     });
-  }, [notificationForm, workspace]);
+  }, [notificationForm, workspace, page]);
 
   const refresh = async () => {
-    await Promise.all([workspaceQuery.refetch(), onChanged?.()]);
+    await Promise.all([page ? Promise.resolve() : workspaceQuery.refetch(), onChanged?.()]);
   };
 
   const decisionMutation = useMutation({
@@ -632,7 +651,8 @@ export default function CertificationResultWorkspaceModal({
   ];
 
   return (
-    <Modal
+    <ResultContainer
+      page={Boolean(page)}
       destroyOnHidden
       footer={null}
       onCancel={() => {
@@ -656,7 +676,15 @@ export default function CertificationResultWorkspaceModal({
       {workspaceQuery.isError ? <Alert type="error" showIcon message="Không tải được dữ liệu" description={getErrorMessage(workspaceQuery.error)} /> : null}
       {workspace ? (
         <>
-          <Tabs activeKey={activeTab} items={tabs} onChange={(key) => setActiveTab(key as FocusTab)} />
+          {page ? <><PageHeader title="Quyết định chứng nhận" description={workspace.defaults.organization_name} metadata={<DomainStatusBadge domain="decisionResult" code={workspace.decision?.decision_result ?? "pending"} label={!workspace.decision ? "Chưa ban hành" : undefined} />} />{page.context}{!canDecision && !workspace.decision ? <ReadOnlyState reason={workspace.independence === "CONFLICT" ? "Tài khoản hiện tại có xung đột độc lập với thẩm xét hoặc đoàn đánh giá." : "Chưa có xác nhận quyền ban hành cho tài khoản hiện tại. Máy chủ kiểm tra lại quyền và điều kiện khi thao tác."} /> : null}</> : null}
+          <Tabs activeKey={activeTab} items={page ? tabs.filter(tab => tab.key !== "notification") : tabs} onChange={(key) => setActiveTab(key as FocusTab)} />
+          {page ? <><Space style={{ marginBottom: 16 }}>
+            {activeTab === "overview" && !workspace.decision && canDecision ? <Button type="primary" onClick={() => setActiveTab("decision")}>Lập quyết định chứng nhận</Button> : null}
+            <Button onClick={() => setDocumentsOpen(true)}>Tài liệu và lịch sử</Button>
+          </Space><Drawer title="Tài liệu đầu vào và lịch sử quyết định" open={documentsOpen} onClose={() => setDocumentsOpen(false)} width={560}>
+            <Title level={5}>Thẩm xét kỹ thuật F.11</Title>{renderHistory(workspace.supporting_documents ?? [])}
+            <Title level={5}>Lịch sử quyết định F.13</Title>{renderHistory(workspace.decision_history)}
+          </Drawer></> : null}
 
           {workspace.eligibility_errors.length ? (
             <Alert
@@ -693,10 +721,10 @@ export default function CertificationResultWorkspaceModal({
           ) : null}
 
           <Card title="Bối cảnh kỳ đánh giá" size="small" style={{ marginBottom: 16 }}>
-            <Descriptions column={2} size="small">
+            <Descriptions column={page ? { xs: 1, sm: 2 } : 2} size="small">
               <Descriptions.Item label="Khách hàng" span={2}>{workspace.defaults.organization_name || "—"}</Descriptions.Item>
               <Descriptions.Item label="Hồ sơ chứng nhận">{workspace.plan.project_code}</Descriptions.Item>
-              <Descriptions.Item label="Loại đánh giá">{workspace.is_surveillance
+              <Descriptions.Item label="Loại đánh giá">{page ? workspace.plan.audit_type || "Chưa có dữ liệu" : workspace.is_surveillance
                 ? "Đánh giá giám sát"
                 : workspace.lifecycle_type === "recertification"
                   ? "Đánh giá tái chứng nhận"
@@ -710,14 +738,14 @@ export default function CertificationResultWorkspaceModal({
 
           {activeTab === "overview" ? (
             <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+              <div className="cmp-decision-metrics" style={{ display: "grid", gridTemplateColumns: `repeat(${page ? 2 : 4}, minmax(0, 1fr))`, gap: 12 }}>
                 <Card><Statistic title="Thẩm xét kỹ thuật" value={workspace.technical_review?.status === "completed" ? "Hoàn thành" : "Chưa hoàn thành"} prefix={<CheckCircleOutlined />} /></Card>
                 <Card><Statistic title="Quyết định chứng nhận" value={workspace.decision ? "Đã ban hành" : "Chưa có"} prefix={<SafetyCertificateOutlined />} /></Card>
-                <Card><Statistic title="Thông báo kết quả" value={workspace.notification ? "Đã lập" : "Chưa có"} prefix={<NotificationOutlined />} /></Card>
-                <Card><Statistic title="Đã gửi khách hàng" value={workspace.notification?.status === "sent" ? "Đã gửi" : "Chưa gửi"} prefix={<SendOutlined />} /></Card>
+                {!page ? <><Card><Statistic title="Thông báo kết quả" value={workspace.notification ? "Đã lập" : "Chưa có"} prefix={<NotificationOutlined />} /></Card>
+                <Card><Statistic title="Đã gửi khách hàng" value={workspace.notification?.status === "sent" ? "Đã gửi" : "Chưa gửi"} prefix={<SendOutlined />} /></Card></> : null}
               </div>
               <Card title="Kết quả thẩm xét">
-                <Descriptions column={2} size="small">
+                <Descriptions column={page ? { xs: 1, sm: 2 } : 2} size="small">
                   <Descriptions.Item label="Người thẩm xét">{workspace.technical_review?.reviewer_name || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Ngày hoàn thành">{formatDate(workspace.technical_review?.completed_at)}</Descriptions.Item>
                   <Descriptions.Item label="Kiến nghị">{resultLabel(workspace.technical_review?.recommendation)}</Descriptions.Item>
@@ -729,7 +757,7 @@ export default function CertificationResultWorkspaceModal({
                   {currentCertificate ? (
                     <Space direction="vertical" size={12} style={{ width: "100%" }}>
                       {normalize(currentCertificate.status) === "suspended" ? <Alert showIcon type="warning" message="Chứng chỉ hiện đang bị đình chỉ." /> : null}
-                      <Descriptions column={2} size="small">
+                      <Descriptions column={page ? { xs: 1, sm: 2 } : 2} size="small">
                         <Descriptions.Item label="Số chứng chỉ">{currentCertificate.cert_number}</Descriptions.Item>
                         <Descriptions.Item label="Phiên bản">{currentCertificate.version_no}</Descriptions.Item>
                         <Descriptions.Item label="Trạng thái"><Tag color={normalize(currentCertificate.status) === "active" ? "green" : "orange"}>{statusLabel(currentCertificate.status)}</Tag></Descriptions.Item>
@@ -756,11 +784,11 @@ export default function CertificationResultWorkspaceModal({
                     ? `Duy trì chứng nhận số ${currentCertificate.cert_number}, phiên bản ${currentCertificate.version_no}; không yêu cầu phát hành lại.`
                     : undefined}
                 />
-                <Card title="Quyết định chứng nhận" extra={<Space>
+                <Card title="Quyết định chứng nhận" extra={!page || workspace.can_generate_decision ? <Space>
                   <Button icon={<FileWordOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "docx" })}>Xuất Word</Button>
                   <Button icon={<FilePdfOutlined />} loading={generate.isPending} onClick={() => generate.mutate({ kind: "decision", format: "pdf" })}>Xuất PDF</Button>
-                </Space>}>
-                  <Descriptions column={2} size="small">
+                </Space> : null}>
+                  <Descriptions column={page ? { xs: 1, sm: 2 } : 2} size="small">
                     <Descriptions.Item label="Số quyết định">{workspace.decision.decision_number}</Descriptions.Item>
                     <Descriptions.Item label="Ngày quyết định">{formatDate(workspace.decision.decision_date)}</Descriptions.Item>
                     <Descriptions.Item label="Loại quyết định"><Tag color="blue">{decisionTypeLabel(workspace.decision.decision_type)}</Tag></Descriptions.Item>
@@ -773,11 +801,11 @@ export default function CertificationResultWorkspaceModal({
                     {workspace.decision.change_reason ? <Descriptions.Item label="Lý do / căn cứ" span={2}>{workspace.decision.change_reason}</Descriptions.Item> : null}
                   </Descriptions>
                 </Card>
-                <Card title="Lịch sử tài liệu quyết định">{renderHistory(workspace.decision_history)}</Card>
+                {!page ? <Card title="Lịch sử tài liệu quyết định">{renderHistory(workspace.decision_history)}</Card> : null}
               </Space>
             ) : (
               <Card title="Lập quyết định chứng nhận">
-                <Form form={decisionForm} layout="vertical" onFinish={submitDecision}>
+                <Form form={decisionForm} disabled={Boolean(page && !canDecision)} layout="vertical" onFinish={submitDecision}>
                   <div className="certification-result-form-grid">
                     <Form.Item label="Số quyết định" name="decision_number" rules={[{ required: true }]}><Input /></Form.Item>
                     <Form.Item label="Ngày quyết định" name="decision_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
@@ -826,7 +854,7 @@ export default function CertificationResultWorkspaceModal({
                   ) : null}
                   {isRecertificationDecision && currentCertificate ? (
                     <Card size="small" title="Dòng chứng nhận sẽ tiếp tục" style={{ marginBottom: 16 }}>
-                      <Descriptions column={2} size="small">
+                      <Descriptions column={page ? { xs: 1, sm: 2 } : 2} size="small">
                         <Descriptions.Item label="Phiên bản trước">{currentCertificate.version_no}</Descriptions.Item>
                         <Descriptions.Item label="Số chứng chỉ trước">{currentCertificate.cert_number}</Descriptions.Item>
                         <Descriptions.Item label="Hết hiệu lực">{formatDate(currentCertificate.expire_date)}</Descriptions.Item>
@@ -966,6 +994,6 @@ export default function CertificationResultWorkspaceModal({
           ) : null}
         </>
       ) : null}
-    </Modal>
+    </ResultContainer>
   );
 }

@@ -11,6 +11,7 @@ export type ActiveView =
   | "audit-workspace"
   | "cap-workspace"
   | "technical-review-workspace"
+  | "decision-workspace"
   | "schedule-resources"
   | "certificates"
   | "documents"
@@ -66,7 +67,7 @@ export interface BrowserNavigationState {
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
-  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "schedule-resources",
+  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "decision-workspace", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
@@ -193,8 +194,8 @@ export function parseCanonicalLocation(
     const caseId = safeDecode(caseMatch[1]);
     const child = caseMatch[2] ?? "";
     const directArea = child.match(/^(progress|team|documents|activity)$/)?.[1] as CertificationCaseArea | undefined;
-    let selectedProjectArea: CertificationCaseArea = directArea ?? "overview";
-    let workspacePath: string | null = null;
+    const selectedProjectArea: CertificationCaseArea = directArea ?? "overview";
+    const workspacePath: string | null = null;
     const auditMatch = child.match(/^audits\/([^/?#]+)/);
     const findingMatch = child.match(/^findings\/([^/?#]+)/);
     if (auditMatch) {
@@ -216,9 +217,7 @@ export function parseCanonicalLocation(
     } else if (child === "technical-review") {
       return { ...base, activeView: "technical-review-workspace", selectedProjectId: caseId, selectedAuditPlanId: params.get("audit_plan_id") };
     } else if (child === "decision") {
-      selectedProjectArea = "progress";
-      const planId = params.get("audit_plan_id");
-      if (planId) workspacePath = `/projects/${encodeURIComponent(caseId ?? "")}?workspace=certification-decision&audit_plan_id=${encodeURIComponent(planId)}`;
+      return { ...base, activeView: "decision-workspace", selectedProjectId: caseId, selectedAuditPlanId: params.get("audit_plan_id") };
     }
     return {
       ...base,
@@ -236,6 +235,9 @@ export function parseCanonicalLocation(
   if (legacyProjectMatch) {
     const workspace = params.get("workspace") ?? "";
     const auditId = params.get("audit_plan_id");
+    if (workspace === "certification-decision" && params.get("compatibility") !== "legacy") {
+      return { ...base, activeView: "decision-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]), selectedAuditPlanId: auditId };
+    }
     if (workspace === "technical-review" && params.get("compatibility") !== "legacy") {
       return { ...base, activeView: "technical-review-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]), selectedAuditPlanId: auditId };
     }
@@ -391,6 +393,14 @@ export function canonicalPathForNavigation(
     }
   }
 
+  if (navigation.activeView === "decision-workspace" && navigation.selectedProjectId) {
+    const params = new URLSearchParams();
+    if (navigation.selectedAuditPlanId) params.set("audit_plan_id", navigation.selectedAuditPlanId);
+    if (navigation.selectedTechnicalReviewId) params.set("technical_review_id", navigation.selectedTechnicalReviewId);
+    if (navigation.selectedProjectDossierKey) params.set("cycle", navigation.selectedProjectDossierKey);
+    if (["overview", "decision"].includes(navigation.selectedTechnicalReviewSection ?? "")) params.set("section", navigation.selectedTechnicalReviewSection!);
+    return `/certifications/${encodeURIComponent(navigation.selectedProjectId)}/decision${params.size ? `?${params}` : ""}`;
+  }
   if (navigation.activeView === "technical-review-workspace" && navigation.selectedProjectId) {
     const reviewParams = new URLSearchParams();
     if (navigation.selectedAuditPlanId) reviewParams.set("audit_plan_id", navigation.selectedAuditPlanId);

@@ -56,6 +56,11 @@ export function CertificationTechnicalReviewWorkspace({ caseId, planId, reviewId
       <label htmlFor="review-plan">Cuộc đánh giá / chu kỳ</label>
       <Select id="review-plan" value={planId} placeholder="Chọn cuộc đánh giá để thẩm xét" onChange={(id: string) => navigate(id)} options={caseData.cycles.flatMap((item) => item.plan_ids.map((id, index) => ({ value: id, label: `${item.plan_codes[index] || "Cuộc đánh giá"} · ${cycleLabel(item)}` })))} />
       {planId ? <Button onClick={() => onOpenPath(`/certifications/${encodeURIComponent(caseId)}/audits/${encodeURIComponent(planId)}`)}>Về cuộc đánh giá</Button> : null}
+      {planId && data?.review?.status === "completed" ? <Button onClick={() => {
+        const params = new URLSearchParams({ audit_plan_id: planId, technical_review_id: data.review!.id });
+        if (cycle) params.set("cycle", cycle.key);
+        onOpenPath(`/certifications/${encodeURIComponent(caseId)}/decision?${params}`);
+      }}>Xem quyết định chứng nhận</Button> : null}
     </div>
     {data && planId ? <TechnicalReviewWorkspaceModal key={`${caseId}:${planId}:${reviewId ?? "current"}`} open planId={planId} roles={roles} onClose={() => onOpenPath(`/certifications/${encodeURIComponent(caseId)}`)} onChanged={async () => { await query.refetch(); }} page={{
       data, section: safeReviewSection(section), onSection: (key) => navigate(planId, key),

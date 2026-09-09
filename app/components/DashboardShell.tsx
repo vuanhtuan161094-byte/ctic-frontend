@@ -72,6 +72,7 @@ import {
 } from "./certification-audit";
 import { CertificationCapWorkspace } from "./certification-cap/CertificationCapWorkspace";
 import { CertificationTechnicalReviewWorkspace } from "./certification-review/CertificationTechnicalReviewWorkspace";
+import { CertificationDecisionWorkspace } from "./certification-decision/CertificationDecisionWorkspace";
 import type { CapSection } from "./certification-cap/cap-model";
 import { CertificatesScreen } from "./CertificatesScreen";
 import { CustomersScreen } from "./CustomersScreen";
@@ -922,6 +923,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     "audit-workspace": "Cuộc đánh giá",
     "cap-workspace": "Hành động khắc phục",
     "technical-review-workspace": "Thẩm xét kỹ thuật",
+    "decision-workspace": "Quyết định chứng nhận",
     "customer-certifications": "Hồ sơ chứng nhận",
     "schedule-resources": customerPortalMode ? "Lịch" : "Lịch & nguồn lực",
     certificates: "Chứng chỉ",
@@ -1097,7 +1099,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           }
           else openPlannedScreen("Chức năng đã chọn");
         }}
-        selectedKeys={[["project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace"].includes(activeView) ? "projects" : activeView]}
+        selectedKeys={[["project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "decision-workspace"].includes(activeView) ? "projects" : activeView]}
         theme="dark"
       />
       <div className="side-module-switcher">
@@ -1159,6 +1161,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               customerMode={customerPortalMode} roles={session.user.roles}
               section={selectedCapSection} versionId={selectedCapVersionId}
               onSection={setSelectedCapSection} onVersion={setSelectedCapVersionId} onOpenPath={openWorkspacePath} />
+          ) : activeView === "decision-workspace" && selectedProjectId && !customerPortalMode ? (
+            <CertificationDecisionWorkspace caseId={selectedProjectId} planId={selectedAuditPlanId} reviewId={selectedTechnicalReviewId} section={selectedTechnicalReviewSection} cycleKey={selectedProjectDossierKey} roles={session.user.roles} onOpenPath={openWorkspacePath} />
           ) : activeView === "technical-review-workspace" && selectedProjectId && !customerPortalMode ? (
             <CertificationTechnicalReviewWorkspace caseId={selectedProjectId} planId={selectedAuditPlanId} reviewId={selectedTechnicalReviewId} section={selectedTechnicalReviewSection} cycleKey={selectedProjectDossierKey} roles={session.user.roles} onOpenPath={openWorkspacePath} />
           ) : activeView === "audit-workspace" && selectedProjectId && selectedAuditPlanId && !customerPortalMode ? (

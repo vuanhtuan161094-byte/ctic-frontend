@@ -28,6 +28,9 @@ const DevCapWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-cap/DevCapWorkspace").then((module) => ({ default: module.DevCapWorkspace })))
   : null;
 
+const DevDecisionWorkspace = import.meta.env.DEV
+  ? lazy(() => import("./certification-decision/DevDecisionWorkspace").then((module) => ({ default: module.DevDecisionWorkspace })))
+  : null;
 const DevTechnicalReviewWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-review/DevTechnicalReviewWorkspace").then((module) => ({ default: module.DevTechnicalReviewWorkspace })))
   : null;
@@ -97,6 +100,9 @@ function ApplicationContent() {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;
   }
 
+  if (import.meta.env.DEV && DevDecisionWorkspace && (window.location.pathname === "/__dev/decision-workspace" || (window.sessionStorage.getItem("cmp-decision-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {
+    return <Suspense fallback={<div className="app-loading" />}><DevDecisionWorkspace /></Suspense>;
+  }
   if (import.meta.env.DEV && DevTechnicalReviewWorkspace && (window.location.pathname === "/__dev/technical-review-workspace" || window.sessionStorage.getItem("cmp-review-isolated-qa"))) {
     return <Suspense fallback={<div className="app-loading" />}><DevTechnicalReviewWorkspace /></Suspense>;
   }

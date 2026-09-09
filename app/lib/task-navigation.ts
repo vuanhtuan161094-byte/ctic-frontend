@@ -134,6 +134,16 @@ export async function resolveTaskNavigation(
     );
   }
 
+  if (normalizedType === "certification_decision") {
+    const decisionId = requireEntityId(entityId);
+    const response = await api.get<AuditResultNotificationReference & { technical_review_id?: string }>(`/certification-decisions/${decisionId}`);
+    const planId = response.data.technical_reviews?.reports?.audit_plan_id;
+    const target = await resolveProjectFromAuditPlan(planId);
+    const params = new URLSearchParams({ audit_plan_id: planId!, section: "decision" });
+    if (response.data.technical_review_id) params.set("technical_review_id", response.data.technical_review_id);
+    return { ...target, workspacePath: `/certifications/${encodeURIComponent(target.entityId!)}/decision?${params}` };
+  }
+
   return {
     destination: "projects",
     entityId: null,

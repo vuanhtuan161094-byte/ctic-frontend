@@ -1,0 +1,14 @@
+.cmp-decision-page { display:grid; gap:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.cmp-decision-context { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.cmp-decision-context .ant-select { flex:1; min-width:180px; max-width:100%; }
+.cmp-decision-content { min-width:0; max-width:100%; }
+.cmp-decision-page .ant-space, .cmp-decision-page .ant-space-item, .cmp-decision-page .ant-tabs { min-width:0; max-width:100%; }
+.cmp-decision-page .ant-card-head-wrapper, .cmp-decision-page .ant-space { flex-wrap:wrap; gap:8px; }
+.cmp-decision-page .ant-card-extra { margin-inline-start:0; }
+@media(max-width:768px) {
+  .cmp-decision-page .certification-result-form-grid, .cmp-decision-page .cmp-decision-metrics { grid-template-columns:minmax(0,1fr) !important; }
+  .cmp-decision-page .ant-btn { white-space:normal; height:auto; min-height:44px; }
+  .cmp-decision-page .ant-tabs-tab, .cmp-decision-page .ant-select-selector { min-height:44px; }
+  .cmp-decision-page .ant-card-head-wrapper { align-items:flex-start; flex-direction:column; padding-block:12px; }
+  .cmp-decision-page .ant-card-head-title { white-space:normal; }
+}
