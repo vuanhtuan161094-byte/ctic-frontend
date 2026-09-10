@@ -76,6 +76,7 @@ interface CertificateReport {
 }
 
 interface CertificateRecord {
+  certificate_series?: { project_id?: string };
   id: string;
   verification_code?: string | null;
   technical_review_id: string;
@@ -149,6 +150,7 @@ interface CertificateWorkspace {
 }
 
 interface CertificatesScreenProps {
+  onOpenPath?: (path: string) => void;
   initialCertificateId?: string | null;
   roles: string[];
 }
@@ -225,7 +227,7 @@ async function optionalRequest<T>(request: Promise<{ data: T }>, fallback: T): P
   }
 }
 
-export function CertificatesScreen({ initialCertificateId }: CertificatesScreenProps) {
+export function CertificatesScreen({ initialCertificateId, onOpenPath }: CertificatesScreenProps) {
   const selectionContext = initialCertificateId ?? null;
   const [certificateSelection, setCertificateSelection] = useState<{
     context: string | null;
@@ -332,7 +334,7 @@ export function CertificatesScreen({ initialCertificateId }: CertificatesScreenP
       dataIndex: "cert_number",
       key: "cert_number",
       render: (value: string, record) => (
-        <Button className="certificate-code-button" onClick={() => setSelectedCertificateId(record.id)} type="link">
+        <Button className="certificate-code-button" onClick={() => record.certificate_series?.project_id && onOpenPath ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`) : setSelectedCertificateId(record.id)} type="link">
           {value}
         </Button>
       ),
@@ -393,7 +395,7 @@ export function CertificatesScreen({ initialCertificateId }: CertificatesScreenP
       width: 95,
       render: (_, record) => <Button icon={<EyeOutlined />} onClick={() => setSelectedCertificateId(record.id)} size="small">Chi tiết</Button>,
     },
-  ], [setSelectedCertificateId]);
+  ], [setSelectedCertificateId, onOpenPath]);
 
   const decision = selectedCertificate?.technical_reviews?.certification_decision;
   const notification = selectedCertificate?.technical_reviews?.audit_result_notification;

@@ -79,9 +79,14 @@ export async function resolveTaskNavigation(
   const normalizedType = (entityType ?? "").trim().toLowerCase();
 
   if (normalizedType === "certificate") {
+    const certificateId = requireEntityId(entityId);
+    const reference = (await api.get<{ certificate_series?: { project_id?: string } }>(`/certificates/${encodeURIComponent(certificateId)}`)).data;
+    const caseId = reference.certificate_series?.project_id;
+    if (!caseId) throw new Error("Chứng chỉ chưa có liên kết hồ sơ hợp lệ.");
     return {
       destination: "certificates",
-      entityId: requireEntityId(entityId),
+      entityId: certificateId,
+      workspacePath: `/certifications/${encodeURIComponent(caseId)}/certificates/${encodeURIComponent(certificateId)}`,
     };
   }
 

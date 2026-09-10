@@ -52,7 +52,7 @@ export function CertificationCaseWorkspaceView({ data, area, selectedCycleKey, r
   }, [cycle, onCycleChange, selectedCycleKey]);
 
   const content = area === "progress"
-    ? <CertificationCaseProgress data={data} cycle={cycle} onOpenAudit={onOpenAudit} />
+    ? <CertificationCaseProgress data={data} cycle={cycle} onOpenAudit={onOpenAudit} onOpenPath={onOpenCompatibility} />
     : area === "team"
       ? <CertificationCaseTeam data={data} cycle={cycle} />
       : area === "documents"

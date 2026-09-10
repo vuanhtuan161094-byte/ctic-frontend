@@ -31,6 +31,9 @@ const DevCapWorkspace = import.meta.env.DEV
 const DevDecisionWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-decision/DevDecisionWorkspace").then((module) => ({ default: module.DevDecisionWorkspace })))
   : null;
+const DevCertificateWorkspace = import.meta.env.DEV
+  ? lazy(() => import("./certificate-workspace/DevCertificateWorkspace").then(module => ({ default: module.DevCertificateWorkspace })))
+  : null;
 const DevTechnicalReviewWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-review/DevTechnicalReviewWorkspace").then((module) => ({ default: module.DevTechnicalReviewWorkspace })))
   : null;
@@ -100,6 +103,9 @@ function ApplicationContent() {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;
   }
 
+  if (import.meta.env.DEV && DevCertificateWorkspace && (window.location.pathname === "/__dev/certificate-workspace" || (window.sessionStorage.getItem("cmp-certificate-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {
+    return <Suspense fallback={<div className="app-loading" />}><DevCertificateWorkspace /></Suspense>;
+  }
   if (import.meta.env.DEV && DevDecisionWorkspace && (window.location.pathname === "/__dev/decision-workspace" || (window.sessionStorage.getItem("cmp-decision-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {
     return <Suspense fallback={<div className="app-loading" />}><DevDecisionWorkspace /></Suspense>;
   }

@@ -52,6 +52,8 @@ export function CertificationDecisionWorkspace({ caseId, planId, reviewId, secti
     <div className="cmp-decision-context"><label htmlFor="decision-plan">Cuộc đánh giá / chu kỳ</label>
       <Select id="decision-plan" value={planId} placeholder="Chọn cuộc đánh giá" onChange={(id: string) => navigate(id)} options={caseData.cycles.flatMap(item => item.plan_ids.map((id, index) => ({ value: id, label: `${item.plan_codes[index] || "Cuộc đánh giá"} · ${cycleLabel(item)}` })))} />
       {planId ? <Button onClick={() => onOpenPath(`/certifications/${encodeURIComponent(caseId)}/technical-review?audit_plan_id=${encodeURIComponent(planId)}`)}>Xem thẩm xét kỹ thuật</Button> : null}
+      {data?.current_certificate?.id ? <Button onClick={() => onOpenPath(`/certifications/${encodeURIComponent(caseId)}/certificates/${encodeURIComponent(data.current_certificate!.id)}`)}>Mở chứng chỉ</Button> : null}
+      {data?.decision && planId ? <Button onClick={() => onOpenPath(`/projects/${encodeURIComponent(caseId)}?workspace=certificate-issue&audit_plan_id=${encodeURIComponent(planId)}&compatibility=legacy`)}>Kiểm tra điều kiện & cấp chứng chỉ</Button> : null}
     </div>
     {data && planId ? <CertificationResultWorkspaceModal key={`${caseId}:${planId}:${reviewId ?? "current"}`} open planId={planId} roles={roles} onClose={() => onOpenPath(`/certifications/${encodeURIComponent(caseId)}`)} onChanged={async () => { await query.refetch(); }} page={{ data, section: safeDecisionSection(section), onSection: key => navigate(planId, key), context: <Space direction="vertical" style={{ width: "100%" }}>
       <Typography.Text>{cycle ? cycleLabel(cycle) : ""} · {caseData.standards_scope.display_name}</Typography.Text>

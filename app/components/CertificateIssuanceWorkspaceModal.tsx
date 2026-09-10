@@ -36,10 +36,11 @@ import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "../lib/api";
 import { buildPublicApiUrl } from "../lib/deployment-config";
 import { previewDocumentFile } from "../lib/document-file-client";
+import { CertificateResourcePage, type CertificatePageData } from "./certificate-workspace/CertificateResourcePage";
 
 const { Text, Title } = Typography;
 
-interface CertificateDocument {
+export interface CertificateDocument {
   id: string;
   document_type: string;
   file_kind: string;
@@ -92,7 +93,7 @@ interface CertificateRecord {
   updated_at: string;
 }
 
-interface CertificateIssuanceWorkspace {
+export interface CertificateIssuanceWorkspace {
   plan: {
     id: string;
     plan_code?: string | null;
@@ -203,6 +204,7 @@ interface IssueFormValues {
 }
 
 interface Props {
+  page?: { data: CertificatePageData; onOpenPath: (path: string) => void };
   open: boolean;
   planId: string | null;
   roles: string[];
@@ -277,6 +279,7 @@ export default function CertificateIssuanceWorkspaceModal({
   onClose,
   onStartStatusDecision,
   onChanged,
+  page,
 }: Props) {
   const { message } = App.useApp();
   const [form] = Form.useForm<IssueFormValues>();
@@ -289,10 +292,10 @@ export default function CertificateIssuanceWorkspaceModal({
   const normalizedRoles = useMemo(() => roles.map(normalize), [roles]);
   const canIssue = normalizedRoles.includes("decisionmaker");
   const canManageLifecycle = normalizedRoles.includes("decisionmaker");
-  const canUpload = normalizedRoles.includes("decisionmaker");
+  const canUpload = normalizedRoles.includes("decisionmaker") && (!page || page.data.can_upload_pdf);
 
   const workspaceQuery = useQuery<CertificateIssuanceWorkspace>({
-    enabled: open && Boolean(planId),
+    enabled: !page && open && Boolean(planId),
     queryKey: ["certificate-issuance-workspace", planId],
     queryFn: async () => {
       if (!planId) throw new Error("Chưa chọn kế hoạch Giai đoạn 2");
@@ -300,7 +303,7 @@ export default function CertificateIssuanceWorkspaceModal({
     },
   });
 
-  const workspace = workspaceQuery.data;
+  const workspace = page?.data ?? workspaceQuery.data;
   const certificate = workspace?.certificate ?? null;
   const currentCertificate = workspace?.current_certificate ?? certificate;
   const displayedCertificate = certificate ?? currentCertificate;
@@ -331,7 +334,7 @@ export default function CertificateIssuanceWorkspaceModal({
   }, [form, workspace]);
 
   const refresh = async () => {
-    await Promise.all([workspaceQuery.refetch(), onChanged?.()]);
+    await Promise.all([page ? Promise.resolve() : workspaceQuery.refetch(), onChanged?.()]);
   };
 
   const issueMutation = useMutation({
@@ -355,6 +358,7 @@ export default function CertificateIssuanceWorkspaceModal({
   });
 
   const uploadCertificatePdf = async () => {
+    if (page && (!canUpload || page.data.is_historical)) return;
     if (!documentOwnerCertificate) {
       setUploadError("Cần cấp giấy chứng nhận trước khi tải PDF chính thức.");
       return;
@@ -416,6 +420,10 @@ export default function CertificateIssuanceWorkspaceModal({
       : [{ title: isReissue ? "Phát hành phiên bản mới" : "Phát hành chứng chỉ", status: certificate ? "finish" as const : "process" as const }]),
     { title: "PDF & QR", status: currentPdf ? "finish" as const : displayedCertificate ? "process" as const : "wait" as const },
   ];
+
+  if (page) return <CertificateResourcePage data={page.data} onOpenPath={page.onOpenPath} onOpenDocument={openDocument}
+    canUpload={canUpload} uploadFile={uploadFile} uploading={uploading} uploadError={uploadError}
+    onSelectFile={file => { setUploadFile(file); setUploadError(null); }} onUpload={() => void uploadCertificatePdf()} />;
 
   return (
     <Modal

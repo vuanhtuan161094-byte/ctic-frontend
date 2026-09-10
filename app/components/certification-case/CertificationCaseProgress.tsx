@@ -12,7 +12,7 @@ const sourceStateLabel = (status: string) => {
   return status;
 };
 
-export function CertificationCaseProgress({ data, cycle, onOpenAudit }: { data: CertificationCaseWorkspaceProjection; cycle: CertificationCaseProjectionCycle | null; onOpenAudit: (auditId: string) => void }) {
+export function CertificationCaseProgress({ data, cycle, onOpenAudit, onOpenPath }: { data: CertificationCaseWorkspaceProjection; cycle: CertificationCaseProjectionCycle | null; onOpenAudit: (auditId: string) => void; onOpenPath?: (path: string) => void }) {
   if (!cycle) return <Typography.Text type="secondary">Chưa có dữ liệu chu kỳ để dựng tiến trình.</Typography.Text>;
   const steps = lifecycleSteps(data, cycle);
 
@@ -35,6 +35,7 @@ export function CertificationCaseProgress({ data, cycle, onOpenAudit }: { data: 
             <div className="cmp-case-source-row" role="listitem" key={`${item.document_key}-${item.item_no}`} data-source-state={normalizeCaseValue(item.status)}>
               <span className="cmp-case-source-index">{item.item_no}</span>
               <div><strong>{item.document_name}</strong><small>{sourceStateLabel(item.status)}</small></div>
+              {item.document_key === "certificate" && (item.entity_id || item.reference_id) && onOpenPath ? <Button onClick={() => onOpenPath(`/certifications/${encodeURIComponent(data.identity.id)}/certificates/${encodeURIComponent((item.entity_id || item.reference_id)!)}`)}>Mở chứng chỉ</Button> : null}
             </div>
           ))}
         </div>

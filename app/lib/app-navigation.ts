@@ -12,6 +12,7 @@ export type ActiveView =
   | "cap-workspace"
   | "technical-review-workspace"
   | "decision-workspace"
+  | "certificate-workspace"
   | "schedule-resources"
   | "certificates"
   | "documents"
@@ -67,7 +68,7 @@ export interface BrowserNavigationState {
 
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
-  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "decision-workspace", "schedule-resources",
+  "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "decision-workspace", "certificate-workspace", "schedule-resources",
   "certificates", "documents", "experts", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
@@ -198,6 +199,8 @@ export function parseCanonicalLocation(
     const workspacePath: string | null = null;
     const auditMatch = child.match(/^audits\/([^/?#]+)/);
     const findingMatch = child.match(/^findings\/([^/?#]+)/);
+    const caseCertificateMatch = child.match(/^certificates\/([^/?#]+)$/);
+    if (caseCertificateMatch) return { ...base, activeView: "certificate-workspace", selectedProjectId: caseId, selectedCertificateId: safeDecode(caseCertificateMatch[1]) };
     if (auditMatch) {
       const auditId = safeDecode(auditMatch[1]);
       return {
@@ -235,6 +238,9 @@ export function parseCanonicalLocation(
   if (legacyProjectMatch) {
     const workspace = params.get("workspace") ?? "";
     const auditId = params.get("audit_plan_id");
+    if (workspace === "certificate-issue" && params.get("certificate_id") && params.get("compatibility") !== "legacy") {
+      return { ...base, activeView: "certificate-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]), selectedCertificateId: params.get("certificate_id") };
+    }
     if (workspace === "certification-decision" && params.get("compatibility") !== "legacy") {
       return { ...base, activeView: "decision-workspace", selectedProjectId: safeDecode(legacyProjectMatch[1]), selectedAuditPlanId: auditId };
     }
@@ -393,6 +399,9 @@ export function canonicalPathForNavigation(
     }
   }
 
+  if (navigation.activeView === "certificate-workspace" && navigation.selectedProjectId && navigation.selectedCertificateId) {
+    return `/certifications/${encodeURIComponent(navigation.selectedProjectId)}/certificates/${encodeURIComponent(navigation.selectedCertificateId)}`;
+  }
   if (navigation.activeView === "decision-workspace" && navigation.selectedProjectId) {
     const params = new URLSearchParams();
     if (navigation.selectedAuditPlanId) params.set("audit_plan_id", navigation.selectedAuditPlanId);
