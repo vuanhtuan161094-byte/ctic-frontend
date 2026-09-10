@@ -74,6 +74,7 @@ interface DecisionRecord {
   signatory_title: string;
   status: string;
   change_reason?: string | null;
+  note?: string | null;
   lifecycle?: {
     requires_certificate_version: boolean;
     preserves_current_certificate: boolean;
@@ -799,6 +800,7 @@ export default function CertificationResultWorkspaceModal({
                     <Descriptions.Item label="Hiệu lực">{formatDate(workspace.decision.effective_date)}</Descriptions.Item>
                     <Descriptions.Item label="Hết hiệu lực">{formatDate(workspace.decision.expiry_date)}</Descriptions.Item>
                     {workspace.decision.change_reason ? <Descriptions.Item label="Lý do / căn cứ" span={2}>{workspace.decision.change_reason}</Descriptions.Item> : null}
+                    {workspace.decision.note ? <Descriptions.Item label="Ghi chú" span={2}>{workspace.decision.note}</Descriptions.Item> : null}
                   </Descriptions>
                 </Card>
                 {!page ? <Card title="Lịch sử tài liệu quyết định">{renderHistory(workspace.decision_history)}</Card> : null}

@@ -82,6 +82,7 @@ test("readiness and lifecycle are server sourced, no ADMIN issue bypass or paral
 test("page composition provides canonical states, responsive grids and document drawer", () => {
   for (const state of ["ForbiddenState", "ErrorState", "EmptyState", "LoadingSkeleton"]) assert.ok(view.includes(state));
   assert.match(owner, /<ResultContainer/); assert.match(owner, /<Drawer/); assert.match(owner, /<ReadOnlyState/);
+  assert.match(owner, /workspace\.decision\.note \? <Descriptions\.Item label="Ghi chú" span=\{2\}>\{workspace\.decision\.note\}/);
   const css = source("../app/components/certification-decision/certification-decision.css"); assert.match(css, /max-width:768px/); assert.match(css, /minmax\(0,1fr\)/);
 });
 test("production assets exclude isolated Decision QA", () => {
