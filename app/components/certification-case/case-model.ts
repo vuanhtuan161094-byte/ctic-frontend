@@ -2,6 +2,7 @@ import type { LifecycleStep, StructuredBlocker } from "../design-system";
 
 import type {
   CertificationCaseProjectionCycle,
+  CertificationCaseRecord,
   CertificationCaseWorkspaceProjection,
 } from "./types";
 
@@ -14,12 +15,43 @@ export function formatCaseDate(value?: string | null) {
   return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
 }
 
-export function caseCustomer(data: CertificationCaseWorkspaceProjection) {
-  return data.customer;
+type CaseIdentitySource = CertificationCaseWorkspaceProjection | CertificationCaseRecord;
+
+interface CaseCustomerView {
+  id: string;
+  code?: string | null;
+  name: string;
+  customer_code?: string | null;
+  company_name: string;
 }
 
-export function caseScope(data: CertificationCaseWorkspaceProjection) {
-  return data.standards_scope.certification_scope?.trim() || "Chưa ghi nhận phạm vi";
+export function caseCustomer(data: CaseIdentitySource): CaseCustomerView | null {
+  if ("customer" in data) {
+    return {
+      id: data.customer.id,
+      code: data.customer.code,
+      name: data.customer.name,
+      customer_code: data.customer.code,
+      company_name: data.customer.name,
+    };
+  }
+
+  const customer = data.certification_applications?.customers;
+  if (!customer) return null;
+  return {
+    id: customer.id,
+    code: customer.customer_code,
+    name: customer.company_name,
+    customer_code: customer.customer_code,
+    company_name: customer.company_name,
+  };
+}
+
+export function caseScope(data: CaseIdentitySource) {
+  if ("standards_scope" in data) {
+    return data.standards_scope.certification_scope?.trim() || "Chưa ghi nhận phạm vi";
+  }
+  return data.certification_applications?.certification_scope?.trim() || "Chưa ghi nhận phạm vi";
 }
 
 export function orderedCycles(data: CertificationCaseWorkspaceProjection) {
