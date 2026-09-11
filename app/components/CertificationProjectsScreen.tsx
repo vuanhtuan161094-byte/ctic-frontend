@@ -980,17 +980,16 @@ function parseMandayAdjustmentField(
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => {
+    .flatMap((line): MandayAdjustmentForm[] => {
       const match = line.match(/^(.+?):\s*([0-9]+(?:[.,][0-9]+)?)%\s*-\s*(.+)$/);
-      if (!match) return null;
-      return {
+      if (!match) return [];
+      return [{
         adjustment_type: fallbackType,
         factor_code: match[1].trim(),
         percentage: Number(match[2].replace(",", ".")),
         reason: match[3].trim(),
-      } satisfies MandayAdjustmentForm;
-    })
-    .filter((item): item is MandayAdjustmentForm => item !== null);
+      }];
+    });
 }
 
 function parseSavedMandayAdjustments(
@@ -2349,7 +2348,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         "declaration_accepted",
       ]);
 
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       if (Number(values.employee_count ?? 0) > Number(values.total_employee_count ?? 0)) {
         throw new Error("Nhân sự hiệu dụng không được lớn hơn tổng số nhân sự.");
       }
@@ -2392,7 +2391,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         "reviewer_id",
       ]);
 
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       if (values.reviewer_id === currentUserId) {
         throw new Error("Người lập/coordinator và reviewer phải là hai tài khoản khác nhau.");
       }
@@ -2414,6 +2413,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       if (Math.abs(stage1 + stage2 - total) > 0.01) {
         throw new Error("Tổng ngày công giai đoạn 1 và giai đoạn 2 phải bằng ngày công lần đầu.");
       }
+      const adjustmentTotals = getCurrentManualAdjustmentTotals();
       if (adjustmentTotals.reduction > 30) {
         throw new Error("Tổng tỷ lệ giảm theo IAF MD5 không được vượt quá 30%.");
       }
@@ -2469,7 +2469,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       await validateCurrentStep();
       if (isApplicationWorkspace && creationStep === 0) {
         setCreationSubmitting(true);
-        const values = wizardForm.getFieldsValue(true);
+        const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
         await ensureApplicationCreated(values);
       }
       setCreationStep((current) => Math.min(current + 1, currentWizardSteps.length - 1));
@@ -2648,7 +2648,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     try {
       setCreationError(null);
       setCreationSubmitting(true);
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       const response = await api.post<{ id: string }>(
         "/application-reviews",
@@ -2674,7 +2674,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setValidationIssues([]);
       await validateCurrentStep(1);
       setCreationSubmitting(true);
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       await api.post("/application-reviews", buildReviewPayload(application.id, values, "SUBMIT"));
       await Promise.all([
@@ -2695,7 +2695,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     try {
       setCreationError(null);
       setCreationSubmitting(true);
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       const response = await api.post<{ id: string }>("/application-reviews", buildReviewPayload(application.id, values, "SAVE_DRAFT"));
       setDraftReviewId(response.data.id);
@@ -2789,9 +2789,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         }),
       );
 
-      const rows = settled
-        .filter((result): result is PromiseFulfilledResult<IndustryResolutionRow> => result.status === "fulfilled")
-        .map((result) => result.value);
+      const rows = settled.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
       const failedCount = settled.length - rows.length;
 
       setIndustryResolutionRows(rows);
@@ -2887,7 +2887,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     const documentType = applicationDocumentType(index);
     setUploadingApplicationDocument(documentType);
     try {
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = reviewApplication ?? await ensureApplicationCreated(values);
       const formData = new FormData();
       formData.append("file", file);
@@ -2956,7 +2956,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setValidationIssues([]);
       await validateCurrentStep(0);
       setCreationSubmitting(true);
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       message.success(`Đã lưu đơn ${application.application_code}`);
       closeCreationWizard();
@@ -3010,7 +3010,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setCreationError(null);
       setValidationIssues([]);
       await validateAllCreationSteps();
-      const values = wizardForm.getFieldsValue(true);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       setCreationSubmitting(true);
 
       if (values.application_mode === "new" && values.review_result !== "ACCEPTED") {
@@ -3794,7 +3794,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         </Form.Item>
                       </div>
 
-                      <Divider orientation="left" plain>Đại diện của tổ chức</Divider>
+                      <Divider titlePlacement="start" plain>Đại diện của tổ chức</Divider>
                       <div className="project-creation-grid wide">
                         <Form.Item label="Họ và tên" name="representative_name" rules={[{ required: true, message: "Nhập người đại diện" }]}><Input /></Form.Item>
                         <Form.Item label="Chức vụ" name="representative_position"><Input /></Form.Item>
@@ -3803,7 +3803,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         <Form.Item className="span-2" label="Email" name="representative_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
                       </div>
 
-                      <Divider orientation="left" plain>Người liên hệ</Divider>
+                      <Divider titlePlacement="start" plain>Người liên hệ</Divider>
                       <div className="project-creation-grid wide">
                         <Form.Item label="Họ và tên" name="contact_name" rules={[{ required: true, message: "Nhập người liên hệ" }]}><Input /></Form.Item>
                         <Form.Item label="Chức vụ" name="contact_position"><Input /></Form.Item>
@@ -3878,7 +3878,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         <Form.Item label="Ca 3" name="shift3_count"><InputNumber min={0} precision={0} style={{ width: "100%" }} /></Form.Item>
                       </div>
 
-                      <Divider orientation="left" plain>Địa điểm chứng nhận</Divider>
+                      <Divider titlePlacement="start" plain>Địa điểm chứng nhận</Divider>
                       <Form.List name="sites">
                         {(fields, { add, remove }) => (
                           <Space direction="vertical" size={12} style={{ width: "100%" }}>
@@ -4186,7 +4186,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                                   {reviewApplication?.other_requests ?? "—"}
                                 </Descriptions.Item>
                               </Descriptions>
-                              <Divider orientation="left" plain style={{ margin: "14px 0 10px" }}>
+                              <Divider titlePlacement="start" plain style={{ margin: "14px 0 10px" }}>
                                 Tài liệu kèm theo <Tag>{reviewAssociatedDocuments.length}</Tag>
                               </Divider>
                               {reviewAssociatedDocuments.length > 0 ? (
@@ -4632,7 +4632,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         style={{ marginBottom: 12 }}
                       />
 
-                      <Divider orientation="left" plain>Yếu tố tăng/giảm và căn cứ</Divider>
+                      <Divider titlePlacement="start" plain>Yếu tố tăng/giảm và căn cứ</Divider>
                       <Form.List name="manday_adjustments">
                         {(fields, { add, remove }) => (
                           <div className="manday-adjustment-list">
@@ -4861,7 +4861,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                       </div>
 
 
-                      <Divider orientation="left" plain>Phân bổ và thời gian đánh giá</Divider>
+                      <Divider titlePlacement="start" plain>Phân bổ và thời gian đánh giá</Divider>
                       <Alert
                         action={<Button onClick={() => suggestCertificationCycleMonths(wizardForm.getFieldValue("stage2_proposed_date"), true)} size="small">Gợi ý lại từ GĐ2</Button>}
                         description="Chọn tháng GĐ2 để hệ thống tự gợi ý GS1 = +12 tháng, GS2 = +24 tháng và tái chứng nhận = +36 tháng. Có thể chỉnh thủ công."

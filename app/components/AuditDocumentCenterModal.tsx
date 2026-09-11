@@ -508,7 +508,7 @@ export default function AuditDocumentCenterModal({
               </> : null}
 
               {showAttendance ? <>
-              <Divider orientation="left">Danh sách tham dự F.07-P.09</Divider>
+              <Divider titlePlacement="start">Danh sách tham dự F.07-P.09</Divider>
               <Row gutter={12}>
                 <Col md={6} xs={24}>
                   <Form.Item
@@ -613,7 +613,7 @@ export default function AuditDocumentCenterModal({
               </> : null}
 
               {showChecklists ? <>
-              <Divider orientation="left">Bảng kiểm đánh giá F.06-P.09</Divider>
+              <Divider titlePlacement="start">Bảng kiểm đánh giá F.06-P.09</Divider>
               {previewQuery.data.supplemental_data.checklists.length ? (
                 <Collapse
                   items={previewQuery.data.supplemental_data.checklists.map((checklist, checklistIndex) => ({

@@ -80,7 +80,9 @@ async function inflateRaw(data: Uint8Array) {
   if (typeof DecompressionStream === "undefined") {
     throw new Error("Trình duyệt này chưa hỗ trợ xem nhanh Word/Excel. Hãy dùng Chrome/Edge mới hoặc tải file gốc.");
   }
-  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw" as any));
+  const copy = new Uint8Array(data.byteLength);
+  copy.set(data);
+  const stream = new Blob([copy.buffer]).stream().pipeThrough(new DecompressionStream("deflate-raw" as any));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 

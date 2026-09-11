@@ -2026,7 +2026,7 @@ export function CertificationProjectDetailScreen({
               <Descriptions.Item label="Yêu cầu khác" span={2}>{sourceApplication.other_requests ?? "—"}</Descriptions.Item>
             </Descriptions>
 
-            <Divider orientation="left">Địa điểm chứng nhận</Divider>
+            <Divider titlePlacement="start">Địa điểm chứng nhận</Divider>
             <Table
               columns={[
                 { title: "STT", dataIndex: "site_no", key: "site_no", width: 64 },
@@ -2081,7 +2081,7 @@ export function CertificationProjectDetailScreen({
             </Descriptions>
 
             {reviewIndustryScopes.length ? <>
-              <Divider orientation="left">Phạm vi ngành đã xác nhận</Divider>
+              <Divider titlePlacement="start">Phạm vi ngành đã xác nhận</Divider>
               <List
                 dataSource={reviewIndustryScopes}
                 renderItem={(item, index) => (
@@ -2099,7 +2099,7 @@ export function CertificationProjectDetailScreen({
             </> : null}
 
             {(reviewIncreaseFactors.length || reviewReductionFactors.length) ? <>
-              <Divider orientation="left">Yếu tố điều chỉnh và căn cứ</Divider>
+              <Divider titlePlacement="start">Yếu tố điều chỉnh và căn cứ</Divider>
               <List
                 dataSource={[
                   ...reviewIncreaseFactors.map((item) => ({ ...item, _type: "Tăng" })),
@@ -2117,7 +2117,7 @@ export function CertificationProjectDetailScreen({
             </> : null}
 
             {sourceReview.workflow_actions?.length ? <>
-              <Divider orientation="left">Lịch sử xử lý</Divider>
+              <Divider titlePlacement="start">Lịch sử xử lý</Divider>
               <List
                 dataSource={sourceReview.workflow_actions}
                 renderItem={(action) => (

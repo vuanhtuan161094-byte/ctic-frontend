@@ -2759,7 +2759,7 @@ export function ScheduleResourcesScreen({
               <Descriptions.Item label="Liên hệ">{[projectBriefApplication.contact_phone, projectBriefApplication.contact_email].filter(Boolean).join(" · ") || "—"}</Descriptions.Item>
               <Descriptions.Item label="Địa chỉ trụ sở" span={2}>{projectBriefApplication.headquarters_address ?? projectBriefApplication.customers?.address ?? "—"}</Descriptions.Item>
             </Descriptions>
-            <Divider orientation="left">Địa điểm chứng nhận</Divider>
+            <Divider titlePlacement="start">Địa điểm chứng nhận</Divider>
             <Table
               columns={[
                 { title: "STT", dataIndex: "site_no", key: "site_no", width: 64 },
@@ -2794,7 +2794,7 @@ export function ScheduleResourcesScreen({
               <Descriptions.Item label="Kết luận" span={2}>{projectBriefReview.conclusion ?? "—"}</Descriptions.Item>
             </Descriptions>
             {projectIndustryScopes.length ? <>
-              <Divider orientation="left">Phạm vi ngành đã xác nhận</Divider>
+              <Divider titlePlacement="start">Phạm vi ngành đã xác nhận</Divider>
               <Space wrap>
                 {projectIndustryScopes.map((scope, index) => (
                   <Tag color="geekblue" key={index}>
