@@ -36,7 +36,9 @@ if (!staleVite.includes('vinext') || !staleVite.includes('@cloudflare/vite-plugi
 if (!worker.includes("vinext-starter template")) throw new Error("worker/index.ts is no longer the verified starter worker");
 if (!globalsCss.includes('@import "tailwindcss"')) throw new Error("Tailwind usage changed; abort cleanup rather than removing styling dependencies");
 if (!oldEslint.includes("eslint-config-next")) throw new Error("ESLint is no longer coupled to Next; review cleanup assumptions");
-if (!qualityWorkflow.includes("continue-on-error: true")) throw new Error("Full-repository typecheck is no longer a debt snapshot; review cleanup assumptions");
+if (qualityWorkflow.includes("continue-on-error: true") || !qualityWorkflow.includes("- name: Repository TypeScript")) {
+  throw new Error("Repository TypeScript must already be a mandatory quality gate before scaffold cleanup");
+}
 
 for (const target of [
   ".openai",
@@ -99,9 +101,4 @@ fs.writeFileSync("tsconfig.all.json", `${JSON.stringify(allTsConfig, null, 2)}\n
 const readme = `# CMP Frontend\n\nFrontend của **Certification Management Platform (CMP)**. Runtime production hiện tại là **Vite + React + TypeScript + Ant Design**.\n\n## Yêu cầu\n\n- Node.js 24.x (repo cũng chấp nhận Node 22.12+)\n- Backend CMP chạy riêng; frontend gọi API qua cấu hình môi trường\n\n## Lệnh chính\n\n\`\`\`bash\nnpm ci\nnpm run dev\nnpm run typecheck\nnpm run typecheck:all\nnpm run lint\nnpm test\n\`\`\`\n\n- \`npm run dev\`: Vite development server tại cổng 5173.\n- \`npm run build\`: production build bằng \`vite.ctic.config.ts\`.\n- \`npm run typecheck\`: kiểm tra TypeScript của production app.\n- \`npm run typecheck:all\`: gate TypeScript cho toàn bộ source TypeScript còn thuộc frontend CMP.\n- \`npm run lint\`: ESLint + React Hooks, không cho phép warning tích lũy.\n- \`npm test\`: production build + toàn bộ regression tests frontend.\n\n## Production\n\nCấu hình mẫu nằm tại \`.env.production.example\`. Production ưu tiên same-origin/reverse-proxy; khi \`VITE_DEPLOYMENT_TARGET=production\`, build sẽ từ chối API URL trỏ về localhost. Source map production được tắt.\n\n## Kiến trúc runtime\n\n- Browser entry: \`index.html\` → \`src/main.tsx\`.\n- Application root: \`app/components/CticApplication.tsx\`.\n- Authenticated shell được lazy-load sau khi khôi phục/xác thực session.\n- Các màn hình nghiệp vụ lớn được code-split theo route để giảm tải ban đầu.\n- Backend vẫn là authority cuối cùng cho quyền, workflow và mutation.\n\n## Lưu ý\n\nRepo này không dùng Next.js, vinext, Cloudflare Worker/D1 hay Drizzle cho runtime CMP. Scaffold thử nghiệm cũ được loại khỏi repository trong Step 18A stabilization. Tailwind/PostCSS vẫn được giữ vì stylesheet CMP hiện dùng \`@import "tailwindcss"\`.\n`;
 fs.writeFileSync("README.md", readme);
 
-const hardenedQualityWorkflow = qualityWorkflow
-  .replace("      - name: Full-repository TypeScript debt snapshot\n        continue-on-error: true\n        run: npm run typecheck:all\n", "      - name: Repository TypeScript\n        run: npm run typecheck:all\n");
-if (hardenedQualityWorkflow === qualityWorkflow) throw new Error("Failed to harden repository typecheck gate");
-fs.writeFileSync(".github/workflows/frontend-quality.yml", hardenedQualityWorkflow);
-
-console.log("Prepared bounded removal of obsolete Next/vinext/Cloudflare/Drizzle scaffold, standalone Vite linting, and mandatory repository typecheck.");
+console.log("Prepared bounded removal of obsolete Next/vinext/Cloudflare/Drizzle scaffold and standalone Vite linting.");
