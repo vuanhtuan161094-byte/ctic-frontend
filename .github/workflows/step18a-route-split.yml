@@ -1,4 +1,5 @@
 name: CMP Step 18A Route Split
+# One-shot fail-closed migration gate; removed after verified source commit.
 
 on:
   push:
