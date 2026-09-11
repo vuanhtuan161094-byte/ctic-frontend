@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// One-shot migration. The workflow deletes this file after a bounded successful run.
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const write = (p, value) => fs.writeFileSync(path.join(root, p), value, "utf8");
