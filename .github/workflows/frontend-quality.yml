@@ -38,12 +38,11 @@ jobs:
       - name: Production app typecheck
         run: npm run typecheck
 
+      - name: Repository TypeScript
+        run: npm run typecheck:all
+
       - name: Lint
         run: npm run lint
 
       - name: Build and test
         run: npm test
-
-      - name: Full-repository TypeScript debt snapshot
-        continue-on-error: true
-        run: npm run typecheck:all
