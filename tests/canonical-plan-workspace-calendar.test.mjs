@@ -118,7 +118,8 @@ test("duplicate plan records are excluded from operational dossier and calendar 
 
 test("calendar uses Vietnamese controls, bounded cells, and exact-cycle navigation", () => {
   assert.match(scheduleSource, /vietnameseWeekdayLabels = \["T2", "T3", "T4", "T5", "T6", "T7", "CN"\]/);
-  assert.match(scheduleSource, /locale=\{viVN\.Calendar\}/);
+  assert.match(scheduleSource, /import viVN from "antd\/locale\/vi_VN"/);
+  assert.match(scheduleSource, /<ConfigProvider locale=\{viVN\}>/);
   assert.match(scheduleSource, />Hôm nay<\/Button>/);
   assert.match(scheduleSource, /label: "Tháng"/);
   assert.match(scheduleSource, /label: "Năm"/);
