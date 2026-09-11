@@ -1,30 +1,52 @@
+import js from "@eslint/js";
+import tsParser from "@typescript-eslint/parser";
+import reactHooks from "eslint-plugin-react-hooks";
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import globals from "globals";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
+const hookRules =
+  reactHooks.configs?.flat?.["recommended-latest"]?.rules ??
+  reactHooks.configs?.flat?.recommended?.rules ??
+  reactHooks.configs?.recommended?.rules ??
+  {};
+
+export default defineConfig([
+  globalIgnores(["node_modules/**", "dist/**"]),
+  js.configs.recommended,
   {
     files: [
       "src/**/*.{ts,tsx}",
       "app/components/**/*.{ts,tsx}",
       "app/lib/**/*.ts",
       "app/types/**/*.ts",
+      "vite.ctic.config.ts",
     ],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        ecmaFeatures: { jsx: true },
+      },
+      globals: { ...globals.browser, ...globals.node },
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
-      // CMP production runtime is Vite, not Next.js; native image previews use blob URLs.
-      "@next/next/no-img-element": "off",
+      "no-undef": "off",
+      "no-unused-vars": "off",
+      ...hookRules,
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
+  {
+    files: ["tests/**/*.mjs", "scripts/**/*.mjs", "eslint.config.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.node,
+    },
+  },
 ]);
-
-export default eslintConfig;
