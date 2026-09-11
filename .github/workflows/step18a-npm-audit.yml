@@ -22,6 +22,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Vulnerable dependency paths
+        shell: bash
+        run: |
+          npm ls @babel/core baseline-browser-mapping brace-expansion browserslist js-yaml nanoid postcss vite || true
       - name: Full dependency audit
         shell: bash
         run: |
@@ -31,36 +35,20 @@ jobs:
           const audit = JSON.parse(fs.readFileSync('audit-all.json', 'utf8'));
           console.log('FULL_METADATA=' + JSON.stringify(audit.metadata?.vulnerabilities ?? {}));
           for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
-            console.log('FULL_VULN=' + JSON.stringify({
-              name,
-              severity: item.severity,
-              isDirect: item.isDirect,
-              range: item.range,
-              nodes: item.nodes,
-              effects: item.effects,
-              via: (item.via ?? []).map(v => typeof v === 'string' ? v : ({ source: v.source, name: v.name, dependency: v.dependency, title: v.title, url: v.url, severity: v.severity, range: v.range })),
-              fixAvailable: item.fixAvailable,
-            }));
+            console.log('FULL_VULN=' + JSON.stringify({ name, severity: item.severity, isDirect: item.isDirect, range: item.range, nodes: item.nodes, effects: item.effects, via: (item.via ?? []).map(v => typeof v === 'string' ? v : ({ source: v.source, name: v.name, dependency: v.dependency, title: v.title, url: v.url, severity: v.severity, range: v.range })), fixAvailable: item.fixAvailable }));
           }
           NODE
       - name: Production dependency audit
         shell: bash
         run: |
           npm audit --omit=dev --json > audit-prod.json || true
+          node -e "const a=require('./audit-prod.json'); console.log('PROD_METADATA='+JSON.stringify(a.metadata?.vulnerabilities??{}))"
+      - name: Safe fix dry run only
+        shell: bash
+        run: |
+          npm audit fix --dry-run --json > audit-fix-dry.json || true
           node <<'NODE'
           const fs = require('fs');
-          const audit = JSON.parse(fs.readFileSync('audit-prod.json', 'utf8'));
-          console.log('PROD_METADATA=' + JSON.stringify(audit.metadata?.vulnerabilities ?? {}));
-          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
-            console.log('PROD_VULN=' + JSON.stringify({
-              name,
-              severity: item.severity,
-              isDirect: item.isDirect,
-              range: item.range,
-              nodes: item.nodes,
-              effects: item.effects,
-              via: (item.via ?? []).map(v => typeof v === 'string' ? v : ({ source: v.source, name: v.name, dependency: v.dependency, title: v.title, url: v.url, severity: v.severity, range: v.range })),
-              fixAvailable: item.fixAvailable,
-            }));
-          }
+          const data = JSON.parse(fs.readFileSync('audit-fix-dry.json', 'utf8'));
+          console.log('DRY_RUN=' + JSON.stringify({ added: data.added, removed: data.removed, changed: data.changed, audited: data.audited, funding: data.funding, audit: data.audit?.metadata?.vulnerabilities ?? data.metadata?.vulnerabilities ?? null }));
           NODE
