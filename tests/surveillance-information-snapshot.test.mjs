@@ -87,7 +87,8 @@ test("month calendar is Vietnamese, compact and has no per-cell scrollbar", asyn
     readFile(scheduleUrl, "utf8"),
     readFile(stylesUrl, "utf8"),
   ]);
-  assert.match(schedule, /locale=\{viVN\.Calendar\}/);
+  assert.match(schedule, /import viVN from "antd\/locale\/vi_VN"/);
+  assert.match(schedule, /<ConfigProvider locale=\{viVN\}>/);
   assert.match(schedule, /vietnameseWeekdayLabels/);
   assert.match(schedule, /Hôm nay/);
   assert.match(schedule, /label: "Tháng"/);
