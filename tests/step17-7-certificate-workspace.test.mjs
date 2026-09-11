@@ -10,7 +10,7 @@ const page = source("../app/components/certificate-workspace/CertificateResource
 const owner = source("../app/components/CertificateIssuanceWorkspaceModal.tsx");
 const model = await load(view.slice(view.indexOf("export function certificateContextMatches"), view.indexOf("export function CertificationCertificateWorkspace")));
 const application = source("../app/components/CticApplication.tsx");
-const { isCertificateQaRoute } = await load(application.slice(application.indexOf("export function isCertificateQaRoute"), application.indexOf("function ApplicationContent")));
+const { isCertificateQaRoute } = await load(application.slice(application.indexOf("export function isCertificateQaRoute"), application.indexOf("function DevQueryBoundary")));
 test("Certificate fixture session cannot hijack locked Decision or other workspace refresh", () => {
   assert.equal(isCertificateQaRoute("/certifications/c/certificates/k"), true);
   assert.equal(isCertificateQaRoute("/portal/certificates"), true);
