@@ -127,6 +127,9 @@ test("Step 17.1 is white-label and decomposed instead of another megacomponent",
   for (const value of [registry, workspace, header, overview, progress, team, documents, activity, styles]) {
     assert.doesNotMatch(value, /\bCTIC\b/);
   }
-  assert.match(shell, /CertificationCaseRegistryPage, CertificationCaseWorkspace/);
+  assert.match(shell, /const CertificationCaseRegistryPage = lazy\(\(\) =>/);
+  assert.match(shell, /import\("\.\/certification-case\/CertificationCaseRegistryPage"\)/);
+  assert.match(shell, /const CertificationCaseWorkspace = lazy\(\(\) =>/);
+  assert.match(shell, /import\("\.\/certification-case\/CertificationCaseWorkspace"\)/);
   assert.ok(workspace.split("\n").length < 180, "workspace should remain a coordinator, not a megacomponent");
 });
