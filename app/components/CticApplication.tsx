@@ -1,6 +1,5 @@
 "use client";
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App as AntdApp, ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
 import dayjs from "dayjs";
@@ -22,9 +21,13 @@ const LoginScreen = lazy(() =>
   import("./LoginScreen").then((module) => ({ default: module.LoginScreen })),
 );
 
-const DashboardShell = lazy(() =>
-  import("./DashboardShell").then((module) => ({ default: module.DashboardShell })),
+const AuthenticatedRuntime = lazy(() =>
+  import("./AuthenticatedRuntime").then((module) => ({ default: module.AuthenticatedRuntime })),
 );
+
+const DevQueryRuntime = import.meta.env.DEV
+  ? lazy(() => import("./QueryRuntime").then((module) => ({ default: module.QueryRuntime })))
+  : null;
 
 const DevCertificationCaseVisualShowcase = import.meta.env.DEV
   ? lazy(() => import("./certification-case/CertificationCaseVisualShowcase").then((module) => ({ default: module.CertificationCaseVisualShowcase })))
@@ -46,6 +49,11 @@ const DevTechnicalReviewWorkspace = import.meta.env.DEV
 
 export function isCertificateQaRoute(path: string) {
   return /^\/certifications\/[^/]+\/certificates\/[^/]+$/.test(path) || /^\/portal\/certificates(?:\/[^/]+)?$/.test(path);
+}
+
+function DevQueryBoundary({ children }: { children: React.ReactNode }) {
+  if (!import.meta.env.DEV || !DevQueryRuntime) return children;
+  return <DevQueryRuntime>{children}</DevQueryRuntime>;
 }
 
 function ApplicationContent() {
@@ -114,17 +122,17 @@ function ApplicationContent() {
   }
 
   if (import.meta.env.DEV && DevCertificateWorkspace && (window.location.pathname === "/__dev/certificate-workspace" || (window.sessionStorage.getItem("cmp-certificate-isolated-qa") && isCertificateQaRoute(window.location.pathname)))) {
-    return <Suspense fallback={<div className="app-loading" />}><DevCertificateWorkspace /></Suspense>;
+    return <Suspense fallback={<div className="app-loading" />}><DevQueryBoundary><DevCertificateWorkspace /></DevQueryBoundary></Suspense>;
   }
   if (import.meta.env.DEV && DevDecisionWorkspace && (window.location.pathname === "/__dev/decision-workspace" || (window.sessionStorage.getItem("cmp-decision-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {
-    return <Suspense fallback={<div className="app-loading" />}><DevDecisionWorkspace /></Suspense>;
+    return <Suspense fallback={<div className="app-loading" />}><DevQueryBoundary><DevDecisionWorkspace /></DevQueryBoundary></Suspense>;
   }
   if (import.meta.env.DEV && DevTechnicalReviewWorkspace && (window.location.pathname === "/__dev/technical-review-workspace" || window.sessionStorage.getItem("cmp-review-isolated-qa"))) {
-    return <Suspense fallback={<div className="app-loading" />}><DevTechnicalReviewWorkspace /></Suspense>;
+    return <Suspense fallback={<div className="app-loading" />}><DevQueryBoundary><DevTechnicalReviewWorkspace /></DevQueryBoundary></Suspense>;
   }
 
   if (import.meta.env.DEV && DevCapWorkspace && (window.location.pathname === "/__dev/cap-workspace" || window.sessionStorage.getItem("cmp-cap-isolated-qa"))) {
-    return <Suspense fallback={<div className="app-loading" />}><DevCapWorkspace /></Suspense>;
+    return <Suspense fallback={<div className="app-loading" />}><DevQueryBoundary><DevCapWorkspace /></DevQueryBoundary></Suspense>;
   }
 
   if (!session) {
@@ -137,25 +145,12 @@ function ApplicationContent() {
 
   return (
     <Suspense fallback={<div className="app-loading" aria-label="Đang tải không gian làm việc" />}>
-      <DashboardShell session={session} onLogout={handleLogout} />
+      <AuthenticatedRuntime session={session} onLogout={handleLogout} />
     </Suspense>
   );
 }
 
 export function CticApplication() {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: 1,
-            refetchOnWindowFocus: false,
-            staleTime: 30_000,
-          },
-        },
-      }),
-  );
-
   return (
     <ConfigProvider
       locale={viVN}
@@ -185,11 +180,9 @@ export function CticApplication() {
         },
       }}
     >
-      <QueryClientProvider client={queryClient}>
-        <AntdApp>
-          <ApplicationContent />
-        </AntdApp>
-      </QueryClientProvider>
+      <AntdApp>
+        <ApplicationContent />
+      </AntdApp>
     </ConfigProvider>
   );
 }
