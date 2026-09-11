@@ -2417,7 +2417,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       if (adjustmentTotals.reduction > 30) {
         throw new Error("Tổng tỷ lệ giảm theo IAF MD5 không được vượt quá 30%.");
       }
-      if (adjustmentTotals.imsReduction > 20) {
+      if (integrationReductionPercent > 20) {
         throw new Error("Tổng tỷ lệ giảm cho hệ thống tích hợp không được vượt quá 20%.");
       }
       return;

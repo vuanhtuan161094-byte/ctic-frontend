@@ -112,6 +112,14 @@ type ResolveResult = {
   iaf_auto_resolved?: boolean;
 };
 
+type ResolvedDemoRow = {
+  key: string;
+  isic: IndustryCode;
+  nace: IndustryCode;
+  mappingType: string;
+  iaf: ResolveResult["nace_candidates"][number]["iaf_candidates"][number] | null;
+};
+
 type MappingCoverage = {
   management_system: string;
   total_isic_classes: number;
@@ -257,7 +265,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
       descendantMemo.set(row.id, result);
       return result;
     };
-    return codes.flatMap((row) => {
+    return codes.flatMap<NaceIafDisplayRow>((row) => {
       const leaves = descendants(row);
       const directMappings = leaves.flatMap((leaf) => mappingByNace.get(leaf.id) ?? []);
       const uniqueIaf = new Map<string, NaceIafMapping>();
@@ -340,7 +348,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     }
   };
 
-  const resolvedRows = demoResults.flatMap((result) => result.nace_candidates.flatMap((candidate) => {
+  const resolvedRows: ResolvedDemoRow[] = demoResults.flatMap((result) => result.nace_candidates.flatMap<ResolvedDemoRow>((candidate) => {
     if (!candidate.iaf_candidates.length) {
       return [{ key: `${result.source.id}-${candidate.nace.id}-none`, isic: result.source, nace: candidate.nace, mappingType: candidate.mapping_type, iaf: null }];
     }
@@ -498,7 +506,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
           <Button type="primary" icon={<SearchOutlined />} loading={demoLoading} onClick={() => void runDemo()}>Tra NACE & IAF</Button>
         </Space>
         {resolvedRows.length ? (
-          <Table
+          <Table<ResolvedDemoRow>
             style={{ marginTop: 12 }}
             size="small"
             rowKey="key"

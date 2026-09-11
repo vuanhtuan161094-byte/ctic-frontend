@@ -195,7 +195,7 @@ interface DossierGroup {
   dossier_description?: string | null;
   sequence_no: number;
   plan_ids: string[];
-  plan_codes?: Array<string | null>;
+  plan_codes?: Array<string | null | undefined>;
   planned_start_date?: string | null;
   planned_end_date?: string | null;
   planned_mandays?: number | string | null;
@@ -2102,8 +2102,8 @@ export function CertificationProjectDetailScreen({
               <Divider titlePlacement="start">Yếu tố điều chỉnh và căn cứ</Divider>
               <List
                 dataSource={[
-                  ...reviewIncreaseFactors.map((item) => ({ ...item, _type: "Tăng" })),
-                  ...reviewReductionFactors.map((item) => ({ ...item, _type: "Giảm" })),
+                  ...reviewIncreaseFactors.map((item) => ({ ...item, _type: "Tăng" } as Record<string, unknown> & { _type: string })),
+                  ...reviewReductionFactors.map((item) => ({ ...item, _type: "Giảm" } as Record<string, unknown> & { _type: string })),
                 ]}
                 renderItem={(item) => (
                   <List.Item>

@@ -373,7 +373,7 @@ export default function ExpertResourceGovernancePanel({
     ...(canManage ? [{
       title: "Review / mitigation",
       width: 280,
-      render: (_, row) => (
+      render: (_: unknown, row: IndependenceConflict) => (
         <Space direction="vertical" size={0}>
           <Text>{row.review_note || "Chưa review"}</Text>
           {row.mitigation_justification ? <Text type="secondary">{row.mitigation_justification}</Text> : null}

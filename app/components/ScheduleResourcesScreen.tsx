@@ -804,7 +804,7 @@ function BusyDateRangePicker({
     <div className="expert-busy-date-picker">
       <RangePicker
         cellRender={(current, info) => {
-          const key = current.format("YYYY-MM-DD");
+          const key = dayjs(current).format("YYYY-MM-DD");
           const hardBusy = busyDateSet.has(key) && !remoteStage1;
           const warning = warningDateSet.has(key);
           if (!hardBusy && !warning) return info.originNode;
@@ -2234,7 +2234,6 @@ export function ScheduleResourcesScreen({
       </div>
       <ConfigProvider locale={viVN}>
         <Calendar
-          locale={viVN.Calendar}
           headerRender={({ value, type, onChange, onTypeChange }) => (
             <div className="resource-calendar-toolbar">
               <Space>
