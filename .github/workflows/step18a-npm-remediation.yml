@@ -1,0 +1,72 @@
+name: CMP Step 18A NPM Remediation
+
+on:
+  push:
+    branches:
+      - feature/step18a-stabilization
+    paths:
+      - .github/workflows/step18a-npm-remediation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/step18a-stabilization
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Upgrade direct vulnerable Vite within major
+        run: npm install --save-dev --save-exact vite@8.3.0
+      - name: Apply reviewed compatible transitive fixes only
+        run: npm audit fix
+      - name: Require zero full and production vulnerabilities
+        shell: bash
+        run: |
+          npm audit --json > audit-all.json || true
+          npm audit --omit=dev --json > audit-prod.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          for (const file of ['audit-all.json', 'audit-prod.json']) {
+            const audit = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const counts = audit.metadata?.vulnerabilities ?? {};
+            console.log(file + '=' + JSON.stringify(counts));
+            if ((counts.total ?? 0) !== 0) process.exitCode = 1;
+          }
+          NODE
+      - name: Require bounded dependency diff
+        shell: bash
+        run: |
+          unexpected=$(git diff --name-only | grep -Ev '^(package\.json|package-lock\.json)$' || true)
+          if [ -n "$unexpected" ]; then echo "Unexpected changed files:"; echo "$unexpected"; exit 1; fi
+          git diff --check
+          git diff -- package.json package-lock.json
+      - name: Production TypeScript
+        run: npm run typecheck
+      - name: Repository TypeScript
+        run: npm run typecheck:all
+      - name: Zero-warning lint
+        run: npm run lint
+      - name: Production build and full frontend regression
+        run: npm test
+      - name: Commit verified dependency remediation
+        shell: bash
+        run: |
+          git config user.name "cmp-step18a-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add package.json package-lock.json
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No dependency changes to commit"; exit 0; }
+          git commit -m "chore(step18a): remediate frontend dev dependencies"
+          git push origin HEAD:feature/step18a-stabilization
