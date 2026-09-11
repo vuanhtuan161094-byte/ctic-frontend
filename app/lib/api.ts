@@ -62,7 +62,7 @@ api.interceptors.response.use(
   },
 );
 
-export function getErrorMessage(error: unknown) {
+export function getErrorMessage(error: unknown, fallbackMessage = "Có lỗi xảy ra. Vui lòng thử lại.") {
   if (!axios.isAxiosError(error)) {
     if (error instanceof Error && error.message.trim()) {
       return error.message;
@@ -72,7 +72,7 @@ export function getErrorMessage(error: unknown) {
       return error;
     }
 
-    return "Có lỗi xảy ra. Vui lòng thử lại.";
+    return fallbackMessage;
   }
 
   const data = error.response?.data as
@@ -95,5 +95,7 @@ export function getErrorMessage(error: unknown) {
     return `Không kết nối được backend tại ${API_BASE_URL}.`;
   }
 
-  return "Yêu cầu không thực hiện được. Vui lòng thử lại.";
+  return fallbackMessage === "Có lỗi xảy ra. Vui lòng thử lại."
+    ? "Yêu cầu không thực hiện được. Vui lòng thử lại."
+    : fallbackMessage;
 }
