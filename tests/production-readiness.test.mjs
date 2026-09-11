@@ -6,6 +6,7 @@ const vite = fs.readFileSync(new URL('../vite.ctic.config.ts', import.meta.url),
 const env = fs.readFileSync(new URL('../.env.production.example', import.meta.url), 'utf8');
 const deployment = fs.readFileSync(new URL('../app/lib/deployment-config.ts', import.meta.url), 'utf8');
 const application = fs.readFileSync(new URL('../app/components/CticApplication.tsx', import.meta.url), 'utf8');
+const dashboardShell = fs.readFileSync(new URL('../app/components/DashboardShell.tsx', import.meta.url), 'utf8');
 const projectsScreen = fs.readFileSync(new URL('../app/components/CertificationProjectsScreen.tsx', import.meta.url), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
@@ -34,6 +35,21 @@ test('authenticated dashboard shell is split from the login startup path', () =>
   assert.match(application, /import\("\.\/DashboardShell"\)/);
   assert.doesNotMatch(application, /import \{ DashboardShell \} from "\.\/DashboardShell"/);
   assert.match(application, /Đang tải không gian làm việc/);
+});
+
+test('heavy operational screens are route-lazy behind the persistent app shell', () => {
+  assert.match(dashboardShell, /import \{ lazy, Suspense,/);
+  for (const screen of [
+    'CertificationProjectDetailScreen',
+    'CertificationProjectsScreen',
+    'ExpertsScreen',
+    'ScheduleResourcesScreen',
+  ]) {
+    assert.match(dashboardShell, new RegExp(`const ${screen} = lazy\\(\\(\\) =>`));
+    assert.match(dashboardShell, new RegExp(`import\\(\\"\\.\\/${screen}\\"\\)`));
+    assert.doesNotMatch(dashboardShell, new RegExp(`import \\{ ${screen} \\} from \\"\\.\\/${screen}\\"`));
+  }
+  assert.match(dashboardShell, /<Suspense fallback=\{<LoadingSkeleton variant="detail" rows=\{10\} \/>\}>/);
 });
 
 test('frontend lint gate rejects warnings instead of accumulating debt', () => {
