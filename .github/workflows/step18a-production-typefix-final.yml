@@ -1,0 +1,64 @@
+name: CMP Step 18A Final Production Type Fixes
+
+on:
+  push:
+    branches:
+      - feature/step18a-stabilization
+    paths:
+      - scripts/step18a-production-typefix-final.mjs
+      - .github/workflows/step18a-production-typefix-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/step18a-stabilization
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Apply deterministic production type fixes
+        run: node scripts/step18a-production-typefix-final.mjs
+
+      - name: Remove one-shot migration files
+        run: |
+          rm scripts/step18a-production-typefix-final.mjs
+          rm .github/workflows/step18a-production-typefix-final.yml
+
+      - name: Verify bounded patch
+        shell: bash
+        run: |
+          unexpected=$(git diff --name-only | grep -Ev '^(app/components/(CertificationProjectDetailScreen|CertificationProjectsScreen|ExpertResourceGovernancePanel|IndustryTaxonomyPanel|ScheduleResourcesScreen)\.tsx|scripts/step18a-production-typefix-final\.mjs|\.github/workflows/step18a-production-typefix-final\.yml)$' || true)
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected changed files:"
+            echo "$unexpected"
+            exit 1
+          fi
+          git diff --check
+          git diff --stat
+
+      - name: Commit bounded fixes and cleanup
+        shell: bash
+        run: |
+          git config user.name "cmp-step18a-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A app/components/CertificationProjectDetailScreen.tsx \
+                     app/components/CertificationProjectsScreen.tsx \
+                     app/components/ExpertResourceGovernancePanel.tsx \
+                     app/components/IndustryTaxonomyPanel.tsx \
+                     app/components/ScheduleResourcesScreen.tsx \
+                     scripts/step18a-production-typefix-final.mjs \
+                     .github/workflows/step18a-production-typefix-final.yml
+          git commit -m "fix(step18a): close remaining production type errors"
+          git push origin HEAD:feature/step18a-stabilization
