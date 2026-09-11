@@ -28,7 +28,7 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           <div className="cmp-case-metric">
             <span>Chu kỳ</span>
             <strong>{cycle ? cycleLabel(cycle) : "Chưa có dữ liệu"}</strong>
-            <small>{cycle?.dossier_description ?? "Chưa có mô tả chu kỳ"}</small>
+            <small>{cycle?.description ?? "Chưa có mô tả chu kỳ"}</small>
           </div>
           <div className="cmp-case-metric">
             <span>Mức hoàn thiện nguồn hồ sơ</span>
@@ -55,8 +55,8 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           <div className="cmp-case-identity-block">
             <h3>Khách hàng & phạm vi</h3>
             <dl>
-              <div><dt>Khách hàng</dt><dd>{customer.name}</dd></div>
-              <div><dt>Mã khách hàng</dt><dd>{customer.code ?? "Chưa có"}</dd></div>
+              <div><dt>Khách hàng</dt><dd>{customer?.name ?? "Chưa xác định"}</dd></div>
+              <div><dt>Mã khách hàng</dt><dd>{customer?.code ?? "Chưa có"}</dd></div>
               <div><dt>Phạm vi</dt><dd>{caseScope(data)}</dd></div>
               <div><dt>Số địa điểm</dt><dd>{sites.length || "Chưa ghi nhận"}</dd></div>
             </dl>
