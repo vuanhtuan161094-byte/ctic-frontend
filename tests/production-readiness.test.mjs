@@ -110,12 +110,12 @@ test('all route-level screens are lazy behind the persistent app shell', () => {
   assert.match(dashboardShell, /import \{ NotificationCenter \} from "\.\/NotificationCenter"/);
 });
 
-test('dashboard shell production chunk stays below 500 kB', () => {
+test('authenticated runtime production chunk stays below 500 kB', () => {
   const assetsDir = new URL('../dist/assets/', import.meta.url);
-  const shellAsset = fs.readdirSync(assetsDir).find((name) => /^DashboardShell-.*\.js$/.test(name));
-  assert.ok(shellAsset, 'DashboardShell production chunk was not emitted');
-  const bytes = fs.statSync(new URL(shellAsset, assetsDir)).size;
-  assert.ok(bytes < 500 * 1024, `DashboardShell chunk is ${bytes} bytes; expected < 512000`);
+  const runtimeAsset = fs.readdirSync(assetsDir).find((name) => /^AuthenticatedRuntime-.*\.js$/.test(name));
+  assert.ok(runtimeAsset, 'AuthenticatedRuntime production chunk was not emitted');
+  const bytes = fs.statSync(new URL(runtimeAsset, assetsDir)).size;
+  assert.ok(bytes < 500 * 1024, `AuthenticatedRuntime chunk is ${bytes} bytes; expected < 512000`);
 });
 
 test('frontend lint gate rejects warnings instead of accumulating debt', () => {
