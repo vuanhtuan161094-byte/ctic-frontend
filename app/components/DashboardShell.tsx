@@ -39,7 +39,7 @@ import {
   message,
 } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, type AuthSession, getErrorMessage } from "../lib/api";
 import {
@@ -62,8 +62,6 @@ import type {
   DashboardOverview,
 } from "../types/dashboard";
 import type { PersonalWorkspace } from "../types/personal-workspace";
-import { CertificationProjectDetailScreen } from "./CertificationProjectDetailScreen";
-import { CertificationProjectsScreen } from "./CertificationProjectsScreen";
 import { CertificationCaseRegistryPage, CertificationCaseWorkspace } from "./certification-case";
 import {
   CertificationAuditWorkspace,
@@ -93,19 +91,30 @@ import { CustomerDocumentRequestsScreen } from "./CustomerDocumentRequestsScreen
 import { DocumentsScreen } from "./DocumentsScreen";
 import { GovernanceCasesScreen } from "./GovernanceCasesScreen";
 import { CustomerCasesScreen } from "./CustomerCasesScreen";
-import { ExpertsScreen } from "./ExpertsScreen";
 import { MyTasksScreen } from "./MyTasksScreen";
 import { MyCalendarScreen } from "./MyCalendarScreen";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotificationsScreen } from "./NotificationsScreen";
 import { PersonalDashboardScreen } from "./PersonalDashboardScreen";
 import { ManagementCockpitScreen } from "./ManagementCockpitScreen";
-import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
 import { SystemAdminScreen } from "./SystemAdminScreen";
 import { DelegationScreen } from "./DelegationScreen";
 import { ConfigurationRouteScreen, type ConfigurationRouteSection } from "./ConfigurationRouteScreen";
 import { AccountAccessDetailScreen, type AccountDetailSection } from "./AccountAccessDetailScreen";
 import { RolesPermissionsScreen } from "./RolesPermissionsScreen";
+
+const CertificationProjectDetailScreen = lazy(() =>
+  import("./CertificationProjectDetailScreen").then((module) => ({ default: module.CertificationProjectDetailScreen })),
+);
+const CertificationProjectsScreen = lazy(() =>
+  import("./CertificationProjectsScreen").then((module) => ({ default: module.CertificationProjectsScreen })),
+);
+const ExpertsScreen = lazy(() =>
+  import("./ExpertsScreen").then((module) => ({ default: module.ExpertsScreen })),
+);
+const ScheduleResourcesScreen = lazy(() =>
+  import("./ScheduleResourcesScreen").then((module) => ({ default: module.ScheduleResourcesScreen })),
+);
 
 const { Header, Content, Sider } = Layout;
 interface DashboardShellProps {
@@ -1149,6 +1158,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               <CmpBreadcrumb items={shellBreadcrumbItems} />
             </div>
           ) : null}
+          <Suspense fallback={<LoadingSkeleton variant="detail" rows={10} />}>
           {accessQuery.isError && !customerPortalMode ? (
             <Alert
               className="cmp-shell-access-warning"
@@ -1405,6 +1415,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               onOpenSchedule={() => setActiveView("schedule-resources")}
             />
           )}
+          </Suspense>
         </Content>
       </Layout>
 
