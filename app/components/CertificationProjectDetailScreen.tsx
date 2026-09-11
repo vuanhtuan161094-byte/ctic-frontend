@@ -40,24 +40,29 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { isPdfDocument, openDocumentFile, previewDocumentFile } from "../lib/document-file-client";
 import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import CommercialDocumentsPanel from "./CommercialDocumentsPanel";
-import SurveillanceInformationSnapshotModal from "./SurveillanceInformationSnapshotModal";
-import AuditExecutionWorkspaceModal, { type AuditExecutionWorkspaceMode } from "./AuditExecutionWorkspaceModal";
-import CorrectiveActionWorkspaceModal from "./CorrectiveActionWorkspaceModal";
-import TechnicalReviewWorkspaceModal from "./TechnicalReviewWorkspaceModal";
-import CertificationResultWorkspaceModal from "./CertificationResultWorkspaceModal";
-import CertificateIssuanceWorkspaceModal from "./CertificateIssuanceWorkspaceModal";
-import AuditDocumentCenterModal, {
-  type AuditDocumentFocus,
-  type AuditDocumentPreview,
-  type AuditDocumentType,
+import type { AuditExecutionWorkspaceMode } from "./AuditExecutionWorkspaceModal";
+import type {
+  AuditDocumentFocus,
+  AuditDocumentPreview,
+  AuditDocumentType,
 } from "./AuditDocumentCenterModal";
-import { ScheduleResourcesScreen } from "./ScheduleResourcesScreen";
+
+const AuditExecutionWorkspaceModal = lazy(() => import("./AuditExecutionWorkspaceModal"));
+const CorrectiveActionWorkspaceModal = lazy(() => import("./CorrectiveActionWorkspaceModal"));
+const TechnicalReviewWorkspaceModal = lazy(() => import("./TechnicalReviewWorkspaceModal"));
+const CertificationResultWorkspaceModal = lazy(() => import("./CertificationResultWorkspaceModal"));
+const CertificateIssuanceWorkspaceModal = lazy(() => import("./CertificateIssuanceWorkspaceModal"));
+const AuditDocumentCenterModal = lazy(() => import("./AuditDocumentCenterModal"));
+const SurveillanceInformationSnapshotModal = lazy(() => import("./SurveillanceInformationSnapshotModal"));
+const ScheduleResourcesScreen = lazy(() =>
+  import("./ScheduleResourcesScreen").then((module) => ({ default: module.ScheduleResourcesScreen })),
+);
 
 const { Text, Title } = Typography;
 
@@ -2155,124 +2160,148 @@ export function CertificationProjectDetailScreen({
         ) : null}
       </Drawer>
 
-      <SurveillanceInformationSnapshotModal
-        canEdit={canManageSurveillanceInformation}
-        eventId={surveillanceInformationEventId}
-        onClose={() => {
-          setSurveillanceInformationEventId(null);
-          void detailQuery.refetch();
-        }}
-        onUpdated={() => {
-          void detailQuery.refetch();
-        }}
-        open={Boolean(surveillanceInformationEventId)}
-        projectId={projectId}
-      />
+      {surveillanceInformationEventId ? (
+        <Suspense fallback={null}>
+        <SurveillanceInformationSnapshotModal
+          canEdit={canManageSurveillanceInformation}
+          eventId={surveillanceInformationEventId}
+          onClose={() => {
+            setSurveillanceInformationEventId(null);
+            void detailQuery.refetch();
+          }}
+          onUpdated={() => {
+            void detailQuery.refetch();
+          }}
+          open={Boolean(surveillanceInformationEventId)}
+          projectId={projectId}
+        />
+        </Suspense>
+      ) : null}
 
-      <CorrectiveActionWorkspaceModal
-        initialFindingId={correctiveActionFindingId}
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            dossierDocumentSummaryQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => {
-          setCorrectiveActionWorkspacePlanId(null);
-          setCorrectiveActionFindingId(null);
-          void dossierDocumentSummaryQuery.refetch();
-          void detailQuery.refetch();
-        }}
-        open={Boolean(correctiveActionWorkspacePlanId)}
-        planId={correctiveActionWorkspacePlanId}
-        roles={roles}
-      />
+      {correctiveActionFindingId ? (
+        <Suspense fallback={null}>
+        <CorrectiveActionWorkspaceModal
+          initialFindingId={correctiveActionFindingId}
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              dossierDocumentSummaryQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => {
+            setCorrectiveActionWorkspacePlanId(null);
+            setCorrectiveActionFindingId(null);
+            void dossierDocumentSummaryQuery.refetch();
+            void detailQuery.refetch();
+          }}
+          open={Boolean(correctiveActionWorkspacePlanId)}
+          planId={correctiveActionWorkspacePlanId}
+          roles={roles}
+        />
+        </Suspense>
+      ) : null}
 
 
-      <TechnicalReviewWorkspaceModal
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            dossierDocumentSummaryQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => {
-          setTechnicalReviewWorkspacePlanId(null);
-          void dossierDocumentSummaryQuery.refetch();
-          void detailQuery.refetch();
-        }}
-        open={Boolean(technicalReviewWorkspacePlanId)}
-        planId={technicalReviewWorkspacePlanId}
-        roles={roles}
-      />
+      {technicalReviewWorkspacePlanId ? (
+        <Suspense fallback={null}>
+        <TechnicalReviewWorkspaceModal
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              dossierDocumentSummaryQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => {
+            setTechnicalReviewWorkspacePlanId(null);
+            void dossierDocumentSummaryQuery.refetch();
+            void detailQuery.refetch();
+          }}
+          open={Boolean(technicalReviewWorkspacePlanId)}
+          planId={technicalReviewWorkspacePlanId}
+          roles={roles}
+        />
+        </Suspense>
+      ) : null}
 
-      <CertificateIssuanceWorkspaceModal
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            dossierDocumentSummaryQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => {
-          setCertificateIssuancePlanId(null);
-          void dossierDocumentSummaryQuery.refetch();
-          void detailQuery.refetch();
-        }}
-        onStartStatusDecision={(preferredDecisionType) => {
-          if (!certificateIssuancePlanId) return;
-          setCertificateIssuancePlanId(null);
-          setCertificationResultWorkspace({
-            planId: certificateIssuancePlanId,
-            focus: "decision",
-            preferredDecisionType,
-          });
-        }}
-        open={Boolean(certificateIssuancePlanId)}
-        planId={certificateIssuancePlanId}
-        roles={roles}
-      />
+      {certificateIssuancePlanId ? (
+        <Suspense fallback={null}>
+        <CertificateIssuanceWorkspaceModal
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              dossierDocumentSummaryQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => {
+            setCertificateIssuancePlanId(null);
+            void dossierDocumentSummaryQuery.refetch();
+            void detailQuery.refetch();
+          }}
+          onStartStatusDecision={(preferredDecisionType) => {
+            if (!certificateIssuancePlanId) return;
+            setCertificateIssuancePlanId(null);
+            setCertificationResultWorkspace({
+              planId: certificateIssuancePlanId,
+              focus: "decision",
+              preferredDecisionType,
+            });
+          }}
+          open={Boolean(certificateIssuancePlanId)}
+          planId={certificateIssuancePlanId}
+          roles={roles}
+        />
+        </Suspense>
+      ) : null}
 
-      <CertificationResultWorkspaceModal
-        focus={certificationResultWorkspace?.focus ?? "overview"}
-        preferredDecisionType={certificationResultWorkspace?.preferredDecisionType}
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            dossierDocumentSummaryQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => {
-          setCertificationResultWorkspace(null);
-          void dossierDocumentSummaryQuery.refetch();
-          void detailQuery.refetch();
-        }}
-        open={Boolean(certificationResultWorkspace)}
-        planId={certificationResultWorkspace?.planId ?? null}
-        roles={roles}
-      />
+      {certificationResultWorkspace ? (
+        <Suspense fallback={null}>
+        <CertificationResultWorkspaceModal
+          focus={certificationResultWorkspace?.focus ?? "overview"}
+          preferredDecisionType={certificationResultWorkspace?.preferredDecisionType}
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              dossierDocumentSummaryQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => {
+            setCertificationResultWorkspace(null);
+            void dossierDocumentSummaryQuery.refetch();
+            void detailQuery.refetch();
+          }}
+          open={Boolean(certificationResultWorkspace)}
+          planId={certificationResultWorkspace?.planId ?? null}
+          roles={roles}
+        />
+        </Suspense>
+      ) : null}
 
-      <AuditDocumentCenterModal
-        focus={auditDocumentWorkspace?.focus ?? null}
-        readOnly={!roles.some((role) => ["admin", "staff", "coordinator", "lead_auditor", "auditor"].includes(normalize(role)))}
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            dossierDocumentSummaryQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => {
-          setAuditDocumentWorkspace(null);
-          void dossierDocumentSummaryQuery.refetch();
-          void detailQuery.refetch();
-        }}
-        open={Boolean(auditDocumentWorkspace)}
-        planId={auditDocumentWorkspace?.planId ?? null}
-      />
+      {auditDocumentWorkspace ? (
+        <Suspense fallback={null}>
+        <AuditDocumentCenterModal
+          focus={auditDocumentWorkspace?.focus ?? null}
+          readOnly={!roles.some((role) => ["admin", "staff", "coordinator", "lead_auditor", "auditor"].includes(normalize(role)))}
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              dossierDocumentSummaryQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => {
+            setAuditDocumentWorkspace(null);
+            void dossierDocumentSummaryQuery.refetch();
+            void detailQuery.refetch();
+          }}
+          open={Boolean(auditDocumentWorkspace)}
+          planId={auditDocumentWorkspace?.planId ?? null}
+        />
+        </Suspense>
+      ) : null}
 
       <Modal
         cancelButtonProps={{ disabled: uploading }}
@@ -2326,22 +2355,27 @@ export function CertificationProjectDetailScreen({
         </div>
       </Modal>
 
-      <AuditExecutionWorkspaceModal
-        mode={focusedExecutionWorkspace?.mode ?? "report"}
-        onChanged={async () => {
-          await Promise.all([
-            detailQuery.refetch(),
-            invalidatePersonalWorkflowQueries(queryClient),
-          ]);
-        }}
-        onClose={() => setFocusedExecutionWorkspace(null)}
-        open={Boolean(focusedExecutionWorkspace)}
-        planId={focusedExecutionWorkspace?.planId ?? null}
-        roles={roles}
-      />
+      {focusedExecutionWorkspace ? (
+        <Suspense fallback={null}>
+        <AuditExecutionWorkspaceModal
+          mode={focusedExecutionWorkspace?.mode ?? "report"}
+          onChanged={async () => {
+            await Promise.all([
+              detailQuery.refetch(),
+              invalidatePersonalWorkflowQueries(queryClient),
+            ]);
+          }}
+          onClose={() => setFocusedExecutionWorkspace(null)}
+          open={Boolean(focusedExecutionWorkspace)}
+          planId={focusedExecutionWorkspace?.planId ?? null}
+          roles={roles}
+        />
+        </Suspense>
+      ) : null}
 
       {coordinationTarget ? (
-        <ScheduleResourcesScreen
+        <Suspense fallback={null}>
+          <ScheduleResourcesScreen
           appointmentEditorOnly
           initialPlanId={coordinationTarget}
           onEditorClose={() => {
@@ -2350,7 +2384,8 @@ export function CertificationProjectDetailScreen({
           }}
           onOpenProject={() => undefined}
           roles={roles}
-        />
+          />
+        </Suspense>
       ) : null}
     </div>
   );
