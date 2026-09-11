@@ -30,7 +30,11 @@ test('runtime browser helper still supports same-origin reverse-proxy deployment
   assert.match(deployment, /window\.location/);
 });
 
-test('authenticated dashboard shell is split from the login startup path', () => {
+test('login and authenticated dashboard are split after session restore', () => {
+  assert.match(application, /const LoginScreen = lazy\(\(\) =>/);
+  assert.match(application, /import\("\.\/LoginScreen"\)/);
+  assert.doesNotMatch(application, /import \{ LoginScreen \} from "\.\/LoginScreen"/);
+  assert.match(application, /Đang tải đăng nhập/);
   assert.match(application, /const DashboardShell = lazy\(\(\) =>/);
   assert.match(application, /import\("\.\/DashboardShell"\)/);
   assert.doesNotMatch(application, /import \{ DashboardShell \} from "\.\/DashboardShell"/);
