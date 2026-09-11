@@ -20,18 +20,17 @@ replaceExact(
   "const { Text } = Typography;",
 );
 
-replaceExact(
-  "app/components/ControlledDocumentPanel.tsx",
-  "  ], [canManage, currentUserId]);",
-  "  ], [canManage, currentUserId, libraryRevisionForm]);",
-  1,
-);
-replaceExact(
-  "app/components/ControlledDocumentPanel.tsx",
-  "  ], [canManage, currentUserId]);",
-  "  ], [canManage, currentUserId, renderForm, templateRevisionForm]);",
-  1,
-);
+{
+  const file = "app/components/ControlledDocumentPanel.tsx";
+  let source = read(file);
+  const needle = "  ], [canManage, currentUserId]);";
+  const count = source.split(needle).length - 1;
+  if (count !== 2) throw new Error(`${file}: expected 2 memo dependency markers, found ${count}`);
+  source = source.replace(needle, "  ], [canManage, currentUserId, libraryRevisionForm]);");
+  source = source.replace(needle, "  ], [canManage, currentUserId, renderForm, templateRevisionForm]);");
+  write(file, source);
+  console.log(`updated ${file}: library/template memo dependencies`);
+}
 
 replaceExact(
   "app/components/CustomerPortalAccountModal.tsx",
