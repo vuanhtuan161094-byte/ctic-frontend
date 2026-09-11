@@ -52,7 +52,7 @@ export function CertificationCaseHeader({ data, cycle, refreshing, onBack, onRef
         title={<span id="certification-case-title">{data.identity.case_reference}</span>}
         description={(
           <div className="cmp-case-primary-identity">
-            <strong>{customer.name}</strong>
+            <strong>{customer?.name ?? "Chưa xác định khách hàng"}</strong>
             <span>{data.standards_scope.display_name}</span>
           </div>
         )}
