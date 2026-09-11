@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: step18a-scaffold-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   cleanup:
     if: github.actor != 'github-actions[bot]'
@@ -56,13 +60,11 @@ jobs:
           if grep -q 'continue-on-error: true' .github/workflows/frontend-quality.yml; then
             echo "Repository TypeScript gate is still soft"; exit 1
           fi
-          unexpected=$(git diff --name-only | grep -Ev '^(\.openai/|app/chatgpt-auth\.ts$|app/layout\.tsx$|app/page\.tsx$|db/|drizzle/|drizzle\.config\.ts$|examples/|next\.config\.ts$|vite\.config\.ts$|worker/|package\.json$|package-lock\.json$|tsconfig\.all\.json$|eslint\.config\.mjs$|README\.md$|\.github/workflows/frontend-quality\.yml$|scripts/step18a-scaffold-cleanup\.mjs$|\.github/workflows/step18a-scaffold-cleanup\.yml$)' || true)
+          unexpected=$(git diff --name-only | grep -Ev '^(\.openai/|app/chatgpt-auth\.ts$|app/layout\.tsx$|app/page\.tsx$|db/|drizzle/|drizzle\.config\.ts$|examples/|next\.config\.ts$|vite\.config\.ts$|worker/|package\.json$|package-lock\.json$|tsconfig\.all\.json$|eslint\.config\.mjs$|README\.md$|scripts/step18a-scaffold-cleanup\.mjs$)' || true)
           if [ -n "$unexpected" ]; then echo "Unexpected changed files:"; echo "$unexpected"; exit 1; fi
           git diff --check
-      - name: Remove one-shot migration files
-        run: |
-          rm scripts/step18a-scaffold-cleanup.mjs
-          rm .github/workflows/step18a-scaffold-cleanup.yml
+      - name: Remove one-shot migration script
+        run: rm scripts/step18a-scaffold-cleanup.mjs
       - name: Commit and push verified cleanup
         shell: bash
         run: |
