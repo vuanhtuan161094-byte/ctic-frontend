@@ -1,0 +1,45 @@
+name: CMP Step 18A Final Lint Fix
+
+on:
+  push:
+    branches:
+      - feature/step18a-stabilization
+    paths:
+      - scripts/step18a-lint-final.mjs
+      - .github/workflows/step18a-lint-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/step18a-stabilization
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply final lint fix
+        run: node scripts/step18a-lint-final.mjs
+      - name: Remove one-shot files
+        run: |
+          rm scripts/step18a-lint-final.mjs
+          rm .github/workflows/step18a-lint-final.yml
+      - name: Verify bounded diff
+        shell: bash
+        run: |
+          unexpected=$(git diff --name-only | grep -Ev '^(app/components/ControlledDocumentPanel\.tsx|scripts/step18a-lint-final\.mjs|\.github/workflows/step18a-lint-final\.yml)$' || true)
+          if [ -n "$unexpected" ]; then echo "$unexpected"; exit 1; fi
+          git diff --check
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "cmp-step18a-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A app/components/ControlledDocumentPanel.tsx scripts/step18a-lint-final.mjs .github/workflows/step18a-lint-final.yml
+          git commit -m "fix(step18a): close final lint warnings"
+          git push origin HEAD:feature/step18a-stabilization
