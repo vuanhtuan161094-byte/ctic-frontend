@@ -15,10 +15,13 @@ import {
   applyPlatformBrandingToDocument,
   PLATFORM_BRANDING,
 } from "../lib/platform-branding";
-import { DashboardShell } from "./DashboardShell";
 import { LoginScreen } from "./LoginScreen";
 
 dayjs.locale("vi");
+
+const DashboardShell = lazy(() =>
+  import("./DashboardShell").then((module) => ({ default: module.DashboardShell })),
+);
 
 const DevCertificationCaseVisualShowcase = import.meta.env.DEV
   ? lazy(() => import("./certification-case/CertificationCaseVisualShowcase").then((module) => ({ default: module.CertificationCaseVisualShowcase })))
@@ -125,7 +128,11 @@ function ApplicationContent() {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  return <DashboardShell session={session} onLogout={handleLogout} />;
+  return (
+    <Suspense fallback={<div className="app-loading" aria-label="Đang tải không gian làm việc" />}>
+      <DashboardShell session={session} onLogout={handleLogout} />
+    </Suspense>
+  );
 }
 
 export function CticApplication() {
