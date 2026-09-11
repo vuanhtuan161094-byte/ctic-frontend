@@ -12,6 +12,8 @@
     "start": "vite preview --config vite.ctic.config.ts --port 5173",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:all": "tsc -p tsconfig.all.json --noEmit",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
