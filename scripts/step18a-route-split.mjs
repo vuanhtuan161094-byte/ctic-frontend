@@ -49,7 +49,10 @@ for (const entry of staticImports) {
 
 const typeAnchor = 'import type { PersonalWorkspace } from "../types/personal-workspace";\n';
 if (!shell.includes(typeAnchor)) throw new Error("PersonalWorkspace import anchor missing");
-const typeImports = `${typeAnchor}import type { CertificationAuditExecutionView, CertificationAuditSection } from "./certification-audit/CertificationAuditWorkspace";\nimport type { CapSection } from "./certification-cap/cap-model";\nimport type { ConfigurationRouteSection } from "./ConfigurationRouteScreen";\nimport type { AccountDetailSection } from "./AccountAccessDetailScreen";\n`;
+if (!shell.includes('import type { CapSection } from "./certification-cap/cap-model";')) {
+  throw new Error("Existing CAP section type import missing; abort route split");
+}
+const typeImports = `${typeAnchor}import type { CertificationAuditExecutionView, CertificationAuditSection } from "./certification-audit/CertificationAuditWorkspace";\nimport type { ConfigurationRouteSection } from "./ConfigurationRouteScreen";\nimport type { AccountDetailSection } from "./AccountAccessDetailScreen";\n`;
 shell = shell.replace(typeAnchor, typeImports);
 
 const lazyStart = 'const CertificationProjectDetailScreen = lazy(() =>\n';
