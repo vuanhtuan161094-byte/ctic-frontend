@@ -38,6 +38,10 @@ const DevTechnicalReviewWorkspace = import.meta.env.DEV
   ? lazy(() => import("./certification-review/DevTechnicalReviewWorkspace").then((module) => ({ default: module.DevTechnicalReviewWorkspace })))
   : null;
 
+export function isCertificateQaRoute(path: string) {
+  return /^\/certifications\/[^/]+\/certificates\/[^/]+$/.test(path) || /^\/portal\/certificates(?:\/[^/]+)?$/.test(path);
+}
+
 function ApplicationContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -103,7 +107,7 @@ function ApplicationContent() {
     return <div className="app-loading" aria-label="Đang tải hệ thống" />;
   }
 
-  if (import.meta.env.DEV && DevCertificateWorkspace && (window.location.pathname === "/__dev/certificate-workspace" || (window.sessionStorage.getItem("cmp-certificate-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {
+  if (import.meta.env.DEV && DevCertificateWorkspace && (window.location.pathname === "/__dev/certificate-workspace" || (window.sessionStorage.getItem("cmp-certificate-isolated-qa") && isCertificateQaRoute(window.location.pathname)))) {
     return <Suspense fallback={<div className="app-loading" />}><DevCertificateWorkspace /></Suspense>;
   }
   if (import.meta.env.DEV && DevDecisionWorkspace && (window.location.pathname === "/__dev/decision-workspace" || (window.sessionStorage.getItem("cmp-decision-isolated-qa") && !window.location.pathname.startsWith("/__dev/")))) {

@@ -9,6 +9,13 @@ const view = source("../app/components/certificate-workspace/CertificationCertif
 const page = source("../app/components/certificate-workspace/CertificateResourcePage.tsx");
 const owner = source("../app/components/CertificateIssuanceWorkspaceModal.tsx");
 const model = await load(view.slice(view.indexOf("export function certificateContextMatches"), view.indexOf("export function CertificationCertificateWorkspace")));
+const application = source("../app/components/CticApplication.tsx");
+const { isCertificateQaRoute } = await load(application.slice(application.indexOf("export function isCertificateQaRoute"), application.indexOf("function ApplicationContent")));
+test("Certificate fixture session cannot hijack locked Decision or other workspace refresh", () => {
+  assert.equal(isCertificateQaRoute("/certifications/c/certificates/k"), true);
+  assert.equal(isCertificateQaRoute("/portal/certificates"), true);
+  for (const path of ["/certifications/c/decision", "/certifications/c/technical-review", "/certifications/c/audits/p", "/certifications/c/findings/f", "/"]) assert.equal(isCertificateQaRoute(path), false);
+});
 test("canonical Certificate identity survives direct, refresh and history with encoded IDs", () => {
   const path = "/certifications/case%201/certificates/cert%2F2";
   const state = nav.parseCanonicalLocation(path, "", false);
