@@ -87,6 +87,8 @@ test("design-system foundation is white-label and the showcase stays development
   assert.doesNotMatch(sources.join("\n"), /\bCTIC\b/i);
   assert.match(main, /import\.meta\.env\.DEV/);
   assert.match(main, /has\("design-system"\)/);
+  assert.match(main, /const DevDesignSystemShowcase = import\.meta\.env\.DEV[\s\S]*lazy\(\(\) =>[\s\S]*import\("\.\.\/app\/components\/design-system\/DesignSystemShowcase"\)/);
+  assert.doesNotMatch(main, /import \{ DesignSystemShowcase \} from/);
   assert.doesNotMatch(shell, /DesignSystemShowcase/);
   assert.match(shell, /from "\.\/design-system"/);
 });
