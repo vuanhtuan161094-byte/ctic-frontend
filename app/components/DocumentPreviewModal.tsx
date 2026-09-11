@@ -29,11 +29,14 @@ export function DocumentPreviewModal({ file, onClose }: Props) {
   useEffect(() => {
     let active = true;
     let nativeUrl: string | null = null;
-    setPreview(null);
-    setError(null);
     if (!file) return undefined;
 
-    setLoading(true);
+    queueMicrotask(() => {
+      if (!active) return;
+      setPreview(null);
+      setError(null);
+      setLoading(true);
+    });
     void api.get<Blob>(`/document-files/${file.id}/download`, { responseType: "blob", timeout: 120_000 })
       .then(async (response) => {
         const mime = inferDocumentMimeType(file.original_name, String(response.headers["content-type"] ?? file.mime_type ?? ""));
@@ -42,7 +45,12 @@ export function DocumentPreviewModal({ file, onClose }: Props) {
           : new Blob([response.data], { type: mime });
         const built = await buildDocumentPreview(blob, file.original_name, mime);
         if (built.kind === "native") nativeUrl = built.url;
-        if (active) setPreview(built);
+        if (active) {
+          setPreview(built);
+        } else if (built.kind === "native") {
+          URL.revokeObjectURL(built.url);
+          nativeUrl = null;
+        }
       })
       .catch((reason) => { if (active) setError(getErrorMessage(reason)); })
       .finally(() => { if (active) setLoading(false); });

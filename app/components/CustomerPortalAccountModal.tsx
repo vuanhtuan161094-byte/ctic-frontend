@@ -104,12 +104,19 @@ export function CustomerPortalAccountModal({
   );
 
   useEffect(() => {
-    if (!open) return;
-    setResult(null);
-    form.resetFields();
-    if (customerId) {
-      form.setFieldValue("customer_id", customerId);
-    }
+    if (!open) return undefined;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setResult(null);
+      form.resetFields();
+      if (customerId) {
+        form.setFieldValue("customer_id", customerId);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [customerId, form, open]);
 
   const provisionMutation = useMutation({

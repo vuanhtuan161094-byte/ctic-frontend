@@ -33,7 +33,7 @@ import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 type IafScope = { id: string; iaf_code: string; iaf_name: string; is_active: boolean };
 type Scheme = { id: string; code: string; name: string; status: string };

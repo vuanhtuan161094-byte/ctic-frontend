@@ -677,7 +677,7 @@ export function ControlledDocumentPanel() {
         </Space>;
       },
     },
-  ], [canManage, currentUserId]);
+  ], [canManage, currentUserId, libraryRevisionForm]);
 
   const templateColumns = useMemo<TableColumnsType<TemplateSeries>>(() => [
     {
@@ -728,7 +728,7 @@ export function ControlledDocumentPanel() {
         </Space>;
       },
     },
-  ], [canManage, currentUserId]);
+  ], [canManage, currentUserId, renderForm, templateRevisionForm]);
 
   const documentColumns = useMemo<TableColumnsType<ControlledDocument>>(() => [
     { title: "Hồ sơ", key: "document", render: (_, row) => <Space direction="vertical" size={0}><Text strong>{row.document_number}</Text><Text>{row.document_name}</Text></Space> },

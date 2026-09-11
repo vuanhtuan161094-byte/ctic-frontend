@@ -82,7 +82,7 @@ async function inflateRaw(data: Uint8Array) {
   }
   const copy = new Uint8Array(data.byteLength);
   copy.set(data);
-  const stream = new Blob([copy.buffer]).stream().pipeThrough(new DecompressionStream("deflate-raw" as any));
+  const stream = new Blob([copy.buffer]).stream().pipeThrough(new DecompressionStream("deflate-raw" as CompressionFormat));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
