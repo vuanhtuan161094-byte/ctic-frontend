@@ -62,46 +62,11 @@ import type {
   DashboardOverview,
 } from "../types/dashboard";
 import type { PersonalWorkspace } from "../types/personal-workspace";
-import { CertificationCaseRegistryPage, CertificationCaseWorkspace } from "./certification-case";
-import {
-  CertificationAuditWorkspace,
-  type CertificationAuditExecutionView,
-  type CertificationAuditSection,
-} from "./certification-audit";
-import { CertificationCapWorkspace } from "./certification-cap/CertificationCapWorkspace";
-import { CertificationTechnicalReviewWorkspace } from "./certification-review/CertificationTechnicalReviewWorkspace";
-import { CertificationDecisionWorkspace } from "./certification-decision/CertificationDecisionWorkspace";
-import { CertificationCertificateWorkspace } from "./certificate-workspace/CertificationCertificateWorkspace";
+import type { CertificationAuditExecutionView, CertificationAuditSection } from "./certification-audit/CertificationAuditWorkspace";
+import type { ConfigurationRouteSection } from "./ConfigurationRouteScreen";
+import type { AccountDetailSection } from "./AccountAccessDetailScreen";
 import type { CapSection } from "./certification-cap/cap-model";
-import { CertificatesScreen } from "./CertificatesScreen";
-import { CustomersScreen } from "./CustomersScreen";
-import { CustomerCorrectiveActionsScreen } from "./CustomerCorrectiveActionsScreen";
-import { CustomerPortalDashboardScreen } from "./CustomerPortalDashboardScreen";
-import { CustomerProfileScreen } from "./CustomerProfileScreen";
-import { CustomerApplicationsScreen } from "./CustomerApplicationsScreen";
-import { CustomerAuditScheduleScreen } from "./CustomerAuditScheduleScreen";
-import { CustomerResultNotificationsScreen } from "./CustomerResultNotificationsScreen";
-import { CustomerCertificatesScreen } from "./CustomerCertificatesScreen";
-import { CustomerCertificationsScreen } from "./CustomerCertificationsScreen";
-import { CustomerChangeRequestsScreen } from "./CustomerChangeRequestsScreen";
-import { CustomerPortalUsersScreen } from "./CustomerPortalUsersScreen";
-import { CustomerUserRequestsScreen } from "./CustomerUserRequestsScreen";
-import { CustomerDocumentsScreen } from "./CustomerDocumentsScreen";
-import { CustomerDocumentRequestsScreen } from "./CustomerDocumentRequestsScreen";
-import { DocumentsScreen } from "./DocumentsScreen";
-import { GovernanceCasesScreen } from "./GovernanceCasesScreen";
-import { CustomerCasesScreen } from "./CustomerCasesScreen";
-import { MyTasksScreen } from "./MyTasksScreen";
-import { MyCalendarScreen } from "./MyCalendarScreen";
 import { NotificationCenter } from "./NotificationCenter";
-import { NotificationsScreen } from "./NotificationsScreen";
-import { PersonalDashboardScreen } from "./PersonalDashboardScreen";
-import { ManagementCockpitScreen } from "./ManagementCockpitScreen";
-import { SystemAdminScreen } from "./SystemAdminScreen";
-import { DelegationScreen } from "./DelegationScreen";
-import { ConfigurationRouteScreen, type ConfigurationRouteSection } from "./ConfigurationRouteScreen";
-import { AccountAccessDetailScreen, type AccountDetailSection } from "./AccountAccessDetailScreen";
-import { RolesPermissionsScreen } from "./RolesPermissionsScreen";
 
 const CertificationProjectDetailScreen = lazy(() =>
   import("./CertificationProjectDetailScreen").then((module) => ({ default: module.CertificationProjectDetailScreen })),
@@ -115,7 +80,111 @@ const ExpertsScreen = lazy(() =>
 const ScheduleResourcesScreen = lazy(() =>
   import("./ScheduleResourcesScreen").then((module) => ({ default: module.ScheduleResourcesScreen })),
 );
-
+const CertificationCaseRegistryPage = lazy(() =>
+  import("./certification-case/CertificationCaseRegistryPage").then((module) => ({ default: module.CertificationCaseRegistryPage })),
+);
+const CertificationCaseWorkspace = lazy(() =>
+  import("./certification-case/CertificationCaseWorkspace").then((module) => ({ default: module.CertificationCaseWorkspace })),
+);
+const CertificationAuditWorkspace = lazy(() =>
+  import("./certification-audit/CertificationAuditWorkspace").then((module) => ({ default: module.CertificationAuditWorkspace })),
+);
+const CertificationCapWorkspace = lazy(() =>
+  import("./certification-cap/CertificationCapWorkspace").then((module) => ({ default: module.CertificationCapWorkspace })),
+);
+const CertificationTechnicalReviewWorkspace = lazy(() =>
+  import("./certification-review/CertificationTechnicalReviewWorkspace").then((module) => ({ default: module.CertificationTechnicalReviewWorkspace })),
+);
+const CertificationDecisionWorkspace = lazy(() =>
+  import("./certification-decision/CertificationDecisionWorkspace").then((module) => ({ default: module.CertificationDecisionWorkspace })),
+);
+const CertificationCertificateWorkspace = lazy(() =>
+  import("./certificate-workspace/CertificationCertificateWorkspace").then((module) => ({ default: module.CertificationCertificateWorkspace })),
+);
+const CertificatesScreen = lazy(() =>
+  import("./CertificatesScreen").then((module) => ({ default: module.CertificatesScreen })),
+);
+const CustomersScreen = lazy(() =>
+  import("./CustomersScreen").then((module) => ({ default: module.CustomersScreen })),
+);
+const CustomerCorrectiveActionsScreen = lazy(() =>
+  import("./CustomerCorrectiveActionsScreen").then((module) => ({ default: module.CustomerCorrectiveActionsScreen })),
+);
+const CustomerPortalDashboardScreen = lazy(() =>
+  import("./CustomerPortalDashboardScreen").then((module) => ({ default: module.CustomerPortalDashboardScreen })),
+);
+const CustomerProfileScreen = lazy(() =>
+  import("./CustomerProfileScreen").then((module) => ({ default: module.CustomerProfileScreen })),
+);
+const CustomerApplicationsScreen = lazy(() =>
+  import("./CustomerApplicationsScreen").then((module) => ({ default: module.CustomerApplicationsScreen })),
+);
+const CustomerAuditScheduleScreen = lazy(() =>
+  import("./CustomerAuditScheduleScreen").then((module) => ({ default: module.CustomerAuditScheduleScreen })),
+);
+const CustomerResultNotificationsScreen = lazy(() =>
+  import("./CustomerResultNotificationsScreen").then((module) => ({ default: module.CustomerResultNotificationsScreen })),
+);
+const CustomerCertificatesScreen = lazy(() =>
+  import("./CustomerCertificatesScreen").then((module) => ({ default: module.CustomerCertificatesScreen })),
+);
+const CustomerCertificationsScreen = lazy(() =>
+  import("./CustomerCertificationsScreen").then((module) => ({ default: module.CustomerCertificationsScreen })),
+);
+const CustomerChangeRequestsScreen = lazy(() =>
+  import("./CustomerChangeRequestsScreen").then((module) => ({ default: module.CustomerChangeRequestsScreen })),
+);
+const CustomerPortalUsersScreen = lazy(() =>
+  import("./CustomerPortalUsersScreen").then((module) => ({ default: module.CustomerPortalUsersScreen })),
+);
+const CustomerUserRequestsScreen = lazy(() =>
+  import("./CustomerUserRequestsScreen").then((module) => ({ default: module.CustomerUserRequestsScreen })),
+);
+const CustomerDocumentsScreen = lazy(() =>
+  import("./CustomerDocumentsScreen").then((module) => ({ default: module.CustomerDocumentsScreen })),
+);
+const CustomerDocumentRequestsScreen = lazy(() =>
+  import("./CustomerDocumentRequestsScreen").then((module) => ({ default: module.CustomerDocumentRequestsScreen })),
+);
+const DocumentsScreen = lazy(() =>
+  import("./DocumentsScreen").then((module) => ({ default: module.DocumentsScreen })),
+);
+const GovernanceCasesScreen = lazy(() =>
+  import("./GovernanceCasesScreen").then((module) => ({ default: module.GovernanceCasesScreen })),
+);
+const CustomerCasesScreen = lazy(() =>
+  import("./CustomerCasesScreen").then((module) => ({ default: module.CustomerCasesScreen })),
+);
+const MyTasksScreen = lazy(() =>
+  import("./MyTasksScreen").then((module) => ({ default: module.MyTasksScreen })),
+);
+const MyCalendarScreen = lazy(() =>
+  import("./MyCalendarScreen").then((module) => ({ default: module.MyCalendarScreen })),
+);
+const NotificationsScreen = lazy(() =>
+  import("./NotificationsScreen").then((module) => ({ default: module.NotificationsScreen })),
+);
+const PersonalDashboardScreen = lazy(() =>
+  import("./PersonalDashboardScreen").then((module) => ({ default: module.PersonalDashboardScreen })),
+);
+const ManagementCockpitScreen = lazy(() =>
+  import("./ManagementCockpitScreen").then((module) => ({ default: module.ManagementCockpitScreen })),
+);
+const SystemAdminScreen = lazy(() =>
+  import("./SystemAdminScreen").then((module) => ({ default: module.SystemAdminScreen })),
+);
+const DelegationScreen = lazy(() =>
+  import("./DelegationScreen").then((module) => ({ default: module.DelegationScreen })),
+);
+const ConfigurationRouteScreen = lazy(() =>
+  import("./ConfigurationRouteScreen").then((module) => ({ default: module.ConfigurationRouteScreen })),
+);
+const AccountAccessDetailScreen = lazy(() =>
+  import("./AccountAccessDetailScreen").then((module) => ({ default: module.AccountAccessDetailScreen })),
+);
+const RolesPermissionsScreen = lazy(() =>
+  import("./RolesPermissionsScreen").then((module) => ({ default: module.RolesPermissionsScreen })),
+);
 const { Header, Content, Sider } = Layout;
 interface DashboardShellProps {
   session: AuthSession;

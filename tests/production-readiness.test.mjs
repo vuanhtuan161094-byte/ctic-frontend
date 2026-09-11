@@ -37,19 +37,61 @@ test('authenticated dashboard shell is split from the login startup path', () =>
   assert.match(application, /Đang tải không gian làm việc/);
 });
 
-test('heavy operational screens are route-lazy behind the persistent app shell', () => {
+test('all route-level screens are lazy behind the persistent app shell', () => {
   assert.match(dashboardShell, /import \{ lazy, Suspense,/);
   for (const screen of [
     'CertificationProjectDetailScreen',
     'CertificationProjectsScreen',
     'ExpertsScreen',
     'ScheduleResourcesScreen',
+    'CertificationCaseRegistryPage',
+    'CertificationCaseWorkspace',
+    'CertificationAuditWorkspace',
+    'CertificationCapWorkspace',
+    'CertificationTechnicalReviewWorkspace',
+    'CertificationDecisionWorkspace',
+    'CertificationCertificateWorkspace',
+    'CertificatesScreen',
+    'CustomersScreen',
+    'CustomerCorrectiveActionsScreen',
+    'CustomerPortalDashboardScreen',
+    'CustomerProfileScreen',
+    'CustomerApplicationsScreen',
+    'CustomerAuditScheduleScreen',
+    'CustomerResultNotificationsScreen',
+    'CustomerCertificatesScreen',
+    'CustomerCertificationsScreen',
+    'CustomerChangeRequestsScreen',
+    'CustomerPortalUsersScreen',
+    'CustomerUserRequestsScreen',
+    'CustomerDocumentsScreen',
+    'CustomerDocumentRequestsScreen',
+    'DocumentsScreen',
+    'GovernanceCasesScreen',
+    'CustomerCasesScreen',
+    'MyTasksScreen',
+    'MyCalendarScreen',
+    'NotificationsScreen',
+    'PersonalDashboardScreen',
+    'ManagementCockpitScreen',
+    'SystemAdminScreen',
+    'DelegationScreen',
+    'ConfigurationRouteScreen',
+    'AccountAccessDetailScreen',
+    'RolesPermissionsScreen',
   ]) {
     assert.match(dashboardShell, new RegExp(`const ${screen} = lazy\\(\\(\\) =>`));
-    assert.match(dashboardShell, new RegExp(`import\\(\\"\\.\\/${screen}\\"\\)`));
-    assert.doesNotMatch(dashboardShell, new RegExp(`import \\{ ${screen} \\} from \\"\\.\\/${screen}\\"`));
   }
   assert.match(dashboardShell, /<Suspense fallback=\{<LoadingSkeleton variant="detail" rows=\{10\} \/>\}>/);
+  assert.match(dashboardShell, /import \{ NotificationCenter \} from "\.\/NotificationCenter"/);
+});
+
+test('dashboard shell production chunk stays below 500 kB', () => {
+  const assetsDir = new URL('../dist/assets/', import.meta.url);
+  const shellAsset = fs.readdirSync(assetsDir).find((name) => /^DashboardShell-.*\.js$/.test(name));
+  assert.ok(shellAsset, 'DashboardShell production chunk was not emitted');
+  const bytes = fs.statSync(new URL(shellAsset, assetsDir)).size;
+  assert.ok(bytes < 500 * 1024, `DashboardShell chunk is ${bytes} bytes; expected < 512000`);
 });
 
 test('frontend lint gate rejects warnings instead of accumulating debt', () => {
