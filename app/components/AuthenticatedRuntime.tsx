@@ -3,6 +3,7 @@
 import type { AuthSession } from "../lib/api";
 import { DashboardShell } from "./DashboardShell";
 import { QueryRuntime } from "./QueryRuntime";
+import { UiRuntime } from "./UiRuntime";
 
 export function AuthenticatedRuntime({
   session,
@@ -12,8 +13,10 @@ export function AuthenticatedRuntime({
   onLogout: () => void;
 }) {
   return (
-    <QueryRuntime>
-      <DashboardShell session={session} onLogout={onLogout} />
-    </QueryRuntime>
+    <UiRuntime>
+      <QueryRuntime>
+        <DashboardShell session={session} onLogout={onLogout} />
+      </QueryRuntime>
+    </UiRuntime>
   );
 }
