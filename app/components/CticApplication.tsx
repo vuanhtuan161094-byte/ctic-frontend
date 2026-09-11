@@ -15,9 +15,12 @@ import {
   applyPlatformBrandingToDocument,
   PLATFORM_BRANDING,
 } from "../lib/platform-branding";
-import { LoginScreen } from "./LoginScreen";
 
 dayjs.locale("vi");
+
+const LoginScreen = lazy(() =>
+  import("./LoginScreen").then((module) => ({ default: module.LoginScreen })),
+);
 
 const DashboardShell = lazy(() =>
   import("./DashboardShell").then((module) => ({ default: module.DashboardShell })),
@@ -125,7 +128,11 @@ function ApplicationContent() {
   }
 
   if (!session) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return (
+      <Suspense fallback={<div className="app-loading" aria-label="Đang tải đăng nhập" />}>
+        <LoginScreen onLogin={handleLogin} />
+      </Suspense>
+    );
   }
 
   return (
