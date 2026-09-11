@@ -125,6 +125,22 @@ test('all route-level screens are lazy behind the persistent app shell', () => {
   assert.match(dashboardShell, /import \{ NotificationCenter \} from "\.\/NotificationCenter"/);
 });
 
+test('bootstrap production entry stays below 350 kB', () => {
+  const assetsDir = new URL('../dist/assets/', import.meta.url);
+  const entryAsset = fs.readdirSync(assetsDir).find((name) => /^index-.*\.js$/.test(name));
+  assert.ok(entryAsset, 'Production bootstrap entry was not emitted');
+  const bytes = fs.statSync(new URL(entryAsset, assetsDir)).size;
+  assert.ok(bytes < 350 * 1024, `Bootstrap entry is ${bytes} bytes; expected < 358400`);
+});
+
+test('shared UI runtime production chunk stays below 500 kB', () => {
+  const assetsDir = new URL('../dist/assets/', import.meta.url);
+  const uiAsset = fs.readdirSync(assetsDir).find((name) => /^UiRuntime-.*\.js$/.test(name));
+  assert.ok(uiAsset, 'UiRuntime production chunk was not emitted');
+  const bytes = fs.statSync(new URL(uiAsset, assetsDir)).size;
+  assert.ok(bytes < 500 * 1024, `UiRuntime chunk is ${bytes} bytes; expected < 512000`);
+});
+
 test('authenticated runtime production chunk stays below 500 kB', () => {
   const assetsDir = new URL('../dist/assets/', import.meta.url);
   const runtimeAsset = fs.readdirSync(assetsDir).find((name) => /^AuthenticatedRuntime-.*\.js$/.test(name));
