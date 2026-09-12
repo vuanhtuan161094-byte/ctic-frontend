@@ -29,6 +29,8 @@ jobs:
           from pathlib import Path
           p = Path('app/components/CustomerApplicationsScreen.tsx')
           s = p.read_text(encoding='utf-8')
+
+          # Keep persisted DTO shape singular while the edit form uses a multi-select.
           start = s.index('interface CustomerApplication {')
           end = s.index('\n}\n\ninterface ApplicationFormValues', start)
           block = s[start:end]
@@ -39,6 +41,51 @@ jobs:
           block = s[start:end]
           block = block.replace('  standard_name: string;', '  standard_names: string[];', 1)
           s = s[:start] + block + s[end:]
+
+          # Give multi-standard selection a full row so long integrated scopes remain readable.
+          old = '''            <Col xs={24} md={8}>
+              <Form.Item label="Ngày đăng ký" name="application_date" rules={[{ required: true, message: "Chọn ngày đăng ký" }]}>
+                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item label="Loại chứng nhận" name="certification_type">
+                <Select options={[
+                  { value: "INITIAL", label: "Chứng nhận lần đầu" },
+                  { value: "TRANSFER", label: "Chuyển đổi chứng nhận" },
+                  { value: "OTHER", label: "Khác" },
+                ]} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                extra="Chỉ hiển thị tiêu chuẩn mà tổ chức chứng nhận đang tiếp nhận."
+                label="Tiêu chuẩn"
+'''
+          new = '''            <Col xs={24} md={12}>
+              <Form.Item label="Ngày đăng ký" name="application_date" rules={[{ required: true, message: "Chọn ngày đăng ký" }]}>
+                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item label="Loại chứng nhận" name="certification_type">
+                <Select options={[
+                  { value: "INITIAL", label: "Chứng nhận lần đầu" },
+                  { value: "TRANSFER", label: "Chuyển đổi chứng nhận" },
+                  { value: "OTHER", label: "Khác" },
+                ]} />
+              </Form.Item>
+            </Col>
+            <Col xs={24}>
+              <Form.Item
+                extra="Chỉ hiển thị tiêu chuẩn mà tổ chức chứng nhận đang tiếp nhận."
+                label="Tiêu chuẩn áp dụng"
+'''
+          if old in s:
+              s = s.replace(old, new, 1)
+          elif 'label="Tiêu chuẩn áp dụng"' not in s:
+              raise SystemExit('customer standard layout anchor missing')
+
           p.write_text(s, encoding='utf-8')
           PY
       - name: Verify frontend
@@ -56,6 +103,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No frontend patch needed"
           else
-            git commit -m "ux: bind application standards to program authority"
+            git commit -m "ux: refine application standard selection"
             git push origin HEAD:feature/ux-fix-batch01
           fi
