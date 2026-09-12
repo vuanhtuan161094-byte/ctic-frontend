@@ -285,6 +285,20 @@ interface IndustryCodeOption {
   is_active?: boolean;
 }
 
+interface OperationalStandardEdition {
+  id: string;
+  scheme_id: string;
+  standard_code: string;
+  standard_name: string;
+  edition: string;
+  effective_from: string;
+  scheme: {
+    id: string;
+    code: string;
+    name: string;
+  };
+}
+
 interface IndustryScopeSelection {
   isic_code_id: string;
   isic_code: string;
@@ -591,14 +605,6 @@ const projectWizardSteps = [
   { title: "Chọn đơn" },
   { title: "Hợp đồng" },
   { title: "Khởi tạo" },
-];
-
-const standardOptions = [
-  "ISO 9001:2015",
-  "ISO 14001:2015",
-  "ISO 45001:2018",
-  "ISO 22000:2018",
-  "ISO/IEC 27001:2022",
 ];
 
 const imsIntegrationCriteriaOptions = [
@@ -1140,6 +1146,14 @@ function normalizeStatus(value?: string | null) {
   return (value ?? "unknown").trim().toLowerCase();
 }
 
+function operationalStandardLabel(row: Pick<OperationalStandardEdition, "standard_code" | "edition">) {
+  const code = row.standard_code.trim();
+  const edition = row.edition.trim();
+  return edition && !code.toUpperCase().includes(edition.toUpperCase())
+    ? `${code}:${edition}`
+    : code;
+}
+
 function formatDatePayload(value?: Dayjs) {
   return value?.isValid() ? value.format("YYYY-MM-DD") : undefined;
 }
@@ -1253,6 +1267,19 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     refetchOnWindowFocus: false,
   });
 
+  const operationalStandardsQuery = useQuery({
+    queryKey: ["master-data-configuration", "operational-standards"],
+    queryFn: async () => {
+      const response = await api.get<OperationalStandardEdition[]>("/master-data-configuration/operational-standards");
+      return response.data;
+    },
+    enabled: creationOpen,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
   const applicationsQuery = useQuery({
     queryKey: ["certification-applications", "project-creation"],
     queryFn: async () => {
@@ -1342,6 +1369,23 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data]);
   const customers = customersQuery.data ?? [];
+  const operationalStandards = useMemo(() => operationalStandardsQuery.data ?? [], [operationalStandardsQuery.data]);
+  const operationalStandardOptions = useMemo(() => {
+    const groups = new Map<string, { label: string; options: Array<{ value: string; label: string }> }>();
+    for (const row of operationalStandards) {
+      const key = row.scheme.id;
+      const group = groups.get(key) ?? {
+        label: `${row.scheme.code} · ${row.scheme.name}`,
+        options: [],
+      };
+      const label = operationalStandardLabel(row);
+      if (!group.options.some((item) => item.value === label)) {
+        group.options.push({ value: label, label });
+      }
+      groups.set(key, group);
+    }
+    return Array.from(groups.values());
+  }, [operationalStandards]);
   const applications = useMemo(() => applicationsQuery.data ?? [], [applicationsQuery.data]);
   const contracts = useMemo(() => contractsQuery.data ?? [], [contractsQuery.data]);
   const agreements = useMemo(() => agreementsQuery.data ?? [], [agreementsQuery.data]);
@@ -3830,13 +3874,40 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                             <Input />
                           </Form.Item>
                         ) : <div />}
-                        <Form.Item className="span-2" label="Chuẩn mực chứng nhận" name="standard_names" rules={[{ required: true, message: "Chọn ít nhất một tiêu chuẩn" }]}>
+                        <Form.Item
+                          className="span-2"
+                          extra="Danh sách được lấy từ cấu hình Chương trình & tiêu chuẩn đang sẵn sàng cho hồ sơ mới."
+                          label="Chuẩn mực chứng nhận"
+                          name="standard_names"
+                          rules={[{ required: true, message: "Chọn ít nhất một tiêu chuẩn" }]}
+                        >
                           <Select
-                            mode="tags"
-                            options={standardOptions.map((value) => ({ value, label: value }))}
-                            placeholder="Chọn hoặc nhập tiêu chuẩn"
+                            disabled={operationalStandardsQuery.isError || (!operationalStandardsQuery.isLoading && operationalStandards.length === 0)}
+                            loading={operationalStandardsQuery.isLoading}
+                            mode="multiple"
+                            optionFilterProp="label"
+                            options={operationalStandardOptions}
+                            placeholder={operationalStandardsQuery.isLoading ? "Đang tải tiêu chuẩn..." : "Chọn tiêu chuẩn đang áp dụng"}
+                            showSearch
                           />
                         </Form.Item>
+                        {operationalStandardsQuery.isError ? (
+                          <Alert
+                            className="span-2"
+                            description="Không thể tải danh sách tiêu chuẩn đang áp dụng. Thử lại trước khi lưu đơn đăng ký mới."
+                            message="Chưa tải được Chương trình & tiêu chuẩn"
+                            showIcon
+                            type="error"
+                          />
+                        ) : !operationalStandardsQuery.isLoading && operationalStandards.length === 0 ? (
+                          <Alert
+                            className="span-2"
+                            description="Quản trị viên cần hoàn tất chương trình, phiên bản tiêu chuẩn và bộ quy tắc chứng nhận trước khi tiếp nhận đơn mới."
+                            message="Chưa có tiêu chuẩn sẵn sàng cho hồ sơ mới"
+                            showIcon
+                            type="warning"
+                          />
+                        ) : null}
                         <Form.Item className="span-2" label="Điều khoản loại trừ (nếu có)" name="excluded_clauses"><Input placeholder="Ví dụ: 8.3" /></Form.Item>
                         <Form.Item className="span-2" label="Phạm vi đăng ký chứng nhận" name="certification_scope" validateTrigger="onBlur" rules={[{ required: true, message: "Nhập phạm vi chứng nhận" }]}>
                           <TextArea

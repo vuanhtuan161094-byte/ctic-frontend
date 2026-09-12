@@ -42,6 +42,21 @@ interface CustomerPortalOrganization {
   company_name: string;
 }
 
+interface OperationalStandardEdition {
+  id: string;
+  scheme_id: string;
+  standard_code: string;
+  standard_name: string;
+  edition: string;
+  effective_from: string;
+  label?: string;
+  scheme: {
+    id: string;
+    code: string;
+    name: string;
+  };
+}
+
 interface CustomerApplicationSite {
   site_no?: number;
   site_name?: string | null;
@@ -97,7 +112,7 @@ interface ApplicationFormValues {
   customer_id?: string;
   application_date: Dayjs;
   certification_type?: string;
-  standard_name: string;
+  standard_names: string[];
   certification_scope: string;
   headquarters_address?: string;
   representative_name?: string;
@@ -148,9 +163,20 @@ function toDate(value?: string | null) {
   return value ? dayjs(value) : undefined;
 }
 
+function operationalStandardLabel(row: Pick<OperationalStandardEdition, "standard_code" | "edition" | "label">) {
+  if (row.label?.trim()) return row.label.trim();
+  const code = row.standard_code.trim();
+  const edition = row.edition.trim();
+  return edition && !code.toUpperCase().includes(edition.toUpperCase())
+    ? `${code}:${edition}`
+    : code;
+}
+
 function toPayload(values: ApplicationFormValues) {
+  const { standard_names, ...rest } = values;
   return {
-    ...values,
+    ...rest,
+    standard_name: (standard_names ?? []).join(" + "),
     application_date: values.application_date.format("YYYY-MM-DD"),
     requested_audit_date: values.requested_audit_date?.format("YYYY-MM-DD"),
     stage1_requested_date: values.stage1_requested_date?.format("YYYY-MM-DD"),
@@ -175,6 +201,15 @@ export function CustomerApplicationsScreen() {
     queryFn: async () => (
       await api.get<CustomerApplication[]>("/customer-portal/me/applications")
     ).data,
+  });
+  const operationalStandardsQuery = useQuery({
+    queryKey: ["customer-portal", "operational-standards"],
+    queryFn: async () => (
+      await api.get<OperationalStandardEdition[]>("/customer-portal/me/operational-standards")
+    ).data,
+    enabled: modalOpen,
+    staleTime: 60_000,
+    retry: false,
   });
   const organizationsQuery = useQuery({
     queryKey: ["customer-portal", "profile"],
@@ -220,6 +255,22 @@ export function CustomerApplicationsScreen() {
   });
 
   const organizations = useMemo(() => organizationsQuery.data ?? [], [organizationsQuery.data]);
+  const operationalStandards = useMemo(() => operationalStandardsQuery.data ?? [], [operationalStandardsQuery.data]);
+  const operationalStandardOptions = useMemo(() => {
+    const groups = new Map<string, { label: string; options: Array<{ value: string; label: string }> }>();
+    for (const row of operationalStandards) {
+      const group = groups.get(row.scheme.id) ?? {
+        label: `${row.scheme.code} · ${row.scheme.name}`,
+        options: [],
+      };
+      const label = operationalStandardLabel(row);
+      if (!group.options.some((item) => item.value === label)) {
+        group.options.push({ value: label, label });
+      }
+      groups.set(row.scheme.id, group);
+    }
+    return Array.from(groups.values());
+  }, [operationalStandards]);
   const organizationOptions = useMemo(
     () => organizations.map((item) => ({
       value: item.id,
@@ -247,7 +298,7 @@ export function CustomerApplicationsScreen() {
       customer_id: item.customer_id,
       application_date: dayjs(item.application_date),
       certification_type: item.certification_type ?? undefined,
-      standard_name: item.standard_name,
+      standard_names: item.standard_name.split(" + ").map((value) => value.trim()).filter(Boolean),
       certification_scope: item.certification_scope,
       headquarters_address: item.headquarters_address ?? undefined,
       representative_name: item.representative_name ?? undefined,
@@ -418,11 +469,42 @@ export function CustomerApplicationsScreen() {
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
-              <Form.Item label="Tiêu chuẩn" name="standard_name" rules={[{ required: true, message: "Nhập tiêu chuẩn" }]}>
-                <Input placeholder="Ví dụ: ISO 9001:2015" />
+              <Form.Item
+                extra="Chỉ hiển thị tiêu chuẩn mà tổ chức chứng nhận đang tiếp nhận."
+                label="Tiêu chuẩn"
+                name="standard_names"
+                rules={[{ required: true, message: "Chọn ít nhất một tiêu chuẩn" }]}
+              >
+                <Select
+                  disabled={operationalStandardsQuery.isError || (!operationalStandardsQuery.isLoading && operationalStandards.length === 0)}
+                  loading={operationalStandardsQuery.isLoading}
+                  mode="multiple"
+                  optionFilterProp="label"
+                  options={operationalStandardOptions}
+                  placeholder={operationalStandardsQuery.isLoading ? "Đang tải tiêu chuẩn..." : "Chọn tiêu chuẩn"}
+                  showSearch
+                />
               </Form.Item>
             </Col>
           </Row>
+
+          {operationalStandardsQuery.isError ? (
+            <Alert
+              description="Không thể tải danh sách tiêu chuẩn đang tiếp nhận. Vui lòng thử lại trước khi lưu đơn."
+              message="Chưa tải được danh sách tiêu chuẩn"
+              showIcon
+              style={{ marginBottom: 16 }}
+              type="error"
+            />
+          ) : !operationalStandardsQuery.isLoading && operationalStandards.length === 0 ? (
+            <Alert
+              description="Hiện chưa có chương trình và phiên bản tiêu chuẩn sẵn sàng tiếp nhận đơn mới."
+              message="Chưa có tiêu chuẩn đang tiếp nhận"
+              showIcon
+              style={{ marginBottom: 16 }}
+              type="warning"
+            />
+          ) : null}
 
           <Form.Item label="Phạm vi đề nghị chứng nhận" name="certification_scope" rules={[{ required: true, message: "Nhập phạm vi chứng nhận" }]}>
             <TextArea autoSize={{ minRows: 2, maxRows: 5 }} />

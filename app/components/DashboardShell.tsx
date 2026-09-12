@@ -945,8 +945,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             key: "configuration-certification-group",
             label: "Cấu hình chứng nhận",
             children: [
-              { key: "configuration-schemes", label: "Chương trình chứng nhận" },
-              { key: "configuration-standards", label: "Tiêu chuẩn & phiên bản" },
+              { key: "configuration-schemes", label: "Chương trình & tiêu chuẩn" },
               { key: "configuration-capabilities", label: "Phạm vi năng lực" },
               { key: "configuration-numbering", label: "Quy tắc đánh số" },
               { key: "configuration-branding", label: "Tổ chức & nhận diện" },
@@ -972,7 +971,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         label: "KHÔNG GIAN LÀM VIỆC",
         children: [
           { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
-          { key: "my-tasks", icon: <CheckCircleOutlined />, label: <MenuLabel label="Công việc của tôi" count={taskCount} /> },
+          { key: "my-tasks", icon: <CheckCircleOutlined />, label: <MenuLabel label="Công việc" count={taskCount} /> },
           { key: "my-calendar", icon: <CalendarOutlined />, label: "Lịch" },
           { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
         ],
@@ -991,7 +990,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   ];
 
   const currentPageLabel: Partial<Record<ActiveView, string>> = {
-    "my-tasks": "Công việc của tôi",
+    "my-tasks": "Công việc",
     "my-calendar": "Lịch",
     notifications: "Thông báo",
     delegations: "Ủy quyền công việc",
@@ -1018,8 +1017,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     "admin-account-sessions": "Phiên & bảo mật",
     "admin-account-activity": "Hoạt động tài khoản",
     "admin-roles-permissions": "Vai trò & quyền",
-    "configuration-schemes": "Chương trình chứng nhận",
-    "configuration-standards": "Tiêu chuẩn & phiên bản",
+    "configuration-schemes": "Chương trình & tiêu chuẩn",
+    "configuration-standards": "Chương trình & tiêu chuẩn",
     "configuration-capabilities": "Phạm vi năng lực",
     "configuration-numbering": "Quy tắc đánh số",
     "configuration-branding": "Tổ chức & nhận diện",

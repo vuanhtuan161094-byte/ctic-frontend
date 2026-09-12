@@ -908,7 +908,7 @@ export function CertificationProgramsPanel() {
 
           <Form.Item
             name="required_audit_types"
-            label="Loại đánh giá bắt buộc"
+            label="Danh mục loại đánh giá"
             dependencies={["stage1_applicable", "required_decision_types"]}
             rules={[
               { required: true, message: "Chọn ít nhất một loại đánh giá" },
@@ -926,7 +926,7 @@ export function CertificationProgramsPanel() {
           >
             <Select mode="multiple" options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
-          <Form.Item name="required_decision_types" label="Loại quyết định bắt buộc" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
+          <Form.Item name="required_decision_types" label="Danh mục loại quyết định" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
             <Select mode="multiple" options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
 
