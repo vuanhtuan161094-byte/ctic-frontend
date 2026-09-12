@@ -64,7 +64,7 @@ export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: M
       <List.Item.Meta
         description={(
           <Space size={[8, 4]} wrap>
-            <span>{item.project_code ?? "Không gắn hồ sơ"}</span>
+            <span>{item.project_code ?? "Chưa tạo hồ sơ"}</span>
             <span>{item.organization_name ?? "—"}</span>
             {item.role_in_event ? <span>Vai trò: {item.role_in_event.replaceAll("_", " ")}</span> : null}
             <span><ClockCircleOutlined /> {dayjs(item.start).format("DD/MM/YYYY")}</span>
@@ -79,9 +79,9 @@ export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: M
     <div className="my-calendar-screen">
       <div className="screen-heading-row">
         <div>
-          <Text className="screen-eyebrow">LỊCH CÁ NHÂN</Text>
-          <Title level={1}>Lịch của tôi</Title>
-          <Text type="secondary">Chỉ gồm lịch đánh giá được phân công và hạn công việc của bạn.</Text>
+          <Text className="screen-eyebrow">LỊCH NGHIỆP VỤ</Text>
+          <Title level={1}>Lịch</Title>
+          <Text type="secondary">Lịch đánh giá được phân công và các hạn công việc liên quan.</Text>
         </div>
         <Space>
           <Segmented
@@ -107,7 +107,7 @@ export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: M
           </Card>
         </section>
       ) : (
-        <Card title="Danh sách lịch của tôi">
+        <Card title="Danh sách lịch">
           <List
             dataSource={agendaItems}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lịch đánh giá hoặc hạn công việc." /> }}
