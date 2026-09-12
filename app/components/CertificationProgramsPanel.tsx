@@ -10,16 +10,18 @@ import {
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Button,
   Card,
   DatePicker,
+  Divider,
   Dropdown,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
+  Switch,
   Tag,
   Typography,
   message,
@@ -29,7 +31,7 @@ import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
-const { Paragraph, Text } = Typography;
+const { Text } = Typography;
 const base = "/master-data-configuration";
 
 type Scheme = {
@@ -54,11 +56,29 @@ type Standard = {
   scheme: Scheme;
 };
 
+type SchemeConfig = {
+  id: string;
+  scheme_id: string;
+  version_no: number;
+  status: string;
+  effective_from: string;
+  effective_to?: string | null;
+  cycle_duration_months: number;
+  surveillance_frequency_months: number;
+  stage1_applicable: boolean;
+  validity_duration_months: number;
+  renewal_window_days: number;
+  reminder_lead_days: number;
+  required_audit_types: string[] | string;
+  required_decision_types: string[] | string;
+};
+
 type ReadinessItem = {
   id: string;
   code: string;
   status: "READY" | "NEEDS_ATTENTION";
   issues: string[];
+  active_configuration?: SchemeConfig | null;
 };
 
 type ConfigurationReadiness = {
@@ -80,12 +100,50 @@ type StandardFormValues = {
   standard_name: string;
   edition: string;
   effective_from: dayjs.Dayjs;
+  withdrawn_at?: dayjs.Dayjs | null;
+};
+
+type RuleFormValues = {
+  scheme_id: string;
+  version_no: number;
+  effective_from: dayjs.Dayjs;
+  cycle_duration_months: number;
+  surveillance_frequency_months: number;
+  stage1_applicable: boolean;
+  validity_duration_months: number;
+  renewal_window_days: number;
+  reminder_lead_days: number;
+  required_audit_types: string[];
+  required_decision_types: string[];
+};
+
+type StandardFamily = {
+  key: string;
+  code: string;
+  name: string;
+  editions: Standard[];
 };
 
 const builtInProgramNames: Record<string, string> = {
   QMS: "Hệ thống quản lý chất lượng",
   EMS: "Hệ thống quản lý môi trường",
   OHSMS: "Hệ thống quản lý an toàn và sức khỏe nghề nghiệp",
+};
+
+const auditTypeLabels: Record<string, string> = {
+  INITIAL_STAGE_1: "Chứng nhận lần đầu – Giai đoạn 1",
+  INITIAL_STAGE_2: "Chứng nhận lần đầu – Giai đoạn 2",
+  SURVEILLANCE: "Giám sát",
+  RECERTIFICATION: "Tái chứng nhận",
+  SPECIAL: "Đánh giá đặc biệt",
+};
+
+const decisionTypeLabels: Record<string, string> = {
+  GRANT: "Cấp chứng nhận",
+  MAINTAIN: "Duy trì chứng nhận",
+  RENEW: "Tái chứng nhận",
+  EXTEND_SCOPE: "Mở rộng phạm vi",
+  REDUCE_SCOPE: "Thu hẹp phạm vi",
 };
 
 function programName(row: Scheme) {
@@ -127,29 +185,28 @@ function canRestoreStandard(row: Standard) {
     || (row.status === "ACTIVE" && hasPassedStopDate(row));
 }
 
-function isAppliedStandard(row: Standard) {
+function isWaitingStandard(row: Standard) {
   return !isStoppedStandard(row)
-    && !dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"));
+    && dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"));
+}
+
+function isAppliedStandard(row: Standard) {
+  return !isStoppedStandard(row) && !isWaitingStandard(row);
 }
 
 function StandardStatus({ row }: { row: Standard }) {
-  if (isStoppedStandard(row)) {
-    return <Tag>Ngừng áp dụng</Tag>;
-  }
-  if (dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"))) {
-    return <Tag color="cyan">Chờ hiệu lực · {dayjs(row.effective_from).format("DD/MM/YYYY")}</Tag>;
-  }
+  if (isStoppedStandard(row)) return <Tag>Ngừng áp dụng</Tag>;
+  if (isWaitingStandard(row)) return <Tag color="cyan">Chờ hiệu lực</Tag>;
   return <Tag color="green">Đang áp dụng</Tag>;
 }
 
 function standardDateText(row: Standard) {
   const effective = dayjs(row.effective_from).format("DD/MM/YYYY");
   if (isStoppedStandard(row) && row.withdrawn_at) {
-    return `Áp dụng từ ${effective} · Ngừng từ ${dayjs(row.withdrawn_at).format("DD/MM/YYYY")}`;
+    return `Áp dụng ${effective} · Ngừng ${dayjs(row.withdrawn_at).format("DD/MM/YYYY")}`;
   }
-  if (!isStoppedStandard(row) && dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"))) {
-    return `Hiệu lực từ ${effective}`;
-  }
+  if (isWaitingStandard(row)) return `Hiệu lực từ ${effective}`;
+  if (row.withdrawn_at) return `Áp dụng ${effective} · Dự kiến ngừng ${dayjs(row.withdrawn_at).format("DD/MM/YYYY")}`;
   return `Áp dụng từ ${effective}`;
 }
 
@@ -161,8 +218,25 @@ function ProgramStatus({ value }: { value: string }) {
 
 function readinessText(issue: string) {
   if (/phiên bản tiêu chuẩn/i.test(issue)) return "Chưa có phiên bản tiêu chuẩn đang áp dụng";
-  if (/quy tắc|configuration|ACTIVE/i.test(issue)) return "Chưa có bộ quy tắc đang áp dụng";
+  if (/quy tắc|configuration|ACTIVE/i.test(issue)) return "Chưa có bộ quy tắc chứng nhận đang áp dụng";
   return issue.replace(/ACTIVE/g, "đang áp dụng");
+}
+
+function isCurrentRule(row: SchemeConfig) {
+  if (row.status !== "ACTIVE") return false;
+  const today = dayjs().startOf("day");
+  const from = dayjs(row.effective_from).startOf("day");
+  const to = row.effective_to ? dayjs(row.effective_to).endOf("day") : null;
+  return !from.isAfter(today) && (!to || !to.isBefore(today));
+}
+
+function isScheduledRule(row: SchemeConfig) {
+  return row.status === "ACTIVE"
+    && dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"));
+}
+
+function nextRuleVersion(rows: SchemeConfig[]) {
+  return rows.reduce((max, row) => Math.max(max, Number(row.version_no) || 0), 0) + 1;
 }
 
 export function CertificationProgramsPanel() {
@@ -170,10 +244,14 @@ export function CertificationProgramsPanel() {
   const [messageApi, contextHolder] = message.useMessage();
   const [schemeOpen, setSchemeOpen] = useState(false);
   const [standardOpen, setStandardOpen] = useState(false);
+  const [ruleOpen, setRuleOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<Scheme | null>(null);
   const [editingStandard, setEditingStandard] = useState<Standard | null>(null);
+  const [standardFamilyPreset, setStandardFamilyPreset] = useState<StandardFamily | null>(null);
+  const [ruleScheme, setRuleScheme] = useState<Scheme | null>(null);
   const [schemeForm] = Form.useForm<SchemeFormValues>();
   const [standardForm] = Form.useForm<StandardFormValues>();
+  const [ruleForm] = Form.useForm<RuleFormValues>();
 
   const schemes = useQuery({
     queryKey: ["master-schemes"],
@@ -183,6 +261,10 @@ export function CertificationProgramsPanel() {
     queryKey: ["master-standards"],
     queryFn: async () => (await api.get<Standard[]>(`${base}/standards`)).data,
   });
+  const configs = useQuery({
+    queryKey: ["scheme-configs"],
+    queryFn: async () => (await api.get<SchemeConfig[]>(`${base}/scheme-configurations`)).data,
+  });
   const readiness = useQuery({
     queryKey: ["configuration-readiness"],
     queryFn: async () => (await api.get<ConfigurationReadiness>(`${base}/configuration-readiness`)).data,
@@ -191,12 +273,42 @@ export function CertificationProgramsPanel() {
   const invalidate = async () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["master-schemes"] }),
     queryClient.invalidateQueries({ queryKey: ["master-standards"] }),
+    queryClient.invalidateQueries({ queryKey: ["scheme-configs"] }),
     queryClient.invalidateQueries({ queryKey: ["configuration-readiness"] }),
   ]);
 
-  const standardsByScheme = useMemo(() => {
-    const grouped = new Map<string, Standard[]>();
+  const familiesByScheme = useMemo(() => {
+    const grouped = new Map<string, Map<string, Standard[]>>();
     for (const row of standards.data ?? []) {
+      const schemeRows = grouped.get(row.scheme_id) ?? new Map<string, Standard[]>();
+      const familyKey = normalizeStandardCode(row.standard_code, row.edition).trim().toUpperCase();
+      const familyRows = schemeRows.get(familyKey) ?? [];
+      familyRows.push(row);
+      schemeRows.set(familyKey, familyRows);
+      grouped.set(row.scheme_id, schemeRows);
+    }
+
+    const result = new Map<string, StandardFamily[]>();
+    for (const [schemeId, familyMap] of grouped.entries()) {
+      const families = Array.from(familyMap.entries()).map(([key, editions]) => {
+        editions.sort((left, right) => dayjs(right.effective_from).valueOf() - dayjs(left.effective_from).valueOf());
+        const latest = editions[0];
+        return {
+          key,
+          code: normalizeStandardCode(latest.standard_code, latest.edition),
+          name: latest.standard_name,
+          editions,
+        };
+      });
+      families.sort((left, right) => left.code.localeCompare(right.code, "vi", { numeric: true }));
+      result.set(schemeId, families);
+    }
+    return result;
+  }, [standards.data]);
+
+  const configsByScheme = useMemo(() => {
+    const grouped = new Map<string, SchemeConfig[]>();
+    for (const row of configs.data ?? []) {
       const rows = grouped.get(row.scheme_id) ?? [];
       rows.push(row);
       grouped.set(row.scheme_id, rows);
@@ -205,7 +317,7 @@ export function CertificationProgramsPanel() {
       rows.sort((left, right) => dayjs(right.effective_from).valueOf() - dayjs(left.effective_from).valueOf());
     }
     return grouped;
-  }, [standards.data]);
+  }, [configs.data]);
 
   const readinessByScheme = useMemo(
     () => new Map((readiness.data?.schemes.items ?? []).map((item) => [item.id, item])),
@@ -266,6 +378,9 @@ export function CertificationProgramsPanel() {
         standard_name: values.standard_name.trim(),
         edition,
         effective_from: values.effective_from.format("YYYY-MM-DD"),
+        ...(editingStandard ? {
+          withdrawn_at: values.withdrawn_at ? values.withdrawn_at.format("YYYY-MM-DD") : null,
+        } : {}),
       };
       return editingStandard
         ? api.patch(`${base}/standards/${editingStandard.id}`, payload)
@@ -276,6 +391,7 @@ export function CertificationProgramsPanel() {
       await invalidate();
       setStandardOpen(false);
       setEditingStandard(null);
+      setStandardFamilyPreset(null);
       standardForm.resetFields();
       messageApi.success(wasEditing ? "Đã cập nhật phiên bản tiêu chuẩn" : "Đã thêm phiên bản tiêu chuẩn");
     },
@@ -283,10 +399,7 @@ export function CertificationProgramsPanel() {
   });
 
   const stopStandard = useMutation({
-    mutationFn: async (row: Standard) => api.patch(`${base}/standards/${row.id}`, {
-      status: "WITHDRAWN",
-      withdrawn_at: dayjs().format("YYYY-MM-DD"),
-    }),
+    mutationFn: async (row: Standard) => api.post(`${base}/standards/${row.id}/stop`),
     onSuccess: async () => {
       await invalidate();
       messageApi.success("Đã ngừng áp dụng phiên bản tiêu chuẩn");
@@ -312,6 +425,21 @@ export function CertificationProgramsPanel() {
     onError: (error) => messageApi.error(getErrorMessage(error)),
   });
 
+  const saveRule = useMutation({
+    mutationFn: async (values: RuleFormValues) => api.post(`${base}/scheme-configurations`, {
+      ...values,
+      effective_from: values.effective_from.format("YYYY-MM-DD"),
+    }),
+    onSuccess: async () => {
+      await invalidate();
+      setRuleOpen(false);
+      setRuleScheme(null);
+      ruleForm.resetFields();
+      messageApi.success("Đã tạo phiên bản quy tắc chứng nhận");
+    },
+    onError: (error) => messageApi.error(getErrorMessage(error)),
+  });
+
   const openNewScheme = () => {
     setEditingScheme(null);
     schemeForm.resetFields();
@@ -328,21 +456,73 @@ export function CertificationProgramsPanel() {
     setSchemeOpen(true);
   };
 
-  const openStandard = (schemeId?: string, row?: Standard) => {
-    setEditingStandard(row ?? null);
+  const openNewFamily = (schemeId: string) => {
+    setEditingStandard(null);
+    setStandardFamilyPreset(null);
     standardForm.resetFields();
-    if (row) {
-      standardForm.setFieldsValue({
-        scheme_id: row.scheme_id,
-        standard_code: normalizeStandardCode(row.standard_code, row.edition),
-        standard_name: row.standard_name,
-        edition: row.edition,
-        effective_from: dayjs(row.effective_from),
-      });
-    } else if (schemeId) {
-      standardForm.setFieldsValue({ scheme_id: schemeId });
-    }
+    standardForm.setFieldsValue({ scheme_id: schemeId });
     setStandardOpen(true);
+  };
+
+  const openNewEdition = (schemeId: string, family: StandardFamily) => {
+    setEditingStandard(null);
+    setStandardFamilyPreset(family);
+    standardForm.resetFields();
+    standardForm.setFieldsValue({
+      scheme_id: schemeId,
+      standard_code: family.code,
+      standard_name: family.name,
+    });
+    setStandardOpen(true);
+  };
+
+  const openEditStandard = (row: Standard) => {
+    setEditingStandard(row);
+    setStandardFamilyPreset(null);
+    standardForm.resetFields();
+    standardForm.setFieldsValue({
+      scheme_id: row.scheme_id,
+      standard_code: normalizeStandardCode(row.standard_code, row.edition),
+      standard_name: row.standard_name,
+      edition: row.edition,
+      effective_from: dayjs(row.effective_from),
+      withdrawn_at: row.withdrawn_at ? dayjs(row.withdrawn_at) : null,
+    });
+    setStandardOpen(true);
+  };
+
+  const openRule = (scheme: Scheme) => {
+    const rows = configsByScheme.get(scheme.id) ?? [];
+    setRuleScheme(scheme);
+    ruleForm.resetFields();
+    ruleForm.setFieldsValue({
+      scheme_id: scheme.id,
+      version_no: nextRuleVersion(rows),
+      effective_from: dayjs().startOf("day"),
+      cycle_duration_months: 36,
+      surveillance_frequency_months: 12,
+      stage1_applicable: true,
+      validity_duration_months: 36,
+      renewal_window_days: 90,
+      reminder_lead_days: 60,
+      required_audit_types: ["INITIAL_STAGE_1", "INITIAL_STAGE_2", "SURVEILLANCE", "RECERTIFICATION"],
+      required_decision_types: ["GRANT", "MAINTAIN", "RENEW"],
+    });
+    setRuleOpen(true);
+  };
+
+  const confirmToggleScheme = (row: Scheme) => {
+    const stopping = row.status === "ACTIVE";
+    Modal.confirm({
+      title: stopping ? `Ngừng sử dụng ${row.code}?` : `Đưa ${row.code} vào sử dụng?`,
+      content: stopping
+        ? "Chương trình sẽ không còn được chọn cho nghiệp vụ mới. Hồ sơ lịch sử vẫn được giữ nguyên."
+        : "Chương trình sẽ được mở lại. Hệ thống vẫn kiểm tra trạng thái sẵn sàng trước khi dùng cho nghiệp vụ mới.",
+      okText: stopping ? "Ngừng sử dụng" : "Đưa vào sử dụng",
+      okButtonProps: stopping ? { danger: true } : undefined,
+      cancelText: "Hủy",
+      onOk: async () => toggleScheme.mutateAsync(row),
+    });
   };
 
   const confirmStop = (row: Standard) => {
@@ -352,21 +532,17 @@ export function CertificationProgramsPanel() {
       okText: "Ngừng áp dụng",
       okButtonProps: { danger: true },
       cancelText: "Giữ nguyên",
-      onOk: async () => {
-        await stopStandard.mutateAsync(row);
-      },
+      onOk: async () => stopStandard.mutateAsync(row),
     });
   };
 
   const confirmRestore = (row: Standard) => {
     Modal.confirm({
       title: `Khôi phục áp dụng ${standardEditionLabel(row)}?`,
-      content: "Phiên bản sẽ trở lại trạng thái áp dụng và có thể được sử dụng cho nghiệp vụ mới theo ngày hiệu lực đã cấu hình.",
+      content: "Phiên bản sẽ trở lại danh sách có thể sử dụng cho nghiệp vụ mới theo ngày hiệu lực đã cấu hình.",
       okText: "Khôi phục áp dụng",
       cancelText: "Hủy",
-      onOk: async () => {
-        await restoreStandard.mutateAsync(row);
-      },
+      onOk: async () => restoreStandard.mutateAsync(row),
     });
   };
 
@@ -377,9 +553,7 @@ export function CertificationProgramsPanel() {
       okText: "Xóa",
       okButtonProps: { danger: true },
       cancelText: "Hủy",
-      onOk: async () => {
-        await deleteStandard.mutateAsync(row);
-      },
+      onOk: async () => deleteStandard.mutateAsync(row),
     });
   };
 
@@ -390,7 +564,9 @@ export function CertificationProgramsPanel() {
     ? getErrorMessage(schemes.error)
     : standards.isError
       ? getErrorMessage(standards.error)
-      : null;
+      : configs.isError
+        ? getErrorMessage(configs.error)
+        : null;
 
   return (
     <div>
@@ -404,13 +580,9 @@ export function CertificationProgramsPanel() {
       </div>
 
       {loadError ? (
-        <Alert
-          showIcon
-          type="error"
-          message="Không tải được chương trình và tiêu chuẩn"
-          description={loadError}
-          style={{ marginBottom: 12 }}
-        />
+        <Card size="small" style={{ marginBottom: 12, borderColor: "#ffccc7" }}>
+          <Text type="danger">Không tải được cấu hình: {loadError}</Text>
+        </Card>
       ) : null}
 
       {!loadError && !schemes.isLoading && !allSchemes.length ? (
@@ -424,10 +596,17 @@ export function CertificationProgramsPanel() {
 
       <Space direction="vertical" size={10} style={{ width: "100%" }}>
         {allSchemes.map((scheme) => {
-          const rows = standardsByScheme.get(scheme.id) ?? [];
+          const families = familiesByScheme.get(scheme.id) ?? [];
           const schemeReadiness = readinessByScheme.get(scheme.id);
           const issues = schemeReadiness?.issues ?? [];
-          const restoreCandidate = rows.find(canRestoreStandard);
+          const restoreCandidate = families
+            .flatMap((family) => family.editions)
+            .find(canRestoreStandard);
+          const schemeConfigs = configsByScheme.get(scheme.id) ?? [];
+          const currentRule = schemeConfigs.find(isCurrentRule) ?? null;
+          const scheduledRule = [...schemeConfigs]
+            .filter(isScheduledRule)
+            .sort((left, right) => dayjs(left.effective_from).valueOf() - dayjs(right.effective_from).valueOf())[0] ?? null;
 
           return (
             <Card
@@ -447,7 +626,7 @@ export function CertificationProgramsPanel() {
               )}
               extra={(
                 <Space size={4}>
-                  <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
+                  <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
                   <Dropdown
                     trigger={["click"]}
                     menu={{
@@ -461,7 +640,7 @@ export function CertificationProgramsPanel() {
                       ],
                       onClick: ({ key }) => {
                         if (key === "edit") openEditScheme(scheme);
-                        if (key === "toggle") toggleScheme.mutate(scheme);
+                        if (key === "toggle") confirmToggleScheme(scheme);
                       },
                     }}
                   >
@@ -471,107 +650,114 @@ export function CertificationProgramsPanel() {
               )}
             >
               {scheme.status === "ACTIVE" && issues.length ? (
-                <div
-                  style={{
-                    border: "1px solid #ffd591",
-                    background: "#fffaf0",
-                    borderRadius: 8,
-                    padding: "8px 10px",
-                    marginBottom: 8,
-                  }}
-                >
-                  <Space direction="vertical" size={6} style={{ width: "100%" }}>
-                    {issues.map((issue) => {
-                      const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
-                      return (
-                        <div
-                          key={issue}
-                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}
-                        >
-                          <Text>{readinessText(issue)}</Text>
-                          {missingStandard ? (
-                            restoreCandidate ? (
-                              <Button size="small" icon={<UndoOutlined />} onClick={() => confirmRestore(restoreCandidate)}>
-                                Khôi phục {standardEditionLabel(restoreCandidate)}
-                              </Button>
-                            ) : (
-                              <Button size="small" onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
-                            )
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </Space>
-                </div>
-              ) : null}
-
-              {rows.length ? (
-                <div>
-                  {rows.map((standard, index) => {
-                    const applied = isAppliedStandard(standard);
-                    const restorable = canRestoreStandard(standard);
-                    const actions = [
-                      { key: "edit", icon: <EditOutlined />, label: "Sửa" },
-                      ...(applied ? [{ key: "stop", icon: <StopOutlined />, label: "Ngừng áp dụng", danger: true }] : []),
-                      ...(restorable ? [{ key: "restore", icon: <UndoOutlined />, label: "Khôi phục áp dụng" }] : []),
-                      { type: "divider" as const },
-                      { key: "delete", icon: <DeleteOutlined />, label: "Xóa nếu chưa sử dụng", danger: true },
-                    ];
-
+                <div style={{ borderBottom: "1px solid #f0f0f0", paddingBottom: 8, marginBottom: 8 }}>
+                  {issues.map((issue) => {
+                    const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
+                    const missingRule = /quy tắc|configuration|ACTIVE/i.test(issue) && !missingStandard;
                     return (
                       <div
-                        key={standard.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          padding: "10px 2px",
-                          borderTop: index === 0 ? "none" : "1px solid #f0f0f0",
-                        }}
+                        key={issue}
+                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 30 }}
                       >
-                        <div style={{ minWidth: 220, flex: "1 1 320px" }}>
-                          <Text strong>{standardEditionLabel(standard)}</Text>
-                          <div><Text type="secondary">{standard.standard_name}</Text></div>
-                        </div>
-                        <div style={{ minWidth: 210, textAlign: "right" }}>
-                          <StandardStatus row={standard} />
-                          <div style={{ marginTop: 2 }}>
-                            <Text type="secondary">{standardDateText(standard)}</Text>
-                          </div>
-                        </div>
-                        <Dropdown
-                          trigger={["click"]}
-                          menu={{
-                            items: actions,
-                            onClick: ({ key }) => {
-                              if (key === "edit") openStandard(undefined, standard);
-                              if (key === "stop") confirmStop(standard);
-                              if (key === "restore") confirmRestore(standard);
-                              if (key === "delete") confirmDelete(standard);
-                            },
-                          }}
-                        >
-                          <Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác ${standardEditionLabel(standard)}`} />
-                        </Dropdown>
+                        <Text type="secondary">• {readinessText(issue)}</Text>
+                        {missingStandard ? (
+                          restoreCandidate ? (
+                            <Button size="small" type="link" icon={<UndoOutlined />} onClick={() => confirmRestore(restoreCandidate)}>
+                              Khôi phục {standardEditionLabel(restoreCandidate)}
+                            </Button>
+                          ) : (
+                            <Button size="small" type="link" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
+                          )
+                        ) : missingRule ? (
+                          <Button size="small" type="link" onClick={() => openRule(scheme)}>Thiết lập quy tắc</Button>
+                        ) : null}
                       </div>
                     );
                   })}
                 </div>
+              ) : null}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "6px 2px 10px" }}>
+                <div>
+                  <Text strong>Quy tắc chứng nhận</Text>
+                  {currentRule ? (
+                    <div><Text type="secondary">v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · giám sát {currentRule.surveillance_frequency_months} tháng/lần · chứng chỉ {currentRule.validity_duration_months} tháng</Text></div>
+                  ) : scheduledRule ? (
+                    <div><Text type="secondary">v{scheduledRule.version_no} chờ hiệu lực từ {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text></div>
+                  ) : (
+                    <div><Text type="secondary">Chưa có bộ quy tắc đang áp dụng.</Text></div>
+                  )}
+                  {currentRule && scheduledRule ? (
+                    <div><Text type="secondary">Phiên bản kế tiếp: v{scheduledRule.version_no} · {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text></div>
+                  ) : null}
+                </div>
+                <Button size="small" onClick={() => openRule(scheme)}>
+                  {currentRule || scheduledRule ? "Tạo phiên bản mới" : "Thiết lập"}
+                </Button>
+              </div>
+
+              <Divider style={{ margin: "2px 0 8px" }} />
+
+              {families.length ? (
+                <div>
+                  {families.map((family, familyIndex) => (
+                    <div key={family.key} style={{ paddingTop: familyIndex ? 10 : 0, borderTop: familyIndex ? "1px solid #f0f0f0" : undefined }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "4px 2px" }}>
+                        <div>
+                          <Text strong>{family.code}</Text>
+                          <Text type="secondary"> · {family.name}</Text>
+                          <Text type="secondary"> · {family.editions.length} phiên bản</Text>
+                        </div>
+                        <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewEdition(scheme.id, family)}>Thêm phiên bản</Button>
+                      </div>
+
+                      {family.editions.map((standard) => {
+                        const applied = isAppliedStandard(standard);
+                        const restorable = canRestoreStandard(standard);
+                        const actions = [
+                          { key: "edit", icon: <EditOutlined />, label: "Sửa phiên bản" },
+                          ...(applied ? [{ key: "stop", icon: <StopOutlined />, label: "Ngừng áp dụng", danger: true }] : []),
+                          ...(restorable ? [{ key: "restore", icon: <UndoOutlined />, label: "Khôi phục áp dụng" }] : []),
+                          { type: "divider" as const },
+                          { key: "delete", icon: <DeleteOutlined />, label: "Xóa nếu chưa sử dụng", danger: true },
+                        ];
+                        return (
+                          <div
+                            key={standard.id}
+                            style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) minmax(220px, auto) 36px", gap: 10, alignItems: "center", padding: "8px 2px 8px 18px" }}
+                          >
+                            <div>
+                              <Text strong>{standard.edition}</Text>
+                              <div><Text type="secondary">{standardEditionLabel(standard)}</Text></div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <StandardStatus row={standard} />
+                              <div><Text type="secondary">{standardDateText(standard)}</Text></div>
+                            </div>
+                            <Dropdown
+                              trigger={["click"]}
+                              menu={{
+                                items: actions,
+                                onClick: ({ key }) => {
+                                  if (key === "edit") openEditStandard(standard);
+                                  if (key === "stop") confirmStop(standard);
+                                  if (key === "restore") confirmRestore(standard);
+                                  if (key === "delete") confirmDelete(standard);
+                                },
+                              }}
+                            >
+                              <Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác ${standardEditionLabel(standard)}`} />
+                            </Dropdown>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    padding: "8px 2px 2px",
-                  }}
-                >
-                  <Text type="secondary">Chưa có phiên bản tiêu chuẩn.</Text>
-                  <Button size="small" onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 2px 2px" }}>
+                  <Text type="secondary">Chưa có tiêu chuẩn trong chương trình này.</Text>
+                  <Button size="small" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
                 </div>
               )}
             </Card>
@@ -606,11 +792,12 @@ export function CertificationProgramsPanel() {
       </Modal>
 
       <Modal
-        title={editingStandard ? `Sửa ${standardEditionLabel(editingStandard)}` : "Thêm phiên bản tiêu chuẩn"}
+        title={editingStandard ? `Sửa ${standardEditionLabel(editingStandard)}` : standardFamilyPreset ? `Thêm phiên bản · ${standardFamilyPreset.code}` : "Thêm tiêu chuẩn"}
         open={standardOpen}
         onCancel={() => {
           setStandardOpen(false);
           setEditingStandard(null);
+          setStandardFamilyPreset(null);
           standardForm.resetFields();
         }}
         onOk={() => standardForm.submit()}
@@ -621,26 +808,129 @@ export function CertificationProgramsPanel() {
         <Form form={standardForm} layout="vertical" onFinish={(values) => saveStandard.mutate(values)}>
           <Form.Item name="scheme_id" label="Chương trình" rules={[{ required: true, message: "Chọn chương trình" }]}>
             <Select
-              disabled={Boolean(editingStandard)}
+              disabled={Boolean(editingStandard) || Boolean(standardFamilyPreset)}
               options={allSchemes.map((row) => ({ value: row.id, label: `${row.code} · ${programName(row)}` }))}
-              placeholder="Chọn chương trình"
             />
           </Form.Item>
-          <Form.Item name="standard_code" label="Mã tiêu chuẩn" extra="Chỉ nhập mã tiêu chuẩn, ví dụ ISO 9001. Năm phiên bản nhập ở ô bên dưới." rules={[{ required: true, message: "Nhập mã tiêu chuẩn" }]}>
-            <Input placeholder="ISO 9001" />
-          </Form.Item>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Form.Item name="standard_code" label="Mã tiêu chuẩn" rules={[{ required: true, message: "Nhập mã tiêu chuẩn" }]}>
+              <Input disabled={Boolean(standardFamilyPreset)} placeholder="ISO 9001" />
+            </Form.Item>
+            <Form.Item name="edition" label="Phiên bản / năm" rules={[{ required: true, message: "Nhập phiên bản" }]}>
+              <Input placeholder="2015" />
+            </Form.Item>
+          </div>
           <Form.Item name="standard_name" label="Tên tiêu chuẩn" rules={[{ required: true, message: "Nhập tên tiêu chuẩn" }]}>
-            <Input placeholder="Hệ thống quản lý chất lượng" />
+            <Input disabled={Boolean(standardFamilyPreset)} placeholder="Hệ thống quản lý chất lượng" />
           </Form.Item>
-          <Form.Item name="edition" label="Phiên bản / năm" rules={[{ required: true, message: "Nhập phiên bản" }]}>
-            <Input placeholder="2015" />
+          <div style={{ display: "grid", gridTemplateColumns: editingStandard ? "1fr 1fr" : "1fr", gap: 12 }}>
+            <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            {editingStandard ? (
+              <Form.Item name="withdrawn_at" label="Ngừng áp dụng từ">
+                <DatePicker allowClear format="DD/MM/YYYY" style={{ width: "100%" }} />
+              </Form.Item>
+            ) : null}
+          </div>
+          <Text type="secondary">Ngày áp dụng ở tương lai sẽ tự hiển thị “Chờ hiệu lực”.</Text>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={ruleScheme ? `Quy tắc chứng nhận · ${ruleScheme.code}` : "Quy tắc chứng nhận"}
+        open={ruleOpen}
+        onCancel={() => {
+          setRuleOpen(false);
+          setRuleScheme(null);
+          ruleForm.resetFields();
+        }}
+        onOk={() => ruleForm.submit()}
+        okText="Lưu phiên bản"
+        confirmLoading={saveRule.isPending}
+        destroyOnHidden
+        width={760}
+      >
+        <Form form={ruleForm} layout="vertical" onFinish={(values) => saveRule.mutate(values)}>
+          <Form.Item name="scheme_id" hidden><Input /></Form.Item>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+            <Form.Item name="version_no" label="Phiên bản quy tắc" rules={[{ required: true }]}>
+              <InputNumber disabled min={1} style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
+              <InputNumber min={1} addonAfter="tháng" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item
+              name="surveillance_frequency_months"
+              label="Giám sát định kỳ"
+              dependencies={["cycle_duration_months"]}
+              rules={[
+                { required: true },
+                {
+                  validator: async (_, value) => {
+                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                    if (value && cycle && Number(value) > cycle) throw new Error("Khoảng giám sát không được dài hơn chu kỳ");
+                  },
+                },
+              ]}
+            >
+              <InputNumber min={1} addonAfter="tháng/lần" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item
+              name="validity_duration_months"
+              label="Hiệu lực chứng chỉ"
+              dependencies={["cycle_duration_months"]}
+              rules={[
+                { required: true },
+                {
+                  validator: async (_, value) => {
+                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                    if (value && cycle && Number(value) > cycle) throw new Error("Thời hạn chứng chỉ không được dài hơn chu kỳ");
+                  },
+                },
+              ]}
+            >
+              <InputNumber min={1} addonAfter="tháng" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
+              <InputNumber min={0} addonAfter="ngày" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
+              <InputNumber min={0} addonAfter="ngày" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
+              <Switch checkedChildren="Có" unCheckedChildren="Không" />
+            </Form.Item>
+          </div>
+
+          <Form.Item
+            name="required_audit_types"
+            label="Loại đánh giá bắt buộc"
+            dependencies={["stage1_applicable", "required_decision_types"]}
+            rules={[
+              { required: true, message: "Chọn ít nhất một loại đánh giá" },
+              {
+                validator: async (_, value: string[] | undefined) => {
+                  const selected = value ?? [];
+                  const stage1 = Boolean(ruleForm.getFieldValue("stage1_applicable"));
+                  const decisions = (ruleForm.getFieldValue("required_decision_types") ?? []) as string[];
+                  if (stage1 && !selected.includes("INITIAL_STAGE_1")) throw new Error("Có Giai đoạn 1 thì phải chọn đánh giá Giai đoạn 1");
+                  if (!stage1 && selected.includes("INITIAL_STAGE_1")) throw new Error("Không áp dụng Giai đoạn 1 thì bỏ đánh giá Giai đoạn 1");
+                  if (decisions.includes("GRANT") && !selected.includes("INITIAL_STAGE_2")) throw new Error("Có quyết định cấp thì phải chọn đánh giá Giai đoạn 2");
+                },
+              },
+            ]}
+          >
+            <Select mode="multiple" options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
-          <Form.Item name="effective_from" label="Có hiệu lực từ" rules={[{ required: true, message: "Chọn ngày hiệu lực" }]}>
-            <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+          <Form.Item name="required_decision_types" label="Loại quyết định bắt buộc" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
+            <Select mode="multiple" options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))} />
           </Form.Item>
-          <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-            Nếu ngày hiệu lực ở tương lai, hệ thống tự hiển thị “Chờ hiệu lực”. Không cần thêm bước chuyển trạng thái.
-          </Paragraph>
+
+          <Text type="secondary">Tạo phiên bản mới không sửa lịch sử hồ sơ đã chốt. Nếu ngày áp dụng ở tương lai, hệ thống tự chờ đến ngày đó.</Text>
         </Form>
       </Modal>
     </div>
