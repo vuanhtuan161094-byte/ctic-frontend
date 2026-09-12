@@ -39,6 +39,20 @@ const personaLabels: Record<string, string> = {
   DECISION_MAKER: "Quyết định chứng nhận",
 };
 
+const workTypeLabels: Record<string, string> = {
+  CUSTOMER_APPLICATION_INTAKE: "Tiếp nhận đơn đăng ký",
+  APPLICATION_REVIEW: "Xem xét đăng ký",
+  SURVEILLANCE_CHANGE_REVIEW: "Rà soát thay đổi giám sát",
+  F04_TEAM_APPOINTMENT: "Bổ nhiệm đoàn đánh giá",
+  AUDIT_PLAN: "Kế hoạch đánh giá",
+  AUDIT_EXECUTION: "Thực hiện đánh giá",
+  CAP_ACTION_OR_REVIEW: "NC / Hành động khắc phục",
+  REVIEWER_ASSIGNMENT: "Phân công người thẩm xét",
+  TECHNICAL_REVIEW: "Thẩm xét kỹ thuật",
+  CERTIFICATION_DECISION: "Quyết định chứng nhận",
+  CERTIFICATE_ISSUE: "Phát hành chứng chỉ",
+};
+
 const priorityMeta = {
   URGENT: { color: "red", label: "Khẩn cấp" },
   HIGH: { color: "orange", label: "Ưu tiên cao" },
@@ -61,6 +75,20 @@ function calendarTypeLabel(type: string) {
   return labels[type] ?? type;
 }
 
+function workTypeLabel(value: string) {
+  const normalized = value.trim().replace(/[\s-]+/g, "_").toUpperCase();
+  return workTypeLabels[normalized] ?? "Công việc nghiệp vụ";
+}
+
+function taskTitle(title: string, workType: string) {
+  const normalizedTitle = title.trim().replace(/[\s-]+/g, "_").toUpperCase();
+  const normalizedType = workType.trim().replace(/[\s-]+/g, "_").toUpperCase();
+  if (normalizedTitle === normalizedType || workTypeLabels[normalizedTitle]) {
+    return workTypeLabel(workTypeLabels[normalizedTitle] ? normalizedTitle : normalizedType);
+  }
+  return title;
+}
+
 export function PersonalDashboardScreen({
   workspace,
   loading,
@@ -80,16 +108,13 @@ export function PersonalDashboardScreen({
       <Alert
         action={<Button onClick={onRefresh}>Thử lại</Button>}
         description={getErrorMessage(error)}
-        message="Không thể tải không gian làm việc cá nhân"
+        message="Không thể tải tổng quan vận hành"
         showIcon
         type="error"
       />
     );
   }
 
-  const displayName = workspace.user_context.current_user.full_name
-    || workspace.user_context.current_user.username
-    || "bạn";
   const personaText = workspace.user_context.personas
     .map((persona) => personaLabels[persona] ?? persona)
     .join(" · ");
@@ -105,9 +130,9 @@ export function PersonalDashboardScreen({
     <div className="personal-dashboard">
       <div className="page-heading page-heading-v2 personal-dashboard-heading">
         <div>
-          <span className="eyebrow">KHÔNG GIAN LÀM VIỆC CỦA TÔI</span>
-          <Title level={2}>Xin chào, {displayName}</Title>
-          <Text type="secondary">{personaText} · Hôm nay {dayjs().format("DD/MM/YYYY")}</Text>
+          <span className="eyebrow">TỔNG QUAN VẬN HÀNH</span>
+          <Title level={2}>Tổng quan vận hành</Title>
+          <Text type="secondary">{personaText} · {dayjs().format("DD/MM/YYYY")}</Text>
         </div>
         <Button icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh}>Làm mới</Button>
       </div>
@@ -129,7 +154,7 @@ export function PersonalDashboardScreen({
         <Card
           className="dashboard-card"
           extra={<Button onClick={onViewAllWork} type="link">Xem tất cả công việc</Button>}
-          title={<Space><CheckCircleOutlined />Công việc ưu tiên của tôi</Space>}
+          title={<Space><CheckCircleOutlined />Công việc ưu tiên</Space>}
         >
           <List
             dataSource={workspace.priority_work_items}
@@ -154,8 +179,8 @@ export function PersonalDashboardScreen({
                 <List.Item.Meta
                   description={(
                     <Space size={[6, 4]} wrap>
-                      <Tag>{item.project_code ?? "Không gắn hồ sơ"}</Tag>
-                      <span>{item.organization_name ?? item.work_type.replaceAll("_", " ")}</span>
+                      <Tag>{item.project_code ?? "Chưa tạo hồ sơ"}</Tag>
+                      <span>{item.organization_name ?? workTypeLabel(item.work_type)}</span>
                       <span className={item.is_overdue ? "metric-danger" : ""}>
                         {item.is_overdue ? <WarningOutlined /> : <ClockCircleOutlined />} {formatDate(item.due_at)}
                       </span>
@@ -163,7 +188,7 @@ export function PersonalDashboardScreen({
                   )}
                   title={(
                     <Space wrap>
-                      <Text strong>{item.title}</Text>
+                      <Text strong>{taskTitle(item.title, item.work_type)}</Text>
                       <Tag color={priorityMeta[item.priority].color}>{priorityMeta[item.priority].label}</Tag>
                     </Space>
                   )}
@@ -175,8 +200,8 @@ export function PersonalDashboardScreen({
 
         <Card
           className="dashboard-card"
-          extra={<Button onClick={onViewCalendar} type="link">Mở Lịch của tôi</Button>}
-          title={<Space><CalendarOutlined />Lịch sắp tới của tôi</Space>}
+          extra={<Button onClick={onViewCalendar} type="link">Mở lịch</Button>}
+          title={<Space><CalendarOutlined />Lịch sắp tới</Space>}
         >
           <List
             dataSource={workspace.calendar_items.slice(0, 6)}
