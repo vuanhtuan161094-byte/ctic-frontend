@@ -112,6 +112,7 @@ const priorityMeta: Record<
 };
 
 const workTypeLabels: Record<string, string> = {
+  CUSTOMER_APPLICATION_INTAKE: "Tiếp nhận đơn đăng ký",
   APPLICATION_REVIEW: "Xem xét đăng ký",
   SURVEILLANCE_CHANGE_REVIEW: "Rà soát thay đổi giám sát",
   F04_TEAM_APPOINTMENT: "Bổ nhiệm đoàn đánh giá",
@@ -124,8 +125,21 @@ const workTypeLabels: Record<string, string> = {
   CERTIFICATE_ISSUE: "Phát hành chứng chỉ",
 };
 
+function normalizeWorkType(value: string) {
+  return value.trim().replace(/[\s-]+/g, "_").toUpperCase();
+}
+
 function getWorkTypeLabel(value: string) {
-  return workTypeLabels[value] ?? value.replaceAll("_", " ");
+  return workTypeLabels[normalizeWorkType(value)] ?? "Công việc nghiệp vụ";
+}
+
+function getTaskTitle(item: Pick<WorkTaskItem, "title" | "work_type">) {
+  const normalizedTitle = normalizeWorkType(item.title);
+  const normalizedType = normalizeWorkType(item.work_type);
+  if (normalizedTitle === normalizedType || workTypeLabels[normalizedTitle]) {
+    return workTypeLabels[normalizedTitle] ?? getWorkTypeLabel(item.work_type);
+  }
+  return item.title;
 }
 
 const statusLabels: Record<string, string> = {
@@ -287,7 +301,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       if (!keyword) return true;
 
       return [
-        item.title,
+        getTaskTitle(item),
         item.description,
         getWorkTypeLabel(item.work_type),
         item.project_code,
@@ -303,8 +317,6 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
   }, [groupFilter, items, priorityFilter, searchTerm, timeFilter]);
 
   const openTask = async (item: WorkTaskItem) => {
-    // Completed/cancelled work and SoD-blocked work remain inspectable, but
-    // must not reopen a mutable business workspace.
     if (!item.can_execute && item.can_view) {
       setHistoryItem(item);
       return;
@@ -337,12 +349,12 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
             <span className={`my-task-priority-dot priority-${item.priority}`} />
             <div>
               <Space size={8} wrap>
-                <Text strong>{item.title}</Text>
+                <Text strong>{getTaskTitle(item)}</Text>
                 {item.is_delegated ? (
                   <Tag color="purple">
                     Xử lý thay cho {item.delegated_from_user?.full_name || item.delegated_from_user?.username || "người ủy quyền"}
                   </Tag>
-                ) : <Tag color="blue">Việc của tôi</Tag>}
+                ) : <Tag color="blue">Được phân công</Tag>}
                 {item.project_code ? (
                   <Tag className="task-project-code">{item.project_code}</Tag>
                 ) : null}
@@ -455,10 +467,9 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       <div className="screen-heading-row my-tasks-heading">
         <div>
           <Text className="screen-eyebrow">TRUNG TÂM CÔNG VIỆC</Text>
-          <Title level={1}>Công việc của tôi</Title>
+          <Title level={1}>Công việc</Title>
           <Text type="secondary">
-            Dữ liệu được tổng hợp trực tiếp từ hồ sơ, lịch đánh giá, thẩm xét,
-            NC/CAP và chứng chỉ.
+            Tổng hợp công việc từ hồ sơ, lịch đánh giá, thẩm xét, NC/CAP và chứng chỉ.
           </Text>
         </div>
         <Button
@@ -603,7 +614,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       >
         {historyItem ? (
           <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Công việc">{historyItem.title}</Descriptions.Item>
+            <Descriptions.Item label="Công việc">{getTaskTitle(historyItem)}</Descriptions.Item>
             <Descriptions.Item label="Nhóm nghiệp vụ">{getWorkTypeLabel(historyItem.work_type)}</Descriptions.Item>
             <Descriptions.Item label="Trạng thái">{getStatusLabel(historyItem.status)}</Descriptions.Item>
             <Descriptions.Item label="Hồ sơ / dự án">
