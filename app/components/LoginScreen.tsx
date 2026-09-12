@@ -61,8 +61,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           <span className="eyebrow eyebrow-light">NỀN TẢNG QUẢN LÝ CHỨNG NHẬN</span>
           <h1>Kiểm soát toàn bộ vòng đời chứng nhận trên một hệ thống.</h1>
           <p>
-            Chuẩn hóa quy trình P.09 từ đăng ký, đánh giá, thẩm xét đến phát
-            hành và duy trì chứng chỉ.
+            Chuẩn hóa quy trình chứng nhận từ đăng ký, đánh giá, thẩm xét đến
+            phát hành và duy trì chứng chỉ.
           </p>
 
           <div className="login-benefits">
