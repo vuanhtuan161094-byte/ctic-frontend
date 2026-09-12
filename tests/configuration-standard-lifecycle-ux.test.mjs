@@ -5,16 +5,16 @@ import assert from 'node:assert/strict';
 const source = fs.readFileSync(new URL('../app/components/CertificationProgramsPanel.tsx', import.meta.url), 'utf8');
 
 test('future standard editions derive waiting-for-effect from the effective date', () => {
-  assert.match(source, /function StandardStatus/);
-  assert.match(source, /Chờ hiệu lực ·/);
+  assert.match(source, /function isWaitingStandard/);
+  assert.match(source, /Chờ hiệu lực/);
   assert.match(source, /dayjs\(row\.effective_from\).*isAfter/);
-  assert.match(source, /Không cần thêm bước chuyển trạng thái/);
+  assert.match(source, /Ngày áp dụng ở tương lai sẽ tự hiển thị/);
 });
 
 test('standard editions can be edited through the existing PATCH API', () => {
   assert.match(source, /editingStandard/);
   assert.match(source, /api\.patch\(`\$\{base\}\/standards\/\$\{editingStandard\.id\}`/);
-  assert.match(source, /label: "Sửa"/);
+  assert.match(source, /Sửa phiên bản/);
   assert.match(source, /Đã cập nhật phiên bản tiêu chuẩn/);
 });
 
@@ -25,6 +25,15 @@ test('stopped editions have a real restore action instead of a dead-end state', 
   assert.match(source, /Đã khôi phục áp dụng phiên bản tiêu chuẩn/);
 });
 
+test('currently applied editions use the explicit lifecycle stop command', () => {
+  assert.match(source, /api\.post\(`\$\{base\}\/standards\/\$\{row\.id\}\/stop`\)/);
+  assert.match(source, /label: "Ngừng áp dụng"/);
+  assert.match(source, /Dữ liệu lịch sử vẫn được giữ nguyên/);
+  assert.doesNotMatch(source, /status: "WITHDRAWN"/);
+  assert.doesNotMatch(source, /Thu hồi/);
+  assert.doesNotMatch(source, /Hủy lịch áp dụng/);
+});
+
 test('unused mistaken editions have an explicit delete path guarded by the backend', () => {
   assert.match(source, /api\.delete\(`\$\{base\}\/standards\/\$\{row\.id\}`\)/);
   assert.match(source, /Xóa nếu chưa sử dụng/);
@@ -32,25 +41,18 @@ test('unused mistaken editions have an explicit delete path guarded by the backe
   assert.match(source, /hệ thống sẽ chặn để bảo vệ lịch sử/);
 });
 
-test('an edition already being applied can be stopped without delete semantics', () => {
-  assert.match(source, /label: "Ngừng áp dụng"/);
-  assert.match(source, /status: "WITHDRAWN"/);
-  assert.match(source, /Dữ liệu lịch sử vẫn được giữ nguyên/);
-  assert.doesNotMatch(source, /Thu hồi/);
-  assert.doesNotMatch(source, /Hủy lịch áp dụng/);
-});
-
-test('program status and readiness are separate user-facing concepts', () => {
+test('program status and readiness remain separate user-facing concepts', () => {
   assert.match(source, /Đang sử dụng/);
   assert.match(source, /Ngừng sử dụng/);
   assert.match(source, /Sẵn sàng/);
   assert.match(source, /Cần thiết lập/);
 });
 
-test('the surface keeps readiness compact and removes the global add-version action', () => {
-  assert.match(source, /allSchemes\.length} chương trình · \{readyCount} sẵn sàng · \{needsSetupCount} cần thiết lập/);
-  assert.doesNotMatch(source, /type="primary" icon=\{<PlusOutlined \/>} disabled=\{!allSchemes\.length}/);
-  assert.match(source, /Chưa có phiên bản tiêu chuẩn\./);
+test('rule package setup is actionable from the affected program', () => {
+  assert.match(source, /scheme-configurations/);
+  assert.match(source, /Thiết lập quy tắc/);
+  assert.match(source, /Quy tắc chứng nhận/);
+  assert.match(source, /Tạo phiên bản mới/);
 });
 
 test('standard edition labels normalize a year already entered in the standard code', () => {
