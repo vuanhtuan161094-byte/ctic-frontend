@@ -19,7 +19,8 @@ test("Coordinator dashboard renders server-projected KPI sections", () => {
 });
 
 test("Lead Auditor receives the same audit-oriented personal projection component", () => {
-  assert.match(dashboard, /Lịch sắp tới của tôi/);
+  assert.match(dashboard, /Lịch sắp tới/);
+  assert.doesNotMatch(dashboard, /Lịch sắp tới của tôi/);
   assert.match(types, /role_in_event/);
 });
 
