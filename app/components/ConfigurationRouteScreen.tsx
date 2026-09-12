@@ -175,9 +175,15 @@ export function ConfigurationRouteScreen({ section, onNavigate }: ConfigurationR
           ) : <ReadinessBlockerPanel blockers={blockers} readyMessage="Không có mục cấu hình bắt buộc nào còn thiếu." />}
         </section>
       ) : null}
-      <Card className="configuration-route-page__content" bordered={false}>
-        <ConfigurationContent section={activeSection} />
-      </Card>
+      {programsSurface ? (
+        <div className="configuration-route-page__content">
+          <ConfigurationContent section={activeSection} />
+        </div>
+      ) : (
+        <Card className="configuration-route-page__content" bordered={false}>
+          <ConfigurationContent section={activeSection} />
+        </Card>
+      )}
     </div>
   );
 }
