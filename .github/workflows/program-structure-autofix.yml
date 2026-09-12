@@ -22,7 +22,25 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Apply bounded patch
-        run: python scripts/program-structure-autofix.py
+        shell: bash
+        run: |
+          python scripts/program-structure-autofix.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/components/CustomerApplicationsScreen.tsx')
+          s = p.read_text(encoding='utf-8')
+          start = s.index('interface CustomerApplication {')
+          end = s.index('\n}\n\ninterface ApplicationFormValues', start)
+          block = s[start:end]
+          block = block.replace('  standard_names: string[];', '  standard_name: string;', 1)
+          s = s[:start] + block + s[end:]
+          start = s.index('interface ApplicationFormValues {')
+          end = s.index('\n}\n\nconst portalStatusMeta', start)
+          block = s[start:end]
+          block = block.replace('  standard_name: string;', '  standard_names: string[];', 1)
+          s = s[:start] + block + s[end:]
+          p.write_text(s, encoding='utf-8')
+          PY
       - name: Verify frontend
         run: |
           npm run typecheck
