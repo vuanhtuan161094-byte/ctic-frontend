@@ -6,6 +6,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   StopOutlined,
+  UndoOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -14,7 +15,6 @@ import {
   Card,
   DatePicker,
   Dropdown,
-  Empty,
   Form,
   Input,
   Modal,
@@ -111,17 +111,46 @@ function standardEditionLabel(row: Pick<Standard, "standard_code" | "edition">) 
   return code.includes(edition) ? code : `${code}:${edition}`;
 }
 
+function hasPassedStopDate(row: Standard) {
+  return Boolean(
+    row.withdrawn_at
+    && !dayjs(row.withdrawn_at).endOf("day").isAfter(dayjs()),
+  );
+}
+
+function isStoppedStandard(row: Standard) {
+  return row.status !== "ACTIVE" || hasPassedStopDate(row);
+}
+
+function canRestoreStandard(row: Standard) {
+  return row.status === "WITHDRAWN"
+    || (row.status === "ACTIVE" && hasPassedStopDate(row));
+}
+
+function isAppliedStandard(row: Standard) {
+  return !isStoppedStandard(row)
+    && !dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"));
+}
+
 function StandardStatus({ row }: { row: Standard }) {
-  if (
-    row.status !== "ACTIVE"
-    || (row.withdrawn_at && !dayjs(row.withdrawn_at).endOf("day").isAfter(dayjs()))
-  ) {
+  if (isStoppedStandard(row)) {
     return <Tag>Ngừng áp dụng</Tag>;
   }
   if (dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"))) {
     return <Tag color="cyan">Chờ hiệu lực · {dayjs(row.effective_from).format("DD/MM/YYYY")}</Tag>;
   }
   return <Tag color="green">Đang áp dụng</Tag>;
+}
+
+function standardDateText(row: Standard) {
+  const effective = dayjs(row.effective_from).format("DD/MM/YYYY");
+  if (isStoppedStandard(row) && row.withdrawn_at) {
+    return `Áp dụng từ ${effective} · Ngừng từ ${dayjs(row.withdrawn_at).format("DD/MM/YYYY")}`;
+  }
+  if (!isStoppedStandard(row) && dayjs(row.effective_from).startOf("day").isAfter(dayjs().startOf("day"))) {
+    return `Hiệu lực từ ${effective}`;
+  }
+  return `Áp dụng từ ${effective}`;
 }
 
 function ProgramStatus({ value }: { value: string }) {
@@ -265,6 +294,15 @@ export function CertificationProgramsPanel() {
     onError: (error) => messageApi.error(getErrorMessage(error)),
   });
 
+  const restoreStandard = useMutation({
+    mutationFn: async (row: Standard) => api.post(`${base}/standards/${row.id}/restore`),
+    onSuccess: async () => {
+      await invalidate();
+      messageApi.success("Đã khôi phục áp dụng phiên bản tiêu chuẩn");
+    },
+    onError: (error) => messageApi.error(getErrorMessage(error)),
+  });
+
   const deleteStandard = useMutation({
     mutationFn: async (row: Standard) => api.delete(`${base}/standards/${row.id}`),
     onSuccess: async () => {
@@ -320,6 +358,18 @@ export function CertificationProgramsPanel() {
     });
   };
 
+  const confirmRestore = (row: Standard) => {
+    Modal.confirm({
+      title: `Khôi phục áp dụng ${standardEditionLabel(row)}?`,
+      content: "Phiên bản sẽ trở lại trạng thái áp dụng và có thể được sử dụng cho nghiệp vụ mới theo ngày hiệu lực đã cấu hình.",
+      okText: "Khôi phục áp dụng",
+      cancelText: "Hủy",
+      onOk: async () => {
+        await restoreStandard.mutateAsync(row);
+      },
+    });
+  };
+
   const confirmDelete = (row: Standard) => {
     Modal.confirm({
       title: `Xóa ${standardEditionLabel(row)}?`,
@@ -336,26 +386,21 @@ export function CertificationProgramsPanel() {
   const allSchemes = schemes.data ?? [];
   const readyCount = allSchemes.filter((row) => readinessByScheme.get(row.id)?.status === "READY").length;
   const needsSetupCount = allSchemes.filter((row) => row.status === "ACTIVE" && readinessByScheme.get(row.id)?.status !== "READY").length;
-  const loadError = schemes.isError ? getErrorMessage(schemes.error) : standards.isError ? getErrorMessage(standards.error) : null;
+  const loadError = schemes.isError
+    ? getErrorMessage(schemes.error)
+    : standards.isError
+      ? getErrorMessage(standards.error)
+      : null;
 
   return (
     <div>
       {contextHolder}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
-        <div>
-          <Text strong style={{ fontSize: 16 }}>Cấu hình đang sử dụng</Text>
-          <div style={{ marginTop: 6 }}>
-            <Space wrap size={6}>
-              <Text>{allSchemes.length} chương trình</Text>
-              <Tag color="green">{readyCount} sẵn sàng</Tag>
-              {needsSetupCount ? <Tag color="orange">{needsSetupCount} cần thiết lập</Tag> : null}
-            </Space>
-          </div>
-        </div>
-        <Space wrap>
-          <Button icon={<PlusOutlined />} onClick={openNewScheme}>Thêm chương trình</Button>
-          <Button type="primary" icon={<PlusOutlined />} disabled={!allSchemes.length} onClick={() => openStandard()}>Thêm phiên bản tiêu chuẩn</Button>
-        </Space>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+        <Text type="secondary">
+          {allSchemes.length} chương trình · {readyCount} sẵn sàng · {needsSetupCount} cần thiết lập
+        </Text>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openNewScheme}>Thêm chương trình</Button>
       </div>
 
       {loadError ? (
@@ -369,18 +414,21 @@ export function CertificationProgramsPanel() {
       ) : null}
 
       {!loadError && !schemes.isLoading && !allSchemes.length ? (
-        <Card>
-          <Empty description="Chưa có chương trình chứng nhận">
-            <Button type="primary" onClick={openNewScheme}>Thêm chương trình đầu tiên</Button>
-          </Empty>
+        <Card size="small">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <Text type="secondary">Chưa có chương trình chứng nhận.</Text>
+            <Button type="primary" size="small" onClick={openNewScheme}>Thêm chương trình đầu tiên</Button>
+          </div>
         </Card>
       ) : null}
 
-      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+      <Space direction="vertical" size={10} style={{ width: "100%" }}>
         {allSchemes.map((scheme) => {
           const rows = standardsByScheme.get(scheme.id) ?? [];
           const schemeReadiness = readinessByScheme.get(scheme.id);
           const issues = schemeReadiness?.issues ?? [];
+          const restoreCandidate = rows.find(canRestoreStandard);
+
           return (
             <Card
               key={scheme.id}
@@ -388,7 +436,7 @@ export function CertificationProgramsPanel() {
               title={(
                 <Space wrap size={8}>
                   <Tag color="blue" style={{ margin: 0 }}>{scheme.code}</Tag>
-                  <Text strong style={{ fontSize: 16 }}>{programName(scheme)}</Text>
+                  <Text strong>{programName(scheme)}</Text>
                   <ProgramStatus value={scheme.status} />
                   {scheme.status === "ACTIVE" ? (
                     schemeReadiness?.status === "READY"
@@ -398,8 +446,8 @@ export function CertificationProgramsPanel() {
                 </Space>
               )}
               extra={(
-                <Space>
-                  <Button size="small" icon={<PlusOutlined />} onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
+                <Space size={4}>
+                  <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
                   <Dropdown
                     trigger={["click"]}
                     menu={{
@@ -407,7 +455,7 @@ export function CertificationProgramsPanel() {
                         { key: "edit", icon: <EditOutlined />, label: "Sửa chương trình" },
                         {
                           key: "toggle",
-                          icon: <StopOutlined />,
+                          icon: scheme.status === "ACTIVE" ? <StopOutlined /> : <UndoOutlined />,
                           label: scheme.status === "ACTIVE" ? "Ngừng sử dụng" : "Đưa vào sử dụng",
                         },
                       ],
@@ -423,50 +471,74 @@ export function CertificationProgramsPanel() {
               )}
             >
               {scheme.status === "ACTIVE" && issues.length ? (
-                <Alert
-                  showIcon
-                  type="warning"
-                  message="Cần hoàn tất cấu hình"
-                  description={(
-                    <Space direction="vertical" size={4} style={{ width: "100%" }}>
-                      {issues.map((issue) => (
-                        <div key={issue} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    border: "1px solid #ffd591",
+                    background: "#fffaf0",
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    marginBottom: 8,
+                  }}
+                >
+                  <Space direction="vertical" size={6} style={{ width: "100%" }}>
+                    {issues.map((issue) => {
+                      const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
+                      return (
+                        <div
+                          key={issue}
+                          style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+                        >
                           <Text>{readinessText(issue)}</Text>
-                          {/phiên bản tiêu chuẩn/i.test(issue) ? (
-                            <Button size="small" onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
+                          {missingStandard ? (
+                            restoreCandidate ? (
+                              <Button size="small" icon={<UndoOutlined />} onClick={() => confirmRestore(restoreCandidate)}>
+                                Khôi phục {standardEditionLabel(restoreCandidate)}
+                              </Button>
+                            ) : (
+                              <Button size="small" onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
+                            )
                           ) : null}
                         </div>
-                      ))}
-                    </Space>
-                  )}
-                  style={{ marginBottom: 12 }}
-                />
+                      );
+                    })}
+                  </Space>
+                </div>
               ) : null}
 
               {rows.length ? (
-                <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                  {rows.map((standard) => {
-                    const applied = standard.status === "ACTIVE"
-                      && !dayjs(standard.effective_from).startOf("day").isAfter(dayjs().startOf("day"))
-                      && (!standard.withdrawn_at || dayjs(standard.withdrawn_at).endOf("day").isAfter(dayjs()));
+                <div>
+                  {rows.map((standard, index) => {
+                    const applied = isAppliedStandard(standard);
+                    const restorable = canRestoreStandard(standard);
                     const actions = [
                       { key: "edit", icon: <EditOutlined />, label: "Sửa" },
                       ...(applied ? [{ key: "stop", icon: <StopOutlined />, label: "Ngừng áp dụng", danger: true }] : []),
-                      { key: "delete", icon: <DeleteOutlined />, label: "Xóa", danger: true },
+                      ...(restorable ? [{ key: "restore", icon: <UndoOutlined />, label: "Khôi phục áp dụng" }] : []),
+                      { type: "divider" as const },
+                      { key: "delete", icon: <DeleteOutlined />, label: "Xóa nếu chưa sử dụng", danger: true },
                     ];
+
                     return (
                       <div
                         key={standard.id}
-                        style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto auto", gap: 12, alignItems: "center", padding: "11px 12px", border: "1px solid #edf0f4", borderRadius: 10 }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          padding: "10px 2px",
+                          borderTop: index === 0 ? "none" : "1px solid #f0f0f0",
+                        }}
                       >
-                        <div style={{ minWidth: 0 }}>
+                        <div style={{ minWidth: 220, flex: "1 1 320px" }}>
                           <Text strong>{standardEditionLabel(standard)}</Text>
                           <div><Text type="secondary">{standard.standard_name}</Text></div>
                         </div>
-                        <div style={{ textAlign: "right" }}>
+                        <div style={{ minWidth: 210, textAlign: "right" }}>
                           <StandardStatus row={standard} />
-                          <div style={{ marginTop: 3 }}>
-                            <Text type="secondary">Hiệu lực từ {dayjs(standard.effective_from).format("DD/MM/YYYY")}</Text>
+                          <div style={{ marginTop: 2 }}>
+                            <Text type="secondary">{standardDateText(standard)}</Text>
                           </div>
                         </div>
                         <Dropdown
@@ -476,6 +548,7 @@ export function CertificationProgramsPanel() {
                             onClick: ({ key }) => {
                               if (key === "edit") openStandard(undefined, standard);
                               if (key === "stop") confirmStop(standard);
+                              if (key === "restore") confirmRestore(standard);
                               if (key === "delete") confirmDelete(standard);
                             },
                           }}
@@ -485,14 +558,21 @@ export function CertificationProgramsPanel() {
                       </div>
                     );
                   })}
-                </Space>
+                </div>
               ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="Chưa có phiên bản tiêu chuẩn"
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    padding: "8px 2px 2px",
+                  }}
                 >
+                  <Text type="secondary">Chưa có phiên bản tiêu chuẩn.</Text>
                   <Button size="small" onClick={() => openStandard(scheme.id)}>Thêm phiên bản</Button>
-                </Empty>
+                </div>
               )}
             </Card>
           );
