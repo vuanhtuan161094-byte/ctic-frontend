@@ -6,6 +6,7 @@ const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const shell = source("../app/components/DashboardShell.tsx");
 const navigation = source("../app/lib/app-navigation.ts");
 const routes = source("../app/components/ConfigurationRouteScreen.tsx");
+const programs = source("../app/components/CertificationProgramsPanel.tsx");
 const masterData = source("../app/components/MasterDataConfigurationPanel.tsx");
 const capabilities = source("../app/components/CertificationBodyCapabilitiesPanel.tsx");
 const taxonomy = source("../app/components/IndustryTaxonomyPanel.tsx");
@@ -28,20 +29,21 @@ test("Step 15 exposes each configuration domain at a canonical route", () => {
   assert.match(navigation, /"system-admin": "\/admin\/accounts"/);
 });
 
-test("configuration navigation is grouped and shaped by effective backend access", () => {
+test("configuration navigation is grouped by business purpose without implementation copy", () => {
   assert.match(shell, /Cấu hình chứng nhận/);
   assert.match(shell, /Dữ liệu phân loại/);
   assert.match(shell, /canManageConfiguration = hasPermission\("classifications\.manage"\)/);
   assert.match(shell, /configurationSection[\s\S]*ForbiddenState/);
-  assert.match(routes, /Nguồn dữ liệu và quyền thao tác do backend kiểm soát/);
+  assert.doesNotMatch(routes, /backend kiểm soát/);
+  assert.doesNotMatch(routes, /chiếu trực tiếp từ dữ liệu/);
 });
 
-test("programme, standard and edition configuration reuses the existing hierarchy", () => {
-  assert.match(routes, /schemes: "programs"/);
-  assert.match(routes, /standards: "programs"/);
-  assert.match(masterData, /Chương trình chứng nhận/);
-  assert.match(masterData, /Tiêu chuẩn/);
-  assert.match(masterData, /Phiên bản/);
+test("programme, standard and edition configuration uses one focused hierarchy", () => {
+  assert.match(routes, /CertificationProgramsPanel/);
+  assert.match(routes, /standards" \? "schemes"/);
+  assert.match(programs, /standardsByScheme/);
+  assert.match(programs, /Thêm phiên bản tiêu chuẩn/);
+  assert.match(programs, /standardEditionLabel/);
 });
 
 test("capability configuration remains exact-edition and IAF scoped", () => {
@@ -67,7 +69,7 @@ test("import remains an explicit validate then commit flow", () => {
   assert.match(masterData, /COMMITTED/);
 });
 
-test("route pages use shared states, source-backed readiness, and a responsive fallback", () => {
+test("route pages keep shared states, source-backed readiness, and a responsive fallback", () => {
   assert.match(routes, /PageHeader/);
   assert.match(routes, /ReadinessBlockerPanel/);
   assert.match(routes, /LoadingSkeleton/);
@@ -80,5 +82,6 @@ test("route pages use shared states, source-backed readiness, and a responsive f
 
 test("Step 15 route shell does not add product-name branding literals", () => {
   assert.doesNotMatch(routes, /\bCTIC\b/);
+  assert.doesNotMatch(programs, /\bCTIC\b/);
   assert.doesNotMatch(navigation, /\bCTIC\b/);
 });
