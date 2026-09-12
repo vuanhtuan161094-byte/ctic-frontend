@@ -11,6 +11,12 @@ test('program and standard setup is one focused business surface', () => {
   assert.match(routes, /section === "standards" \? "schemes" : section/);
 });
 
+test('the route does not duplicate the sidebar with a second configuration navigation', () => {
+  assert.doesNotMatch(routes, /function ConfigurationNavigation/);
+  assert.doesNotMatch(routes, /ResponsiveCardList/);
+  assert.match(routes, /Thiết lập chương trình chứng nhận, tiêu chuẩn, phiên bản và quy tắc áp dụng/);
+});
+
 test('the working surface avoids tutorial and implementation copy', () => {
   assert.doesNotMatch(programs, /Chỉ cần nhớ/);
   assert.doesNotMatch(programs, /Hiểu đơn giản/);
@@ -19,11 +25,12 @@ test('the working surface avoids tutorial and implementation copy', () => {
   assert.doesNotMatch(routes, /chiếu trực tiếp từ dữ liệu/);
 });
 
-test('standards are displayed nested under their program with direct actions', () => {
-  assert.match(programs, /standardsByScheme/);
-  assert.match(programs, /standardEditionLabel\(standard\)/);
+test('standards are grouped as families under their program before editions', () => {
+  assert.match(programs, /familiesByScheme/);
+  assert.match(programs, /type StandardFamily/);
+  assert.match(programs, /Thêm tiêu chuẩn/);
   assert.match(programs, /Thêm phiên bản/);
-  assert.match(programs, /MoreOutlined/);
+  assert.match(programs, /family\.editions/);
 });
 
 test('readiness is compact and separate from program operational status', () => {
@@ -33,7 +40,13 @@ test('readiness is compact and separate from program operational status', () => 
   assert.match(programs, /function ProgramStatus/);
 });
 
-test('the new surface does not duplicate the program data in a second full table', () => {
+test('rule package is represented inside the program instead of being a dead-end readiness warning', () => {
+  assert.match(programs, /Quy tắc chứng nhận/);
+  assert.match(programs, /Thiết lập quy tắc/);
+  assert.match(programs, /scheme-configs/);
+});
+
+test('the new surface does not duplicate program data in a second full table', () => {
   assert.doesNotMatch(programs, /Xem bảng tất cả tiêu chuẩn/);
   assert.doesNotMatch(programs, /<Table/);
 });
