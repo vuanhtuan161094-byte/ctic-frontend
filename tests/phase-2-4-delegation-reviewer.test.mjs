@@ -32,7 +32,8 @@ test("delegation management is bounded, revocable and has no impersonation contr
 test("My Work distinguishes direct and delegated obligations without cloning task records", () => {
   assert.match(myWork, /item\.is_delegated/);
   assert.match(myWork, /Xử lý thay cho/);
-  assert.match(myWork, /Việc của tôi/);
+  assert.match(myWork, /Được phân công/);
+  assert.doesNotMatch(myWork, /Việc của tôi/);
 });
 
 test("delegation screen is available from the internal account menu", () => {
