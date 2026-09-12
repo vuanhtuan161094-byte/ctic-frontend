@@ -2,42 +2,46 @@ import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const source = fs.readFileSync(new URL('../app/components/MasterDataConfigurationPanel.tsx', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../app/components/CertificationProgramsPanel.tsx', import.meta.url), 'utf8');
 
-test('future standard editions are shown as waiting for effect instead of active', () => {
-  assert.match(source, /function StandardLifecycleStatus/);
-  assert.match(source, /Chờ hiệu lực · từ/);
-  assert.match(source, /dayjs\(row\.effective_from\)\.isAfter\(dayjs\(\)\)/);
+test('future standard editions derive waiting-for-effect from the effective date', () => {
+  assert.match(source, /function StandardStatus/);
+  assert.match(source, /Chờ hiệu lực ·/);
+  assert.match(source, /dayjs\(row\.effective_from\).*isAfter/);
+  assert.match(source, /Không cần thêm bước chuyển trạng thái/);
 });
 
 test('standard editions can be edited through the existing PATCH API', () => {
   assert.match(source, /editingStandard/);
   assert.match(source, /api\.patch\(`\$\{base\}\/standards\/\$\{editingStandard\.id\}`/);
-  assert.match(source, /Sửa thông tin/);
-  assert.match(source, /Lưu thay đổi/);
+  assert.match(source, /label: "Sửa"/);
+  assert.match(source, /Đã cập nhật phiên bản tiêu chuẩn/);
 });
 
-test('scheduled editions can be cancelled without deleting history', () => {
-  assert.match(source, /Hủy lịch áp dụng/);
-  assert.match(source, /status: "INACTIVE"/);
-  assert.match(source, /Không xóa dữ liệu lịch sử/);
+test('unused mistaken editions have an explicit delete path guarded by the backend', () => {
+  assert.match(source, /api\.delete\(`\$\{base\}\/standards\/\$\{row\.id\}`\)/);
+  assert.match(source, /label: "Xóa"/);
+  assert.match(source, /Chỉ phiên bản chưa được sử dụng mới có thể xóa/);
+  assert.match(source, /hệ thống sẽ chặn để bảo vệ lịch sử/);
 });
 
-test('active editions can be withdrawn explicitly', () => {
-  assert.match(source, /Ngừng hiệu lực/);
+test('an edition already being applied can be stopped without delete semantics', () => {
+  assert.match(source, /label: "Ngừng áp dụng"/);
   assert.match(source, /status: "WITHDRAWN"/);
-  assert.match(source, /withdrawn_at: dayjs\(\)\.format\("YYYY-MM-DD"\)/);
+  assert.match(source, /Dữ liệu lịch sử vẫn được giữ nguyên/);
+  assert.doesNotMatch(source, /Thu hồi/);
+  assert.doesNotMatch(source, /Hủy lịch áp dụng/);
 });
 
-test('program and edition UI is visually compact and action-oriented', () => {
-  assert.match(source, /repeat\(auto-fit, minmax\(170px, 1fr\)\)/);
-  assert.match(source, /MoreOutlined/);
-  assert.match(source, /Dropdown/);
-  assert.match(source, /background: "#fafcff"/);
+test('program status and readiness are separate user-facing concepts', () => {
+  assert.match(source, /Đang sử dụng/);
+  assert.match(source, /Ngừng sử dụng/);
+  assert.match(source, /Sẵn sàng/);
+  assert.match(source, /Cần thiết lập/);
 });
 
 test('standard edition labels normalize a year already entered in the standard code', () => {
   assert.match(source, /function normalizeStandardCode/);
-  assert.match(source, /standard_code: normalizeStandardCode\(row\.standard_code, row\.edition\)/);
-  assert.match(source, /const code = normalizeStandardCode\(standardForm\.getFieldValue\("standard_code"\), standardForm\.getFieldValue\("edition"\)\)/);
+  assert.match(source, /standard_code: standardCode/);
+  assert.match(source, /standardEditionLabel\(standard\)/);
 });
