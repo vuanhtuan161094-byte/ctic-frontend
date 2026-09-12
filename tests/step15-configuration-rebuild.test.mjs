@@ -10,7 +10,6 @@ const programs = source("../app/components/CertificationProgramsPanel.tsx");
 const masterData = source("../app/components/MasterDataConfigurationPanel.tsx");
 const capabilities = source("../app/components/CertificationBodyCapabilitiesPanel.tsx");
 const taxonomy = source("../app/components/IndustryTaxonomyPanel.tsx");
-const styles = source("../app/globals.css");
 
 const configurationPaths = [
   "/admin/configuration/schemes",
@@ -38,11 +37,13 @@ test("configuration navigation is grouped by business purpose without implementa
   assert.doesNotMatch(routes, /chiếu trực tiếp từ dữ liệu/);
 });
 
-test("programme, standard and edition configuration uses one focused hierarchy", () => {
+test("programme, standard family and edition configuration uses one focused hierarchy", () => {
   assert.match(routes, /CertificationProgramsPanel/);
   assert.match(routes, /standards" \? "schemes"/);
-  assert.match(programs, /standardsByScheme/);
-  assert.match(programs, /Thêm phiên bản tiêu chuẩn/);
+  assert.match(programs, /familiesByScheme/);
+  assert.match(programs, /type StandardFamily/);
+  assert.match(programs, /Thêm tiêu chuẩn/);
+  assert.match(programs, /Thêm phiên bản/);
   assert.match(programs, /standardEditionLabel/);
 });
 
@@ -69,15 +70,14 @@ test("import remains an explicit validate then commit flow", () => {
   assert.match(masterData, /COMMITTED/);
 });
 
-test("route pages keep shared states, source-backed readiness, and a responsive fallback", () => {
+test("route pages keep shared states and source-backed readiness without a second navigation shell", () => {
   assert.match(routes, /PageHeader/);
   assert.match(routes, /ReadinessBlockerPanel/);
   assert.match(routes, /LoadingSkeleton/);
   assert.match(routes, /ErrorState/);
   assert.match(routes, /configuration-readiness/);
-  assert.match(routes, /ResponsiveCardList/);
-  assert.match(styles, /configuration-route-nav-mobile/);
-  assert.match(styles, /@media \(max-width: 768px\)[\s\S]*configuration-route-nav-mobile/);
+  assert.doesNotMatch(routes, /ResponsiveCardList/);
+  assert.doesNotMatch(routes, /ConfigurationNavigation/);
 });
 
 test("Step 15 route shell does not add product-name branding literals", () => {
