@@ -2,39 +2,43 @@ import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const source = fs.readFileSync(new URL('../app/components/MasterDataConfigurationPanel.tsx', import.meta.url), 'utf8');
+const programs = fs.readFileSync(new URL('../app/components/CertificationProgramsPanel.tsx', import.meta.url), 'utf8');
+const routes = fs.readFileSync(new URL('../app/components/ConfigurationRouteScreen.tsx', import.meta.url), 'utf8');
 
-test('program and standard setup is merged into one business flow', () => {
-  assert.match(source, /key: "programs"/);
-  assert.match(source, /label: "Chương trình & tiêu chuẩn"/);
-  assert.doesNotMatch(source, /key: "schemes"/);
-  assert.doesNotMatch(source, /key: "standards"/);
+test('program and standard setup is one focused business surface', () => {
+  assert.match(routes, /CertificationProgramsPanel/);
+  assert.match(routes, /label: "Chương trình & tiêu chuẩn"/);
+  assert.match(routes, /section === "standards" \? "schemes" : section/);
 });
 
-test('the UI explains QMS versus ISO edition and prevents duplicate confusion', () => {
-  assert.match(source, /QMS là chương trình; ISO 9001:2015 là tiêu chuẩn nằm bên trong QMS/);
-  assert.match(source, /Chương trình .* đã tồn tại\. Không cần tạo lại/);
-  assert.match(source, /Thêm tiêu chuẩn \/ phiên bản/);
+test('the working surface avoids tutorial and implementation copy', () => {
+  assert.doesNotMatch(programs, /Chỉ cần nhớ/);
+  assert.doesNotMatch(programs, /Hiểu đơn giản/);
+  assert.doesNotMatch(programs, /Ảnh hưởng:/);
+  assert.doesNotMatch(routes, /backend kiểm soát/);
+  assert.doesNotMatch(routes, /chiếu trực tiếp từ dữ liệu/);
 });
 
-test('standards are displayed nested under their scheme', () => {
-  assert.match(source, /standardsByScheme/);
-  assert.match(source, /standardEditionLabel\(standard\)/);
-  assert.match(source, /Thêm phiên bản tiêu chuẩn/);
+test('standards are displayed nested under their program with direct actions', () => {
+  assert.match(programs, /standardsByScheme/);
+  assert.match(programs, /standardEditionLabel\(standard\)/);
+  assert.match(programs, /Thêm phiên bản/);
+  assert.match(programs, /MoreOutlined/);
 });
 
-test('backend loading errors are explicit and never masquerade as an empty list', () => {
-  assert.match(source, /foundationLoadError/);
-  assert.match(source, /Không tải được danh sách chương trình \/ tiêu chuẩn/);
-  assert.match(source, /không hiển thị “Trống”/);
+test('readiness is compact and separate from program operational status', () => {
+  assert.match(programs, /chương trình/);
+  assert.match(programs, /sẵn sàng/);
+  assert.match(programs, /cần thiết lập/);
+  assert.match(programs, /function ProgramStatus/);
 });
 
-test('long explanations are collapsed by default', () => {
-  assert.match(source, /Xem giải thích ·/);
-  assert.match(source, /Xem giải thích từng mục cấu hình/);
+test('the new surface does not duplicate the program data in a second full table', () => {
+  assert.doesNotMatch(programs, /Xem bảng tất cả tiêu chuẩn/);
+  assert.doesNotMatch(programs, /<Table/);
 });
 
-test('standard code normalizer removes an edition suffix to avoid ISO 9001:2015:2015', () => {
-  assert.match(source, /normalizeStandardCode/);
-  assert.match(source, /Nếu lỡ nhập ISO 9001:2015, hệ thống sẽ tự tách năm khỏi mã/);
+test('standard code normalizer prevents ISO 9001:2015:2015 labels', () => {
+  assert.match(programs, /function normalizeStandardCode/);
+  assert.match(programs, /normalizeStandardCode\(values\.standard_code, edition\)/);
 });
