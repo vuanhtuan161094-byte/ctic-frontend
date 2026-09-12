@@ -496,17 +496,17 @@ const dossierAuditDocumentDefinitions: Record<string, {
   formCode: string;
   title: string;
 }> = {
-  audit_team_assignment: { documentType: "audit_team_assignment_f04", formCode: "F.04-P.09", title: "Chỉ định đoàn đánh giá" },
-  audit_program: { documentType: "audit_program_f03", formCode: "F.03-P.09", title: "Chương trình đánh giá" },
-  stage1_audit_plan: { documentType: "audit_plan_f05", formCode: "F.05-P.09", title: "Kế hoạch đánh giá Giai đoạn 1" },
-  stage2_audit_plan: { documentType: "audit_plan_f05", formCode: "F.05-P.09", title: "Kế hoạch đánh giá Giai đoạn 2" },
-  audit_plan: { documentType: "audit_plan_f05", formCode: "F.05-P.09", title: "Kế hoạch đánh giá" },
-  audit_checklist: { documentType: "audit_checklist_f06", formCode: "F.06-P.09", title: "Bảng kiểm đánh giá" },
-  opening_closing_attendance: { documentType: "audit_attendance_f07", formCode: "F.07-P.09", title: "Danh sách họp khai mạc/kết thúc" },
-  audit_log: { documentType: "audit_log_f15", formCode: "F.15-P.09", title: "Xác nhận đánh giá và ngày công" },
-  audit_monitoring: { documentType: "audit_monitoring_f17", formCode: "F.17-P.09", title: "Theo dõi quá trình đánh giá" },
-  nc_cap: { documentType: "corrective_action_request_f10", formCode: "F.10-P.09", title: "Phiếu yêu cầu hành động khắc phục" },
-  technical_review_report: { documentType: "technical_review_report_f11", formCode: "F.11-P.09", title: "Báo cáo thẩm xét kỹ thuật" },
+  audit_team_assignment: { documentType: "audit_team_assignment_f04", formCode: "F.04", title: "Chỉ định đoàn đánh giá" },
+  audit_program: { documentType: "audit_program_f03", formCode: "F.03", title: "Chương trình đánh giá" },
+  stage1_audit_plan: { documentType: "audit_plan_f05", formCode: "F.05", title: "Kế hoạch đánh giá Giai đoạn 1" },
+  stage2_audit_plan: { documentType: "audit_plan_f05", formCode: "F.05", title: "Kế hoạch đánh giá Giai đoạn 2" },
+  audit_plan: { documentType: "audit_plan_f05", formCode: "F.05", title: "Kế hoạch đánh giá" },
+  audit_checklist: { documentType: "audit_checklist_f06", formCode: "F.06", title: "Bảng kiểm đánh giá" },
+  opening_closing_attendance: { documentType: "audit_attendance_f07", formCode: "F.07", title: "Danh sách họp khai mạc/kết thúc" },
+  audit_log: { documentType: "audit_log_f15", formCode: "F.15", title: "Xác nhận đánh giá và ngày công" },
+  audit_monitoring: { documentType: "audit_monitoring_f17", formCode: "F.17", title: "Theo dõi quá trình đánh giá" },
+  nc_cap: { documentType: "corrective_action_request_f10", formCode: "F.10", title: "Phiếu yêu cầu hành động khắc phục" },
+  technical_review_report: { documentType: "technical_review_report_f11", formCode: "F.11", title: "Báo cáo thẩm xét kỹ thuật" },
 };
 
 function dossierAuditDocumentDefinition(documentKey?: string | null) {
@@ -515,8 +515,8 @@ function dossierAuditDocumentDefinition(documentKey?: string | null) {
 
 function dossierFormCode(documentKey?: string | null) {
   const normalized = normalize(documentKey);
-  if (normalized === "stage1_audit_report") return "F.09-P.09-01";
-  if (["stage2_audit_report", "audit_report"].includes(normalized)) return "F.09-P.09-02";
+  if (normalized === "stage1_audit_report") return "F.09-01";
+  if (["stage2_audit_report", "audit_report"].includes(normalized)) return "F.09-02";
   return dossierAuditDocumentDefinition(documentKey)?.formCode ?? null;
 }
 
@@ -1111,7 +1111,7 @@ export function CertificationProjectDetailScreen({
     }
 
     // Hồ sơ chứng nhận lần đầu phải khóa đúng PLAN theo giai đoạn.
-    // Tuyệt đối không fallback GĐ2 sang PLAN GĐ1 vì sẽ tạo sai F.09-P.09-01.
+    // Tuyệt đối không fallback GĐ2 sang PLAN GĐ1 vì sẽ tạo sai F.09-01.
     if (key.includes("stage1")) return stage1 ?? null;
     if (key.includes("stage2")) return stage2 ?? null;
 
@@ -1303,7 +1303,7 @@ export function CertificationProjectDetailScreen({
       if (!plan) {
         setDocumentActionError(
           normalizedKey.includes("stage2")
-            ? "Chưa có Kế hoạch đánh giá Giai đoạn 2. Hãy lập PLAN Giai đoạn 2 trước khi tạo F.09-P.09-02."
+            ? "Chưa có Kế hoạch đánh giá Giai đoạn 2. Hãy lập PLAN Giai đoạn 2 trước khi tạo F.09-02."
             : "Kỳ đánh giá chưa có PLAN phù hợp để mở báo cáo đánh giá.",
         );
         return;

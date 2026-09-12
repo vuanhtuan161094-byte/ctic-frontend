@@ -959,8 +959,8 @@ export default function AuditExecutionWorkspaceModal({
 
               <Alert
                 message={isStage1Report
-                  ? "F.09-P.09-01 · Báo cáo đánh giá Giai đoạn 1"
-                  : "F.09-P.09-02 · Báo cáo đánh giá chứng nhận"}
+                  ? "F.09-01 · Báo cáo đánh giá Giai đoạn 1"
+                  : "F.09-02 · Báo cáo đánh giá chứng nhận"}
                 description={isStage1Report
                   ? "Giai đoạn 1 tập trung xem xét hồ sơ, mức độ sẵn sàng và kết luận có đủ điều kiện chuyển sang Giai đoạn 2 hay không."
                   : "Giai đoạn 2 tập trung vào các phát hiện đánh giá, kiến nghị của đoàn và ý kiến của khách hàng. Không dùng lại biểu nhập liệu của Giai đoạn 1."}
@@ -972,7 +972,7 @@ export default function AuditExecutionWorkspaceModal({
                 <Card title="Thông tin chung" size="small">
                   <Descriptions column={2} size="small">
                     <Descriptions.Item label="Khách hàng">{plan.certification_projects?.certification_applications?.customers?.company_name || "—"}</Descriptions.Item>
-                    <Descriptions.Item label="Loại báo cáo">{isStage1Report ? "Giai đoạn 1 · F.09-P.09-01" : "Giai đoạn 2 · F.09-P.09-02"}</Descriptions.Item>
+                    <Descriptions.Item label="Loại báo cáo">{isStage1Report ? "Giai đoạn 1 · F.09-01" : "Giai đoạn 2 · F.09-02"}</Descriptions.Item>
                     <Descriptions.Item label="Tiêu chuẩn">{plan.certification_projects?.standard_name || plan.audit_criteria || "—"}</Descriptions.Item>
                     <Descriptions.Item label="Phạm vi">{plan.audit_scope || "—"}</Descriptions.Item>
                   </Descriptions>
@@ -994,7 +994,7 @@ export default function AuditExecutionWorkspaceModal({
                       style={{ marginTop: 16 }}
                     >
                       <Alert
-                        message="11 nội dung được lấy đúng theo F.09-P.09-01 mẫu"
+                        message="11 nội dung được lấy đúng theo F.09-01 mẫu"
                         description="Chỉ nhập Ghi chép đánh giá và Nhận xét cho từng dòng. Không nhập các trường kết luận/chứng nhận của Giai đoạn 2 tại đây."
                         showIcon
                         style={{ marginBottom: 16 }}
@@ -1081,7 +1081,7 @@ export default function AuditExecutionWorkspaceModal({
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                         <div>
                           <Text strong>{findings.length} phát hiện đã ghi nhận</Text>
-                          <div><Text type="secondary">NC và OFI sẽ tự động đổ vào bảng mục 4 của F.09-P.09-02.</Text></div>
+                          <div><Text type="secondary">NC và OFI sẽ tự động đổ vào bảng mục 4 của F.09-02.</Text></div>
                         </div>
                         {canEditReport ? (
                           <Button icon={<PlusOutlined />} onClick={() => openFindingModal("ofi")}>
@@ -1123,7 +1123,7 @@ export default function AuditExecutionWorkspaceModal({
                       </Form.Item>
                       <Form.Item
                         name="audit_team_recommendation"
-                        label="Nội dung kiến nghị ghi trên F.09-P.09-02"
+                        label="Nội dung kiến nghị ghi trên F.09-02"
                         rules={[{ required: true, message: "Nhập kiến nghị của đoàn đánh giá" }]}
                         style={{ marginBottom: 0 }}
                       >

@@ -477,7 +477,7 @@ export default function TechnicalReviewWorkspaceModal({
       ).data;
     },
     onSuccess: async () => {
-      message.success("Đã lưu dự thảo F.11-P.09");
+      message.success("Đã lưu dự thảo F.11");
       await refresh();
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -537,7 +537,7 @@ export default function TechnicalReviewWorkspaceModal({
       ).data;
     },
     onSuccess: async (result) => {
-      message.success("Đã sinh tài liệu F.11-P.09");
+      message.success("Đã sinh tài liệu F.11");
       await refresh();
       if (result.document?.download_url) await downloadDocument(result.document);
     },
@@ -887,7 +887,7 @@ export default function TechnicalReviewWorkspaceModal({
         <Space direction="vertical" size={0}>
           <Text type="secondary">Không gian thẩm xét kỹ thuật</Text>
           <Title level={5} style={{ margin: 0 }}>
-            {workspace?.plan.plan_code || "F.11-P.09"}
+            {workspace?.plan.plan_code || "F.11"}
           </Title>
         </Space>
       )}
@@ -1065,7 +1065,7 @@ export default function TechnicalReviewWorkspaceModal({
                       label: "Kiến nghị & F.11 Word/PDF",
                       children: (
                         <Space direction="vertical" size={14} style={{ width: "100%" }}>
-                          <Card size="small" title="Thông tin lập F.11-P.09">
+                          <Card size="small" title="Thông tin lập F.11">
                             <div className={page ? "cmp-review-form-grid" : undefined} style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 12 }}>
                               <Form.Item
                                 label="Ngày thẩm xét"
@@ -1119,7 +1119,7 @@ export default function TechnicalReviewWorkspaceModal({
                               </Space>
                             )}
                             size="small"
-                            title="Phiên bản F.11-P.09 đã sinh"
+                            title="Phiên bản F.11 đã sinh"
                           >
                             <List
                               dataSource={workspace.document_history}

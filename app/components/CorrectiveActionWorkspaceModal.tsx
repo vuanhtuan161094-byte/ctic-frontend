@@ -697,7 +697,7 @@ export default function CorrectiveActionWorkspaceModal({
     <Empty description="Cuộc đánh giá không có NC nhẹ hoặc NC nặng">
       <Alert
         description="Điểm phù hợp, quan sát và OFI không yêu cầu hành động khắc phục nên không hiển thị tại đây."
-        message="Không áp dụng F.10-P.09"
+        message="Không áp dụng F.10"
         showIcon
         type="success"
       />

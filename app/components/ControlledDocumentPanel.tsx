@@ -949,7 +949,7 @@ export function ControlledDocumentPanel() {
             options={[{ value: "BASELINE", label: "Đang áp dụng" }, { value: "NEW", label: "Tài liệu mới" }]}
           />
         </Form.Item> : null}
-        <Form.Item label="Mã tài liệu" name="document_code" rules={[{ required: true, message: "Nhập mã tài liệu" }]}><Input placeholder={libraryModal === "INTERNAL" ? "P.09" : "ISO-IEC-17021-1"} /></Form.Item>
+        <Form.Item label="Mã tài liệu" name="document_code" rules={[{ required: true, message: "Nhập mã tài liệu" }]}><Input placeholder={libraryModal === "INTERNAL" ? "quy tr├¼nh chß╗⌐ng nhß║¡n" : "ISO-IEC-17021-1"} /></Form.Item>
         <Form.Item label="Tên tài liệu" name="title" rules={[{ required: true, message: "Nhập tên tài liệu" }]}><Input placeholder={libraryModal === "INTERNAL" ? "Quy trình chứng nhận hệ thống quản lý" : "Đánh giá sự phù hợp – Yêu cầu đối với tổ chức chứng nhận"} /></Form.Item>
         <Form.Item label="Loại tài liệu" name="category" rules={[{ required: true, message: "Chọn loại tài liệu" }]}>
           <Select options={(libraryModal === "INTERNAL"
@@ -1080,7 +1080,7 @@ export function ControlledDocumentPanel() {
             if (mode === "BASELINE" && !templateForm.getFieldValue("effective_date")) templateForm.setFieldValue("effective_date", dayjs());
           }} options={[{ value: "BASELINE", label: "Mẫu đang dùng" }, { value: "NEW", label: "Mẫu mới" }]} />
         </Form.Item> : null}
-        <Form.Item label="Mã mẫu" name="template_code" rules={[{ required: true, message: "Nhập mã mẫu" }]}><Input placeholder="F.05-P.09" /></Form.Item>
+        <Form.Item label="Mã mẫu" name="template_code" rules={[{ required: true, message: "Nhập mã mẫu" }]}><Input placeholder="F.05" /></Form.Item>
         <Form.Item label="Tên mẫu" name="template_name" rules={[{ required: true, message: "Nhập tên mẫu" }]}><Input placeholder="Kế hoạch đánh giá" /></Form.Item>
         <Form.Item label="Dùng để tạo" name="document_type" rules={[{ required: true }]}><Select options={documentTypeOptions} /></Form.Item>
         <Form.Item label="File mẫu Word/Excel" required extra={templateCreateFile ? `${templateCreateFile.name} · ${formatFileSize(templateCreateFile.size)}` : "Chỉ nhận .docx hoặc .xlsx"}>
