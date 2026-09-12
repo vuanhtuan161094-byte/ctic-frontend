@@ -18,9 +18,16 @@ test('standard editions can be edited through the existing PATCH API', () => {
   assert.match(source, /Đã cập nhật phiên bản tiêu chuẩn/);
 });
 
+test('stopped editions have a real restore action instead of a dead-end state', () => {
+  assert.match(source, /api\.post\(`\$\{base\}\/standards\/\$\{row\.id\}\/restore`\)/);
+  assert.match(source, /label: "Khôi phục áp dụng"/);
+  assert.match(source, /Khôi phục \{standardEditionLabel\(restoreCandidate\)\}/);
+  assert.match(source, /Đã khôi phục áp dụng phiên bản tiêu chuẩn/);
+});
+
 test('unused mistaken editions have an explicit delete path guarded by the backend', () => {
   assert.match(source, /api\.delete\(`\$\{base\}\/standards\/\$\{row\.id\}`\)/);
-  assert.match(source, /label: "Xóa"/);
+  assert.match(source, /Xóa nếu chưa sử dụng/);
   assert.match(source, /Chỉ phiên bản chưa được sử dụng mới có thể xóa/);
   assert.match(source, /hệ thống sẽ chặn để bảo vệ lịch sử/);
 });
@@ -38,6 +45,12 @@ test('program status and readiness are separate user-facing concepts', () => {
   assert.match(source, /Ngừng sử dụng/);
   assert.match(source, /Sẵn sàng/);
   assert.match(source, /Cần thiết lập/);
+});
+
+test('the surface keeps readiness compact and removes the global add-version action', () => {
+  assert.match(source, /allSchemes\.length} chương trình · \{readyCount} sẵn sàng · \{needsSetupCount} cần thiết lập/);
+  assert.doesNotMatch(source, /type="primary" icon=\{<PlusOutlined \/>} disabled=\{!allSchemes\.length}/);
+  assert.match(source, /Chưa có phiên bản tiêu chuẩn\./);
 });
 
 test('standard edition labels normalize a year already entered in the standard code', () => {
