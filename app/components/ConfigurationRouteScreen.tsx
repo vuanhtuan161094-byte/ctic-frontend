@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CertificationBodyCapabilitiesPanel } from "./CertificationBodyCapabilitiesPanel";
+import { CertificationProgramsPanel } from "./CertificationProgramsPanel";
 import {
   ErrorState,
   LoadingSkeleton,
@@ -46,8 +47,7 @@ interface ConfigurationDestination {
 }
 
 const destinations: ConfigurationDestination[] = [
-  { key: "schemes", label: "Chương trình chứng nhận", description: "Quản lý chương trình và quan hệ với tiêu chuẩn.", group: "certification" },
-  { key: "standards", label: "Tiêu chuẩn & phiên bản", description: "Quản lý tiêu chuẩn và từng phiên bản có hiệu lực.", group: "certification" },
+  { key: "schemes", label: "Chương trình & tiêu chuẩn", description: "Quản lý chương trình chứng nhận và các phiên bản tiêu chuẩn được tổ chức áp dụng.", group: "certification" },
   { key: "capabilities", label: "Phạm vi năng lực", description: "Khai báo năng lực theo đúng phiên bản tiêu chuẩn và lĩnh vực IAF.", group: "certification" },
   { key: "numbering", label: "Quy tắc đánh số", description: "Cấu hình dãy số cho các hồ sơ nghiệp vụ.", group: "certification" },
   { key: "branding", label: "Tổ chức & nhận diện", description: "Thông tin pháp lý, tên hiển thị và nhận diện cổng thông tin.", group: "certification" },
@@ -57,8 +57,8 @@ const destinations: ConfigurationDestination[] = [
 ];
 
 const pageIdentity: Record<ConfigurationRouteSection, string> = {
-  schemes: "Chương trình",
-  standards: "Tiêu chuẩn",
+  schemes: "Chương trình & tiêu chuẩn",
+  standards: "Chương trình & tiêu chuẩn",
   capabilities: "Năng lực tổ chức chứng nhận",
   numbering: "Quy tắc đánh số",
   branding: "Tổ chức & nhận diện",
@@ -68,12 +68,14 @@ const pageIdentity: Record<ConfigurationRouteSection, string> = {
 };
 
 const panelSection: Partial<Record<ConfigurationRouteSection, MasterDataConfigurationSection>> = {
-  schemes: "programs",
-  standards: "programs",
   numbering: "numbering",
   branding: "organization",
   import: "import",
 };
+
+function normalizeSection(section: ConfigurationRouteSection): ConfigurationRouteSection {
+  return section === "standards" ? "schemes" : section;
+}
 
 function readinessBlockers(section: ConfigurationRouteSection, readiness?: ConfigurationReadiness): StructuredBlocker[] {
   if (!readiness) return [];
@@ -83,8 +85,8 @@ function readinessBlockers(section: ConfigurationRouteSection, readiness?: Confi
   if (section === "schemes" || section === "standards") {
     return readiness.schemes.items.flatMap((scheme) => scheme.issues.map((issue, index) => ({
       code: `SCHEME_${scheme.id}_${index}`,
-      label: `${scheme.code} — ${issue}`,
-      explanation: "Kiểm tra chương trình, tiêu chuẩn và cấu hình đang có hiệu lực.",
+      label: `${scheme.code} — ${issue.replace(/ACTIVE/g, "đang áp dụng")}`,
+      explanation: "Hoàn tất mục còn thiếu để chương trình sẵn sàng sử dụng.",
       severity: "BLOCKING" as const,
     })));
   }
@@ -103,11 +105,12 @@ function readinessBlockers(section: ConfigurationRouteSection, readiness?: Confi
 }
 
 function ConfigurationNavigation({ section, onNavigate }: ConfigurationRouteScreenProps) {
+  const activeSection = normalizeSection(section);
   const renderGroup = (group: ConfigurationDestination["group"], title: string, icon: ReactNode) => (
     <div className="configuration-route-nav__group">
       <div className="configuration-route-nav__title">{icon}<span>{title}</span></div>
       {destinations.filter((item) => item.group === group).map((item) => (
-        <Button key={item.key} type={item.key === section ? "primary" : "text"} onClick={() => onNavigate(item.key)}>
+        <Button key={item.key} type={item.key === activeSection ? "primary" : "text"} onClick={() => onNavigate(item.key)}>
           {item.label}
         </Button>
       ))}
@@ -124,9 +127,9 @@ function ConfigurationNavigation({ section, onNavigate }: ConfigurationRouteScre
         <ResponsiveCardList items={destinations.map((item) => ({
           key: item.key,
           title: item.label,
-          status: item.key === section ? <Tag color="blue">Đang xem</Tag> : undefined,
+          status: item.key === activeSection ? <Tag color="blue">Đang xem</Tag> : undefined,
           fields: [{ key: "description", label: "", value: item.description }],
-          actions: <Button size="small" type={item.key === section ? "primary" : "default"} onClick={() => onNavigate(item.key)}>Mở</Button>,
+          actions: <Button size="small" type={item.key === activeSection ? "primary" : "default"} onClick={() => onNavigate(item.key)}>Mở</Button>,
         }))} />
       </div>
     </>
@@ -134,6 +137,7 @@ function ConfigurationNavigation({ section, onNavigate }: ConfigurationRouteScre
 }
 
 function ConfigurationContent({ section }: { section: ConfigurationRouteSection }) {
+  if (section === "schemes" || section === "standards") return <CertificationProgramsPanel />;
   if (section === "capabilities") return <CertificationBodyCapabilitiesPanel />;
   if (section === "classifications") return <IndustryTaxonomyPanel mode="classifications" />;
   if (section === "mappings") return <IndustryTaxonomyPanel mode="mappings" />;
@@ -146,30 +150,33 @@ export function ConfigurationRouteScreen({ section, onNavigate }: ConfigurationR
     queryKey: ["configuration-readiness"],
     queryFn: async () => (await api.get<ConfigurationReadiness>("/master-data-configuration/configuration-readiness")).data,
   });
-  const destination = destinations.find((item) => item.key === section) ?? destinations[0];
-  const blockers = readinessBlockers(section, readiness.data);
+  const activeSection = normalizeSection(section);
+  const destination = destinations.find((item) => item.key === activeSection) ?? destinations[0];
+  const blockers = readinessBlockers(activeSection, readiness.data);
+  const programsSurface = activeSection === "schemes";
 
   return (
     <div className="configuration-route-page">
       <PageHeader
         title={destination.label}
-        identity={<Tag icon={section === "import" ? <ImportOutlined /> : <SafetyCertificateOutlined />}>{pageIdentity[section]}</Tag>}
+        identity={<Tag icon={activeSection === "import" ? <ImportOutlined /> : <SafetyCertificateOutlined />}>{pageIdentity[activeSection]}</Tag>}
         description={destination.description}
-        metadata={<span>Nguồn dữ liệu và quyền thao tác do backend kiểm soát.</span>}
       />
-      <ConfigurationNavigation section={section} onNavigate={onNavigate} />
-      <section className="configuration-route-page__readiness" aria-label="Trạng thái sẵn sàng">
-        <SectionHeader title="Trạng thái sẵn sàng" description="Các cảnh báo dưới đây được chiếu trực tiếp từ dữ liệu cấu hình hiện tại." />
-        {readiness.isLoading ? <LoadingSkeleton variant="detail" rows={2} /> : readiness.isError ? (
-          <ErrorState
-            title="Không thể tải trạng thái cấu hình"
-            description={getErrorMessage(readiness.error)}
-            retry={{ label: "Thử lại", onAction: () => void readiness.refetch() }}
-          />
-        ) : <ReadinessBlockerPanel blockers={blockers} readyMessage="Phần cấu hình này không có điều kiện thiếu được backend báo cáo." />}
-      </section>
+      <ConfigurationNavigation section={activeSection} onNavigate={onNavigate} />
+      {!programsSurface ? (
+        <section className="configuration-route-page__readiness" aria-label="Trạng thái sẵn sàng">
+          <SectionHeader title="Trạng thái sẵn sàng" description="Hoàn tất các mục còn thiếu trước khi sử dụng cấu hình này." />
+          {readiness.isLoading ? <LoadingSkeleton variant="detail" rows={2} /> : readiness.isError ? (
+            <ErrorState
+              title="Không thể tải trạng thái cấu hình"
+              description={getErrorMessage(readiness.error)}
+              retry={{ label: "Thử lại", onAction: () => void readiness.refetch() }}
+            />
+          ) : <ReadinessBlockerPanel blockers={blockers} readyMessage="Không có mục cấu hình bắt buộc nào còn thiếu." />}
+        </section>
+      ) : null}
       <Card className="configuration-route-page__content" bordered={false}>
-        <ConfigurationContent section={section} />
+        <ConfigurationContent section={activeSection} />
       </Card>
     </div>
   );
