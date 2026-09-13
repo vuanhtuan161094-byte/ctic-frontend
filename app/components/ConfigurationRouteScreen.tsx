@@ -121,11 +121,11 @@ function readinessBlockers(section: ConfigurationRouteSection, readiness?: Confi
     }];
   }
   if (section === "numbering") {
-    return readiness.numbering.missing_entity_types.map((entityType) => ({
-      code: `NUMBERING_${entityType}`,
-      label: `Chưa có quy tắc đánh số cho ${entityType}`,
-      explanation: "Tạo dãy số có hiệu lực cho loại hồ sơ này.",
-      severity: "BLOCKING" as const,
+    return readiness.numbering.reasons.map((reason) => ({
+      code: `${reason.code}_${reason.entity_type}`,
+      label: reason.label,
+      explanation: reason.message,
+      severity: reason.blocking ? "BLOCKING" as const : "WARNING" as const,
     }));
   }
   return [];

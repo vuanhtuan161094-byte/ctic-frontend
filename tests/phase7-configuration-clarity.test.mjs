@@ -37,9 +37,11 @@ test("scheme rule configuration explains every operational field", async () => {
 
 test("numbering UI only exposes entity types currently consumed by runtime", async () => {
   const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /runtimeNumberingEntities = \["DOCUMENT", "COMPLAINT", "APPEAL", "CHANGE", "SPECIAL_AUDIT"\]/);
-  assert.match(panel, /Đơn đăng ký và Chứng chỉ hiện vẫn có cơ chế số riêng/);
-  assert.match(panel, /series_key: values\.prefix/);
+  assert.match(panel, /numbering-capabilities/);
+  assert.match(panel, /numberingCapabilityOptions\(numberingCapabilities\.data\)/);
+  assert.match(panel, /non_configurable_entities/);
+  assert.doesNotMatch(panel, /const runtimeNumberingEntities\s*=/);
+  assert.doesNotMatch(panel, /series_key: values\.prefix/);
 });
 
 test("organization settings separate common fields from advanced technical settings", async () => {

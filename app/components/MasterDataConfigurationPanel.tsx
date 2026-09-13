@@ -48,6 +48,14 @@ import type { UploadFile } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 import { api, getErrorMessage } from "../lib/api";
+import {
+  buildNumberingPreview,
+  groupNumberingRules,
+  numberingCapabilityLabel,
+  numberingCapabilityOptions,
+  type NumberingCapabilityContract,
+  type NumberingRuleView,
+} from "../lib/numbering-configuration";
 import { IndustryTaxonomyPanel } from "./IndustryTaxonomyPanel";
 
 const { Paragraph, Text, Title } = Typography;
@@ -95,15 +103,11 @@ type SchemeConfig = {
   scheme: Scheme;
 };
 
-type Numbering = {
+type Numbering = NumberingRuleView & {
   id: string;
-  series_key: string;
   entity_type: string;
-  prefix: string;
-  padding: number;
-  status: string;
-  effective_from: string;
-  effective_to?: string | null;
+  runtime_series_key: string;
+  legacy_series_key_mismatch: boolean;
 };
 
 type ImportJob = {
@@ -122,6 +126,18 @@ type ImportJob = {
 type ImportDefinition = { entity_type: string; format: string; mode: string; columns: string[] };
 type DatedFormValues = Record<string, unknown> & { effective_from: dayjs.Dayjs; effective_to?: dayjs.Dayjs };
 type NumberingFormValues = DatedFormValues & { entity_type: string; prefix: string; padding: number };
+type NumberingActionMode = "replace" | "end" | "cancel";
+type NumberingActionValues = {
+  prefix?: string;
+  padding?: number;
+  effective_from?: dayjs.Dayjs;
+  effective_to?: dayjs.Dayjs;
+  reason: string;
+};
+type NumberingLifecycleMutationValues = NumberingActionValues & {
+  id: string;
+  mode: NumberingActionMode;
+};
 
 type OrganizationProfile = {
   legal_name: string;
@@ -177,6 +193,15 @@ export type ConfigurationReadiness = {
     ready: boolean;
     configured: Array<{ entity_type: string; prefix: string; padding: number }>;
     missing_entity_types: string[];
+    mandatory_entity_types: string[];
+    optional_entity_types: string[];
+    reasons: Array<{
+      code: string;
+      entity_type: string;
+      label: string;
+      blocking: boolean;
+      message: string;
+    }>;
   };
   runtime_wiring: Array<{
     field: string;
@@ -195,6 +220,10 @@ const statusLabels: Record<string, string> = {
   RETIRED: "Ngừng sử dụng",
   PENDING: "Chờ xử lý",
   SUPERSEDED: "Đã được thay thế",
+  CURRENT: "Đang dùng",
+  SCHEDULED: "Đã lên lịch",
+  HISTORICAL: "Lịch sử",
+  CANCELLED: "Đã hủy lịch",
 };
 
 const importEntityLabels: Record<string, string> = {
@@ -222,18 +251,6 @@ const decisionTypeLabels: Record<string, string> = {
   REDUCE_SCOPE: "Thu hẹp phạm vi",
 };
 
-const numberingEntityLabels: Record<string, string> = {
-  DOCUMENT: "Tài liệu kiểm soát",
-  COMPLAINT: "Khiếu nại",
-  APPEAL: "Kháng nghị",
-  CHANGE: "Yêu cầu thay đổi",
-  SPECIAL_AUDIT: "Đánh giá đặc biệt",
-  CERTIFICATE: "Chứng chỉ",
-  APPLICATION: "Đơn đăng ký",
-};
-
-const runtimeNumberingEntities = ["DOCUMENT", "COMPLAINT", "APPEAL", "CHANGE", "SPECIAL_AUDIT"];
-
 const runtimeFieldLabels: Record<string, string> = {
   stage1_applicable: "Áp dụng Giai đoạn 1",
   surveillance_frequency_months: "Khoảng giám sát định kỳ",
@@ -252,7 +269,7 @@ function toList(value: string[] | string | null | undefined) {
 
 function Status({ value }: { value: string }) {
   return (
-    <Tag color={value === "ACTIVE" || value === "COMMITTED" ? "green" : value === "DRAFT" || value === "VALIDATED" ? "blue" : "default"}>
+    <Tag color={value === "ACTIVE" || value === "COMMITTED" || value === "CURRENT" ? "green" : value === "DRAFT" || value === "VALIDATED" || value === "SCHEDULED" ? "blue" : "default"}>
       {statusLabels[value] ?? value}
     </Tag>
   );
@@ -372,12 +389,14 @@ export function MasterDataConfigurationPanel({
   const [editingStandard, setEditingStandard] = useState<Standard | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [numberingOpen, setNumberingOpen] = useState(false);
+  const [numberingAction, setNumberingAction] = useState<{ mode: NumberingActionMode; row: Numbering } | null>(null);
   const [importEntity, setImportEntity] = useState("SCHEME");
   const [importFiles, setImportFiles] = useState<UploadFile[]>([]);
   const [schemeForm] = Form.useForm();
   const [standardForm] = Form.useForm();
   const [configForm] = Form.useForm();
   const [numberingForm] = Form.useForm<NumberingFormValues>();
+  const [numberingActionForm] = Form.useForm<NumberingActionValues>();
   const [profileForm] = Form.useForm<OrganizationProfile>();
 
   const numberingPrefix = Form.useWatch("prefix", numberingForm) as string | undefined;
@@ -400,6 +419,7 @@ export function MasterDataConfigurationPanel({
   const standards = useQuery({ queryKey: ["master-standards"], queryFn: async () => (await api.get<Standard[]>(`${base}/standards`)).data });
   const configs = useQuery({ queryKey: ["scheme-configs"], queryFn: async () => (await api.get<SchemeConfig[]>(`${base}/scheme-configurations`)).data });
   const numbering = useQuery({ queryKey: ["numbering-configs"], queryFn: async () => (await api.get<Numbering[]>(`${base}/numbering-series`)).data });
+  const numberingCapabilities = useQuery({ queryKey: ["numbering-capabilities"], queryFn: async () => (await api.get<NumberingCapabilityContract>(`${base}/numbering-capabilities`)).data });
   const profile = useQuery({ queryKey: ["organization-profile"], queryFn: async () => (await api.get<OrganizationProfile | null>(`${base}/organization-profile`)).data });
   const readiness = useQuery({ queryKey: ["configuration-readiness"], queryFn: async () => (await api.get<ConfigurationReadiness>(`${base}/configuration-readiness`)).data });
   const imports = useQuery({ queryKey: ["import-jobs"], queryFn: async () => (await api.get<ImportJob[]>(`${base}/imports`)).data });
@@ -414,6 +434,7 @@ export function MasterDataConfigurationPanel({
     queryClient.invalidateQueries({ queryKey: ["master-standards"] }),
     queryClient.invalidateQueries({ queryKey: ["scheme-configs"] }),
     queryClient.invalidateQueries({ queryKey: ["numbering-configs"] }),
+    queryClient.invalidateQueries({ queryKey: ["numbering-capabilities"] }),
     queryClient.invalidateQueries({ queryKey: ["organization-profile"] }),
     queryClient.invalidateQueries({ queryKey: ["configuration-readiness"] }),
     queryClient.invalidateQueries({ queryKey: ["import-jobs"] }),
@@ -514,10 +535,32 @@ export function MasterDataConfigurationPanel({
   const cancelScheduledConfig = useAdminMutation<string>((id) => api.post(`${base}/scheme-configurations/${id}/cancel-scheduled`));
   const createNumbering = useAdminMutation<NumberingFormValues>((values) => api.post(`${base}/numbering-series`, {
     ...values,
-    series_key: values.prefix,
     effective_from: values.effective_from.format("YYYY-MM-DD"),
     effective_to: values.effective_to?.format("YYYY-MM-DD"),
   }), () => { setNumberingOpen(false); numberingForm.resetFields(); });
+  const changeNumberingLifecycle = useAdminMutation<NumberingLifecycleMutationValues>((values) => {
+    if (values.mode === "replace") {
+      return api.post(`${base}/numbering-series/${values.id}/replace`, {
+        prefix: values.prefix,
+        padding: values.padding,
+        effective_from: values.effective_from?.format("YYYY-MM-DD"),
+        effective_to: values.effective_to?.format("YYYY-MM-DD"),
+        reason: values.reason,
+      });
+    }
+    if (values.mode === "end") {
+      return api.post(`${base}/numbering-series/${values.id}/end`, {
+        effective_to: values.effective_to?.format("YYYY-MM-DD"),
+        reason: values.reason,
+      });
+    }
+    return api.post(`${base}/numbering-series/${values.id}/cancel-scheduled`, {
+      reason: values.reason,
+    });
+  }, () => {
+    setNumberingAction(null);
+    numberingActionForm.resetFields();
+  });
   const saveProfile = useAdminMutation<OrganizationProfile>((values) => api.patch(`${base}/organization-profile`, values));
   const validateImport = useAdminMutation<void>(async () => {
     const file = importFiles[0]?.originFileObj;
@@ -740,6 +783,58 @@ export function MasterDataConfigurationPanel({
     });
   };
 
+  const numberingOptions = numberingCapabilityOptions(numberingCapabilities.data);
+  const supportedNumberingEntities = new Set(numberingOptions.map((item) => item.value));
+  const numberingGroups = groupNumberingRules(
+    (numbering.data ?? []).filter((item) => supportedNumberingEntities.has(item.entity_type)),
+  );
+  const numberingLabel = (entityType: string) => numberingCapabilityLabel(numberingCapabilities.data, entityType);
+  const numberingPreviewYear = numberingCapabilities.data?.preview_year ?? new Date().getFullYear();
+
+  const openNumberingAction = (mode: NumberingActionMode, row: Numbering) => {
+    numberingActionForm.resetFields();
+    numberingActionForm.setFieldsValue(mode === "replace" ? {
+      prefix: row.prefix,
+      padding: row.padding,
+      effective_from: dayjs().add(1, "day"),
+    } : mode === "end" ? {
+      effective_to: dayjs(),
+    } : {});
+    setNumberingAction({ mode, row });
+  };
+
+  const numberingTable = (rows: Numbering[], emptyText: string) => (
+    <Table
+      rowKey="id"
+      size="small"
+      pagination={false}
+      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} /> }}
+      dataSource={rows}
+      columns={[
+        { title: "Đối tượng", dataIndex: "entity_type", render: (value) => numberingLabel(value) },
+        { title: "Tiền tố", dataIndex: "prefix", render: (value) => <Tag>{value}</Tag>, width: 110 },
+        { title: "Số chữ số", dataIndex: "padding", width: 100 },
+        { title: "Ví dụ số", render: (_, row: Numbering) => <Text code>{buildNumberingPreview(row.prefix, row.padding, numberingPreviewYear)}</Text> },
+        { title: "Hiệu lực", render: (_, row: Numbering) => `${dayjs(row.effective_from).format("DD/MM/YYYY")} → ${row.effective_to ? dayjs(row.effective_to).format("DD/MM/YYYY") : "không giới hạn"}` },
+        { title: "Trạng thái", render: (_, row: Numbering) => <Status value={row.lifecycle_state} />, width: 130 },
+        {
+          title: "Thao tác",
+          width: 90,
+          render: (_, row: Numbering) => row.lifecycle_state === "CURRENT" ? (
+            <Dropdown menu={{ items: [
+              { key: "replace", label: "Thay thế quy tắc", icon: <EditOutlined />, onClick: () => openNumberingAction("replace", row) },
+              { key: "end", label: "Kết thúc hiệu lực", icon: <StopOutlined />, danger: true, onClick: () => openNumberingAction("end", row) },
+            ] }}>
+              <Button size="small" icon={<MoreOutlined />} aria-label="Thao tác quy tắc đánh số" />
+            </Dropdown>
+          ) : row.lifecycle_state === "SCHEDULED" ? (
+            <Button size="small" danger onClick={() => openNumberingAction("cancel", row)}>Hủy lịch</Button>
+          ) : null,
+        },
+      ]}
+    />
+  );
+
   const downloadImportTemplate = () => {
     if (!selectedImportDefinition) {
       messageApi.warning("Chưa tải được định nghĩa tệp mẫu");
@@ -843,7 +938,7 @@ export function MasterDataConfigurationPanel({
                     <Space direction="vertical" size={2}>
                       <Text strong>Đánh số đang dùng</Text>
                       <Tag color={readiness.data.numbering.ready ? "green" : "orange"}>{readiness.data.numbering.ready ? "Đủ cấu hình" : "Còn thiếu"}</Tag>
-                      <Text type="secondary">{readiness.data.numbering.missing_entity_types.length ? `Thiếu: ${readiness.data.numbering.missing_entity_types.map((item) => numberingEntityLabels[item] ?? item).join(", ")}` : "Tất cả đối tượng hỗ trợ đã có quy tắc"}</Text>
+                      <Text type="secondary">{readiness.data.numbering.reasons.length ? readiness.data.numbering.reasons.map((item) => item.message).join(" · ") : "Tất cả đối tượng bắt buộc đã có quy tắc hiện hành"}</Text>
                     </Space>
                   </Card>
                 </div>
@@ -1119,29 +1214,20 @@ export function MasterDataConfigurationPanel({
       label: "Quy tắc đánh số",
       children: (
         <>
-          <Intro
-            title="Quy tắc đánh số là gì?"
-            what="Chọn tiền tố và số chữ số chạy tự động cho từng loại hồ sơ. Hệ thống vẫn đảm bảo cấp số nguyên tử để tránh trùng số."
-            example="Khiếu nại + tiền tố CMP + 4 chữ số → CMP-2026-0001, CMP-2026-0002..."
-            effect="Chỉ áp dụng cho số cấp mới từ ngày hiệu lực. Số đã cấp trước đó không thay đổi."
-          />
-          <Alert
-            showIcon
-            type="warning"
-            message="Chỉ hiển thị những đối tượng đang thực sự dùng cấu hình này"
-            description="Hệ thống hiện dùng quy tắc đánh số này cho Tài liệu kiểm soát, Khiếu nại, Kháng nghị, Yêu cầu thay đổi và Đánh giá đặc biệt. Đơn đăng ký và Chứng chỉ hiện vẫn có cơ chế số riêng nên không cho cấu hình ở đây để tránh tạo cấu hình 'lưu được nhưng không có tác dụng'."
-          />
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setNumberingOpen(true)} style={{ margin: "12px 0" }}>Thêm quy tắc đánh số</Button>
-          <Table
-            rowKey="id"
-            dataSource={(numbering.data ?? []).filter((item) => runtimeNumberingEntities.includes(item.entity_type))}
-            columns={[
-              { title: "Đối tượng", dataIndex: "entity_type", render: (value) => numberingEntityLabels[value] ?? value },
-              { title: "Tiền tố", dataIndex: "prefix", render: (value) => <Tag>{value}</Tag>, width: 110 },
-              { title: "Số chữ số", dataIndex: "padding", width: 100 },
-              { title: "Ví dụ số", render: (_, row: Numbering) => <Text code>{`${row.prefix}-${new Date().getFullYear()}-${String(1).padStart(row.padding, "0")}`}</Text> },
-              { title: "Hiệu lực", render: (_, row: Numbering) => `${dayjs(row.effective_from).format("DD/MM/YYYY")} → ${row.effective_to ? dayjs(row.effective_to).format("DD/MM/YYYY") : "không giới hạn"}` },
-              { title: "Trạng thái", dataIndex: "status", render: (value) => <Status value={value} /> },
+          <Space direction="vertical" size={4} style={{ width: "100%", marginBottom: 12 }}>
+            <Title level={4} style={{ margin: 0 }}>Quy tắc cấp số tự động</Title>
+            <Text type="secondary">Tiền tố hiển thị và năm nghiệp vụ tạo thành dãy đếm. Giữ nguyên tiền tố sẽ tiếp tục dãy; đổi tiền tố sẽ bắt đầu một dãy mới. Số đã cấp không thay đổi.</Text>
+            <Text type="secondary">
+              {(numberingCapabilities.data?.non_configurable_entities ?? []).map((item) => `${item.label}: ${item.reason}`).join(" · ")}
+            </Text>
+          </Space>
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setNumberingOpen(true)} style={{ marginBottom: 12 }} disabled={!numberingOptions.length}>Thêm quy tắc đánh số</Button>
+          <Tabs
+            size="small"
+            items={[
+              { key: "current", label: `Đang dùng (${numberingGroups.current.length})`, children: numberingTable(numberingGroups.current, "Chưa có quy tắc đang dùng") },
+              { key: "scheduled", label: `Đã lên lịch (${numberingGroups.scheduled.length})`, children: numberingTable(numberingGroups.scheduled, "Chưa có quy tắc đã lên lịch") },
+              { key: "history", label: `Lịch sử (${numberingGroups.historical.length})`, children: numberingTable(numberingGroups.historical, "Chưa có lịch sử thay đổi") },
             ]}
           />
         </>
@@ -1472,19 +1558,72 @@ export function MasterDataConfigurationPanel({
           showIcon
           type="info"
           message="Cách đọc số"
-          description={`Tiền tố + năm + số thứ tự. Ví dụ: ${(numberingPrefix || "CMP").toUpperCase()}-${new Date().getFullYear()}-${String(1).padStart(numberingPadding || 4, "0")}.`}
+          description={`Tiền tố + năm nghiệp vụ + số thứ tự. Ví dụ: ${buildNumberingPreview(numberingPrefix, numberingPadding, numberingPreviewYear)}. Dãy đếm được xác định bằng tiền tố đã chuẩn hóa và năm.`}
           style={{ marginBottom: 16 }}
         />
         <Form form={numberingForm} layout="vertical" onFinish={(values) => createNumbering.mutate(values)} initialValues={{ padding: 4 }}>
           <Form.Item name="entity_type" label="Loại hồ sơ được cấp số" rules={[{ required: true }]}>
-            <Select placeholder="Ví dụ: Khiếu nại" options={runtimeNumberingEntities.map((value) => ({ value, label: numberingEntityLabels[value] ?? value }))} />
+            <Select placeholder="Ví dụ: Khiếu nại" loading={numberingCapabilities.isLoading} options={numberingCapabilityOptions(numberingCapabilities.data)} />
           </Form.Item>
-          <Form.Item name="prefix" label="Tiền tố" extra={`Ví dụ ${numberingEntity === "APPEAL" ? "APL" : numberingEntity === "CHANGE" ? "CHG" : numberingEntity === "SPECIAL_AUDIT" ? "SA" : numberingEntity === "DOCUMENT" ? "DOC" : "CMP"}. Chỉ dùng chữ/số và ký tự . _ / -.`} rules={[{ required: true }]}><Input placeholder="CMP" /></Form.Item>
+          <Form.Item name="prefix" label="Tiền tố" extra={`Gợi ý: ${numberingCapabilities.data?.configurable_entities.find((item) => item.entity_type === numberingEntity)?.fallback_prefix ?? "CMP"}. Chỉ dùng chữ/số và ký tự . _ / -.`} rules={[{ required: true }]}><Input placeholder="CMP" /></Form.Item>
           <Form.Item name="padding" label="Số chữ số chạy" extra="Ví dụ: nhập 4 → số đầu tiên là 0001; nhập 5 → 00001." rules={[{ required: true }]}><InputNumber min={3} max={12} placeholder="Ví dụ: 4" style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="effective_from" label="Áp dụng cho số cấp từ ngày" extra="Ví dụ: 01/01/2026. Các số cấp trước ngày này không bị đổi." rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" placeholder="Ví dụ: 01/01/2026" /></Form.Item>
           <Form.Item name="effective_to" label="Dừng áp dụng từ sau ngày" extra="Ví dụ: 31/12/2026 nếu quy tắc chỉ dùng trong năm 2026; thường để trống nếu chưa có quy tắc thay thế."><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" placeholder="Ví dụ: 31/12/2026 hoặc để trống" /></Form.Item>
           <Button htmlType="submit" type="primary">Lưu quy tắc đánh số</Button>
         </Form>
+      </Modal>
+
+      <Modal
+        open={Boolean(numberingAction)}
+        onCancel={() => { setNumberingAction(null); numberingActionForm.resetFields(); }}
+        footer={null}
+        title={numberingAction?.mode === "replace" ? "Thay thế quy tắc đánh số" : numberingAction?.mode === "end" ? "Kết thúc hiệu lực quy tắc" : "Hủy lịch áp dụng quy tắc"}
+        width={640}
+      >
+        {numberingAction ? (
+          <>
+            <Alert
+              showIcon
+              type={numberingAction.mode === "cancel" ? "warning" : "info"}
+              style={{ marginBottom: 16 }}
+              message={`${numberingLabel(numberingAction.row.entity_type)} · ${numberingAction.row.prefix}`}
+              description={numberingAction.mode === "replace"
+                ? "Quy tắc hiện tại sẽ tự kết thúc ngay trước ngày quy tắc mới bắt đầu. Lịch sử và các số đã cấp được giữ nguyên."
+                : numberingAction.mode === "end"
+                  ? "Chỉ ngày kết thúc được cập nhật; tiền tố và ngày bắt đầu không bị sửa hồi tố."
+                  : "Quy tắc đã lên lịch sẽ chuyển sang trạng thái đã hủy, không bị xóa. Quy tắc liền trước được khôi phục thời hạn khi phù hợp."}
+            />
+            <Form
+              form={numberingActionForm}
+              layout="vertical"
+              onFinish={(values) => changeNumberingLifecycle.mutate({ ...values, id: numberingAction.row.id, mode: numberingAction.mode })}
+            >
+              {numberingAction.mode === "replace" ? (
+                <>
+                  <Form.Item name="prefix" label="Tiền tố mới" rules={[{ required: true }]}><Input /></Form.Item>
+                  <Form.Item name="padding" label="Số chữ số chạy" rules={[{ required: true }]}><InputNumber min={3} max={12} style={{ width: "100%" }} /></Form.Item>
+                  <Form.Item name="effective_from" label="Ngày bắt đầu quy tắc mới" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" /></Form.Item>
+                  <Form.Item name="effective_to" label="Ngày kết thúc (nếu đã biết)"><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" /></Form.Item>
+                </>
+              ) : numberingAction.mode === "end" ? (
+                <Form.Item name="effective_to" label="Ngày hiệu lực cuối cùng" rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" /></Form.Item>
+              ) : null}
+              <Form.Item
+                name="reason"
+                label="Lý do thay đổi"
+                rules={[
+                  { required: true, message: "Nhập lý do để lưu vết kiểm toán" },
+                  { validator: (_, value) => String(value ?? "").trim() ? Promise.resolve() : Promise.reject(new Error("Lý do không được để trống")) },
+                ]}
+              >
+                <Input.TextArea rows={3} maxLength={1000} showCount placeholder="Nêu rõ lý do nghiệp vụ" />
+              </Form.Item>
+              <Button htmlType="submit" type="primary" danger={numberingAction.mode !== "replace"} loading={changeNumberingLifecycle.isPending}>
+                {numberingAction.mode === "replace" ? "Lên lịch quy tắc mới" : numberingAction.mode === "end" ? "Kết thúc hiệu lực" : "Hủy lịch áp dụng"}
+              </Button>
+            </Form>
+          </>
+        ) : null}
       </Modal>
     </Card>
   );
