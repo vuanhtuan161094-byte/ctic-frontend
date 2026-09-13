@@ -144,14 +144,19 @@ export function CertificationBodyCapabilitiesPanel() {
   );
 
   const saveBatch = useMutation({
-    mutationFn: async (values: BatchForm) => (await api.post("/certification-body-capabilities/batch", {
-      standard_edition_id: values.standard_edition_id,
-      iaf_scope_ids: values.iaf_scope_ids,
-      status: values.status,
-      effective_from: values.effective_from.format("YYYY-MM-DD"),
-      effective_to: values.effective_to?.format("YYYY-MM-DD"),
-      notes: values.notes?.trim() || undefined,
-    })).data as { created_count: number; existing_count: number },
+    mutationFn: async (values: BatchForm) => {
+      if (!values.status || !values.effective_from) {
+        throw new Error("Thiếu trạng thái hoặc ngày bắt đầu hiệu lực. Mở mục Hiệu lực & ghi chú để kiểm tra.");
+      }
+      return (await api.post("/certification-body-capabilities/batch", {
+        standard_edition_id: values.standard_edition_id,
+        iaf_scope_ids: values.iaf_scope_ids,
+        status: values.status,
+        effective_from: values.effective_from.format("YYYY-MM-DD"),
+        effective_to: values.effective_to?.format("YYYY-MM-DD"),
+        notes: values.notes?.trim() || undefined,
+      })).data as { created_count: number; existing_count: number };
+    },
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ["certification-body-capabilities"] });
       messageApi.success(
@@ -168,6 +173,9 @@ export function CertificationBodyCapabilitiesPanel() {
   const saveEdit = useMutation({
     mutationFn: async (values: EditForm) => {
       if (!editing) return;
+      if (!values.status || !values.effective_from) {
+        throw new Error("Thiếu trạng thái hoặc ngày bắt đầu hiệu lực.");
+      }
       await api.patch(`/certification-body-capabilities/${editing.id}`, {
         status: values.status,
         effective_from: values.effective_from.format("YYYY-MM-DD"),
@@ -185,21 +193,10 @@ export function CertificationBodyCapabilitiesPanel() {
   });
 
   const openCreate = () => {
-    batchForm.setFieldsValue({
-      status: "ACTIVE",
-      effective_from: dayjs().startOf("day"),
-      iaf_scope_ids: [],
-    });
     setCreateOpen(true);
   };
   const openEdit = (record: Capability) => {
     setEditing(record);
-    editForm.setFieldsValue({
-      status: record.status,
-      effective_from: dayjs(record.effective_from),
-      effective_to: record.effective_to ? dayjs(record.effective_to) : undefined,
-      notes: record.notes ?? undefined,
-    });
   };
 
   const rows = useMemo(() => {
@@ -385,6 +382,15 @@ export function CertificationBodyCapabilitiesPanel() {
       </Card>
 
       <Modal
+        afterOpenChange={(open) => {
+          if (!open) return;
+          batchForm.resetFields();
+          batchForm.setFieldsValue({
+            status: "ACTIVE",
+            effective_from: dayjs().startOf("day"),
+            iaf_scope_ids: [],
+          });
+        }}
         destroyOnHidden
         footer={null}
         onCancel={() => setCreateOpen(false)}
@@ -462,7 +468,8 @@ export function CertificationBodyCapabilitiesPanel() {
             style={{ marginBottom: 12 }}
             items={[{
               key: "advanced",
-              label: "Thông tin bổ sung (ngày hiệu lực, ghi chú)",
+              label: "Hiệu lực & ghi chú",
+              forceRender: true,
               children: (
                 <>
                   <Row gutter={12}>
@@ -503,6 +510,16 @@ export function CertificationBodyCapabilitiesPanel() {
       </Modal>
 
       <Modal
+        afterOpenChange={(open) => {
+          if (!open || !editing) return;
+          editForm.resetFields();
+          editForm.setFieldsValue({
+            status: editing.status,
+            effective_from: dayjs(editing.effective_from),
+            effective_to: editing.effective_to ? dayjs(editing.effective_to) : undefined,
+            notes: editing.notes ?? undefined,
+          });
+        }}
         destroyOnHidden
         footer={null}
         onCancel={() => setEditing(null)}
