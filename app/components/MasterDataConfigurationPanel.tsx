@@ -183,11 +183,16 @@ export type ConfigurationReadiness = {
   };
   taxonomy: {
     ready: boolean;
+    operational_revisions: { ISIC: string; NACE: string };
     isic_count: number;
     nace_count: number;
     iaf_count: number;
-    isic_nace_mapping_count: number;
-    nace_iaf_mapping_count: number;
+    reasons: Array<{
+      code: string;
+      blocking: boolean;
+      management_system?: string;
+      message: string;
+    }>;
   };
   numbering: {
     ready: boolean;
@@ -932,6 +937,7 @@ export function MasterDataConfigurationPanel({
                       <Text strong>ISIC / NACE / IAF</Text>
                       <Tag color={readiness.data.taxonomy.ready ? "green" : "orange"}>{readiness.data.taxonomy.ready ? "Đã nạp & ánh xạ" : "Chưa đủ dữ liệu"}</Tag>
                       <Text type="secondary">ISIC {readiness.data.taxonomy.isic_count} · NACE {readiness.data.taxonomy.nace_count} · IAF {readiness.data.taxonomy.iaf_count}</Text>
+                      <Text type="secondary">{readiness.data.taxonomy.reasons.length ? readiness.data.taxonomy.reasons.map((item) => `${item.code}: ${item.message}`).join(" · ") : "QMS / EMS / OHSMS đã đủ coverage vận hành"}</Text>
                     </Space>
                   </Card>
                   <Card size="small" bordered>

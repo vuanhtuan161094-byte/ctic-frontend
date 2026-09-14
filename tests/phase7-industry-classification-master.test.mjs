@@ -77,10 +77,28 @@ test('industry explorer resolves parent NACE codes and exposes mapping coverage'
   assert.match(panel, /DERIVED_FROM_CHILDREN/);
 });
 
-test('NACE to IAF table displays hierarchy-derived mappings instead of only class rows', () => {
+test('NACE to IAF table renders backend projection states', () => {
   assert.match(panel, /toàn bộ cây NACE/);
-  assert.match(panel, /Tổng hợp từ/);
-  assert.match(panel, /derived_from_count/);
+  assert.match(panel, /nace-iaf-projection/);
+  assert.match(panel, /resolution_status/);
+  for (const state of ['MULTIPLE', 'UNRESOLVED', 'Ngoài bảng IAF', 'DERIVED_']) {
+    assert.ok(panel.includes(state), state);
+  }
+});
+
+test('frontend no longer owns NACE descendant resolution', () => {
+  assert.doesNotMatch(panel, /const descendants =/);
+  assert.doesNotMatch(panel, /children\.get\(row\.code\)/);
+  assert.doesNotMatch(panel, /\^\(\?:97\|98\|99\)/);
+  assert.doesNotMatch(panel, /nace-iaf-mappings\?status=APPROVED/);
+});
+
+test('frontend renders backend readiness reasons without count thresholds', () => {
+  assert.match(panel, /industry-classifications\/readiness/);
+  assert.match(panel, /readiness\.data\.reasons/);
+  assert.doesNotMatch(panel, /function countReady/);
+  assert.doesNotMatch(panel, /nace_total === 996/);
+  assert.match(master, /taxonomy\.reasons/);
 });
 
 test('industry configuration keeps load failures separate from empty reference data', () => {

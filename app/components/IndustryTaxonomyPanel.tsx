@@ -58,16 +58,6 @@ type IndustryMapping = {
   target_code: IndustryCode;
 };
 
-type NaceIafMapping = {
-  id: string;
-  management_system: string;
-  mapping_status: string;
-  source_document?: string | null;
-  note?: string | null;
-  nace_code: IndustryCode;
-  iaf_scope: IafScope;
-};
-
 type IndustrySummary = {
   chain: string[];
   counts: {
@@ -133,16 +123,45 @@ type MappingCoverage = {
   note: string;
 };
 
+type TaxonomyReadiness = {
+  ready: boolean;
+  operational_revisions: { ISIC: string; NACE: string };
+  reasons: Array<{
+    code: string;
+    blocking: boolean;
+    management_system?: string;
+    message: string;
+  }>;
+};
+
+type NaceIafProjection = {
+  management_system: string;
+  operational_revision: string;
+  items: Array<{
+    nace: IndustryCode;
+    resolution_status: string;
+    outside_iaf_table: boolean;
+    derived_from_nace_classes: string[];
+    iaf_candidates: Array<{
+      mapping_id: string;
+      iaf_scope_id: string;
+      iaf_code: string;
+      iaf_name: string;
+      source_document?: string | null;
+      derived: boolean;
+      derived_from_nace_codes: string[];
+    }>;
+  }>;
+};
+
 type NaceIafDisplayRow = {
   id: string;
   nace_code: IndustryCode;
-  iaf_scope: IafScope | null;
+  iaf_candidate: NaceIafProjection["items"][number]["iaf_candidates"][number] | null;
   management_system: string;
-  source_document?: string | null;
-  derived: boolean;
-  derived_from_count: number;
+  resolution_status: string;
+  derived_from_nace_codes: string[];
   outside_iaf_table: boolean;
-  unresolved: boolean;
 };
 
 const managementSystemLabels: Record<string, string> = {
@@ -161,11 +180,6 @@ const mappingTypeLabels: Record<string, string> = {
 
 function codeTitle(row: IndustryCode) {
   return row.title_vi?.trim() || row.title_en;
-}
-
-function countReady(summary?: IndustrySummary) {
-  if (!summary) return false;
-  return summary.counts.isic_total > 700 && summary.counts.nace_total === 996 && summary.counts.iaf_total === 39;
 }
 
 interface IndustryTaxonomyPanelProps {
@@ -195,17 +209,23 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     queryKey: ["industry-summary"],
     queryFn: async () => (await api.get<IndustrySummary>("/industry-classifications/summary")).data,
   });
+  const readiness = useQuery({
+    queryKey: ["industry-taxonomy-readiness"],
+    queryFn: async () => (await api.get<TaxonomyReadiness>("/industry-classifications/readiness")).data,
+  });
   const coverage = useQuery({
     queryKey: ["industry-mapping-coverage", coverageSystem],
     queryFn: async () => (await api.get<MappingCoverage>("/industry-classifications/mapping-coverage", { params: { management_system: coverageSystem } })).data,
   });
   const isic = useQuery({
-    queryKey: ["industry-isic-rev4"],
-    queryFn: async () => (await api.get<IndustryCode[]>("/industry-classifications/codes?classification_type=ISIC&revision=ISIC_REV_4&active=true")).data,
+    queryKey: ["industry-isic", readiness.data?.operational_revisions.ISIC],
+    enabled: Boolean(readiness.data?.operational_revisions.ISIC),
+    queryFn: async () => (await api.get<IndustryCode[]>("/industry-classifications/codes", { params: { classification_type: "ISIC", revision: readiness.data!.operational_revisions.ISIC, active: true } })).data,
   });
   const nace = useQuery({
-    queryKey: ["industry-nace-rev2"],
-    queryFn: async () => (await api.get<IndustryCode[]>("/industry-classifications/codes?classification_type=NACE&revision=NACE_REV_2&active=true")).data,
+    queryKey: ["industry-nace", readiness.data?.operational_revisions.NACE],
+    enabled: Boolean(readiness.data?.operational_revisions.NACE),
+    queryFn: async () => (await api.get<IndustryCode[]>("/industry-classifications/codes", { params: { classification_type: "NACE", revision: readiness.data!.operational_revisions.NACE, active: true } })).data,
   });
   const iaf = useQuery({
     queryKey: ["industry-iaf"],
@@ -215,9 +235,9 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     queryKey: ["industry-isic-nace-mappings"],
     queryFn: async () => (await api.get<IndustryMapping[]>("/industry-classifications/mappings?status=APPROVED")).data,
   });
-  const naceIafMappings = useQuery({
-    queryKey: ["industry-nace-iaf-mappings"],
-    queryFn: async () => (await api.get<NaceIafMapping[]>("/industry-classifications/nace-iaf-mappings?status=APPROVED")).data,
+  const naceIafProjection = useQuery({
+    queryKey: ["industry-nace-iaf-projection", naceIafSystem],
+    queryFn: async () => (await api.get<NaceIafProjection>("/industry-classifications/nace-iaf-projection", { params: { management_system: naceIafSystem } })).data,
   });
 
   const isicClasses = useMemo(() => (isic.data ?? []).filter((row) => row.level === 4), [isic.data]);
@@ -238,68 +258,33 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     return (isicNaceMappings.data ?? []).filter((row) => !key || `${row.source_code.code} ${row.source_code.title_en} ${row.source_code.title_vi ?? ""} ${row.target_code.code} ${row.target_code.title_en} ${row.target_code.title_vi ?? ""}`.toLowerCase().includes(key));
   }, [isicNaceMappings.data, mappingSearch]);
   const hierarchicalNaceIafRows = useMemo<NaceIafDisplayRow[]>(() => {
-    const codes = nace.data ?? [];
-    const mappings = (naceIafMappings.data ?? []).filter((row) => row.management_system === naceIafSystem);
-    const children = new Map<string, IndustryCode[]>();
-    for (const row of codes) {
-      if (!row.parent_code) continue;
-      const bucket = children.get(row.parent_code) ?? [];
-      bucket.push(row);
-      children.set(row.parent_code, bucket);
-    }
-    const mappingByNace = new Map<string, NaceIafMapping[]>();
-    for (const row of mappings) {
-      const bucket = mappingByNace.get(row.nace_code.id) ?? [];
-      bucket.push(row);
-      mappingByNace.set(row.nace_code.id, bucket);
-    }
-    const descendantMemo = new Map<string, IndustryCode[]>();
-    const descendants = (row: IndustryCode): IndustryCode[] => {
-      const cached = descendantMemo.get(row.id);
-      if (cached) return cached;
-      if (row.level === 4) {
-        descendantMemo.set(row.id, [row]);
-        return [row];
-      }
-      const result = (children.get(row.code) ?? []).flatMap(descendants);
-      descendantMemo.set(row.id, result);
-      return result;
-    };
-    return codes.flatMap<NaceIafDisplayRow>((row) => {
-      const leaves = descendants(row);
-      const directMappings = leaves.flatMap((leaf) => mappingByNace.get(leaf.id) ?? []);
-      const uniqueIaf = new Map<string, NaceIafMapping>();
-      for (const mapping of directMappings) uniqueIaf.set(mapping.iaf_scope.id, mapping);
-      const outside = leaves.length > 0 && leaves.every((leaf) => /^(?:97|98|99)(?:\.|$)/.test(leaf.code));
-      if (!uniqueIaf.size) {
+    return (naceIafProjection.data?.items ?? []).flatMap<NaceIafDisplayRow>((item) => {
+      if (!item.iaf_candidates.length) {
         return [{
-          id: `${row.id}-none-${naceIafSystem}`,
-          nace_code: row,
-          iaf_scope: null,
+          id: `${item.nace.id}-none-${naceIafSystem}`,
+          nace_code: item.nace,
+          iaf_candidate: null,
           management_system: naceIafSystem,
-          derived: row.level < 4,
-          derived_from_count: leaves.length,
-          outside_iaf_table: outside,
-          unresolved: !outside,
+          resolution_status: item.resolution_status,
+          derived_from_nace_codes: item.derived_from_nace_classes,
+          outside_iaf_table: item.outside_iaf_table,
         }];
       }
-      return [...uniqueIaf.values()].map((mapping) => ({
-        id: `${row.id}-${mapping.iaf_scope.id}-${naceIafSystem}`,
-        nace_code: row,
-        iaf_scope: mapping.iaf_scope,
+      return item.iaf_candidates.map((candidate) => ({
+        id: `${item.nace.id}-${candidate.mapping_id}`,
+        nace_code: item.nace,
+        iaf_candidate: candidate,
         management_system: naceIafSystem,
-        source_document: mapping.source_document,
-        derived: row.level < 4,
-        derived_from_count: leaves.length,
-        outside_iaf_table: false,
-        unresolved: false,
+        resolution_status: item.resolution_status,
+        derived_from_nace_codes: candidate.derived_from_nace_codes,
+        outside_iaf_table: item.outside_iaf_table,
       }));
     });
-  }, [nace.data, naceIafMappings.data, naceIafSystem]);
+  }, [naceIafProjection.data, naceIafSystem]);
 
   const filteredNaceIaf = useMemo(() => {
     const key = naceIafSearch.trim().toLowerCase();
-    return hierarchicalNaceIafRows.filter((row) => !key || `${row.nace_code.code} ${row.nace_code.title_en} ${row.nace_code.title_vi ?? ""} ${row.iaf_scope?.iaf_code ?? ""} ${row.iaf_scope?.iaf_name ?? ""}`.toLowerCase().includes(key));
+    return hierarchicalNaceIafRows.filter((row) => !key || `${row.nace_code.code} ${row.nace_code.title_en} ${row.nace_code.title_vi ?? ""} ${row.iaf_candidate?.iaf_code ?? ""} ${row.iaf_candidate?.iaf_name ?? ""}`.toLowerCase().includes(key));
   }, [hierarchicalNaceIafRows, naceIafSearch]);
 
   const runDemo = async () => {
@@ -307,12 +292,17 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
       messageApi.warning("Chọn ít nhất một hoạt động ISIC để tra thử");
       return;
     }
+    const operationalRevision = readiness.data?.operational_revisions.ISIC;
+    if (!operationalRevision) {
+      messageApi.warning("Chưa tải được phiên bản ISIC vận hành");
+      return;
+    }
     setDemoLoading(true);
     try {
       const selected = demoIsicIds.map((id) => isicClasses.find((row) => row.id === id)).filter(Boolean) as IndustryCode[];
       const results = await Promise.all(selected.map(async (row) => (
         await api.get<ResolveResult>("/industry-classifications/resolve", {
-          params: { classification_type: "ISIC", revision: "ISIC_REV_4", code: row.code, management_system: demoSystem },
+          params: { classification_type: "ISIC", revision: operationalRevision, code: row.code, management_system: demoSystem },
         })
       ).data));
       setDemoResults(results);
@@ -329,12 +319,17 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
       messageApi.warning("Nhập mã ISIC hoặc NACE cần tra");
       return;
     }
+    const operationalRevision = readiness.data?.operational_revisions[quickType];
+    if (!operationalRevision) {
+      messageApi.warning("Chưa tải được phiên bản phân loại vận hành");
+      return;
+    }
     setQuickLoading(true);
     try {
       const result = (await api.get<ResolveResult>("/industry-classifications/resolve", {
         params: {
           classification_type: quickType,
-          revision: quickType === "ISIC" ? "ISIC_REV_4" : "NACE_REV_2",
+          revision: operationalRevision,
           code,
           management_system: quickSystem,
         },
@@ -361,7 +356,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     }));
   }));
 
-  const loadQueries = [summary, coverage, isic, nace, iaf, isicNaceMappings, naceIafMappings];
+  const loadQueries = [summary, readiness, coverage, isic, nace, iaf, isicNaceMappings, naceIafProjection];
   const failedQuery = loadQueries.find((query) => query.isError);
   if (failedQuery) {
     return (
@@ -415,13 +410,15 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
         <Col xs={12} md={6}><Card size="small"><Statistic title="Quy đổi ISIC → NACE" value={summary.data?.counts.isic_nace_approved ?? 0} suffix="dòng" prefix={<LinkOutlined />} /><Text type="secondary">Đã phê duyệt</Text></Card></Col>
       </Row>
 
-      {!summary.isLoading && !countReady(summary.data) ? (
+      {!readiness.isLoading && readiness.data && !readiness.data.ready ? (
         <Alert
           showIcon
           type="warning"
           style={{ marginTop: 12 }}
-          message="Bộ dữ liệu chuẩn chưa được nạp đầy đủ"
-          description="Sau khi cài patch Step 3, chạy LOAD_OFFICIAL_INDUSTRY_REFERENCE_20260826.cmd để nạp toàn bộ danh mục và các bảng quy đổi chính thức vào DEV."
+          message="Taxonomy vận hành chưa sẵn sàng"
+          description={readiness.data.reasons.length
+            ? readiness.data.reasons.map((reason) => `${reason.code}: ${reason.message}`).join(" · ")
+            : "Backend chưa xác nhận chuỗi taxonomy vận hành."}
         />
       ) : null}
 
@@ -589,12 +586,12 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
                 <Select value={naceIafSystem} onChange={setNaceIafSystem} options={Object.entries(managementSystemLabels).map(([value, label]) => ({ value, label }))} style={{ minWidth: 210 }} />
                 <Input allowClear prefix={<SearchOutlined />} placeholder="Tìm NACE hoặc IAF..." value={naceIafSearch} onChange={(event) => setNaceIafSearch(event.target.value)} style={{ width: 360 }} />
               </Space>
-              <Table size="small" rowKey="id" loading={naceIafMappings.isLoading || nace.isLoading} dataSource={filteredNaceIaf} pagination={{ pageSize: 20, showSizeChanger: true }} columns={[
+              <Table size="small" rowKey="id" loading={naceIafProjection.isLoading} dataSource={filteredNaceIaf} pagination={{ pageSize: 20, showSizeChanger: true }} columns={[
                 { title: "NACE Rev.2", render: (_, row: NaceIafDisplayRow) => <><b>{row.nace_code.code}</b><div><Text type="secondary">{codeTitle(row.nace_code)}</Text></div></> },
                 { title: "Cấp", width: 90, render: (_, row: NaceIafDisplayRow) => <Tag>{row.nace_code.level === 1 ? "Phần" : row.nace_code.level === 2 ? "Ngành" : row.nace_code.level === 3 ? "Nhóm" : "Lớp"}</Tag> },
-                { title: "IAF", render: (_, row: NaceIafDisplayRow) => row.iaf_scope ? <><Tag color="blue">IAF {row.iaf_scope.iaf_code}</Tag><div>{row.iaf_scope.iaf_name}</div></> : row.outside_iaf_table ? <Tag color="orange">Ngoài bảng IAF</Tag> : <Tag color="red">Thiếu mapping</Tag> },
-                { title: "Cách xác định", width: 190, render: (_, row: NaceIafDisplayRow) => row.derived ? <Text>Tổng hợp từ {row.derived_from_count} lớp chi tiết</Text> : <Text>Ánh xạ trực tiếp</Text> },
-                { title: "Nguồn", dataIndex: "source_document", width: 250, render: (value, row: NaceIafDisplayRow) => value || (row.derived ? "Kế thừa từ các lớp NACE con" : "—") },
+                { title: "IAF", render: (_, row: NaceIafDisplayRow) => row.iaf_candidate ? <><Tag color="blue">IAF {row.iaf_candidate.iaf_code}</Tag><div>{row.iaf_candidate.iaf_name}</div></> : row.outside_iaf_table ? <Tag color="orange">Ngoài bảng IAF</Tag> : <Tag color="red">Chưa phân giải</Tag> },
+                { title: "Trạng thái policy", width: 190, render: (_, row: NaceIafDisplayRow) => <><Tag color={row.resolution_status.includes("MULTIPLE") ? "gold" : row.resolution_status === "UNRESOLVED" ? "red" : row.outside_iaf_table ? "orange" : "green"}>{row.resolution_status}</Tag>{row.derived_from_nace_codes.length ? <div><Text type="secondary">Từ {row.derived_from_nace_codes.length} lớp NACE</Text></div> : null}</> },
+                { title: "Nguồn", width: 250, render: (_, row: NaceIafDisplayRow) => row.iaf_candidate?.source_document || (row.resolution_status.startsWith("DERIVED_") ? "Kế thừa từ các lớp NACE con" : "—") },
               ]} />
             </>,
           },
