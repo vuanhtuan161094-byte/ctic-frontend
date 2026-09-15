@@ -115,6 +115,6 @@ export async function captureVisualBaseline(page, testInfo, name) {
 export async function assertControlledScreenQuality(page, testInfo, name) {
   await stabilizeVisualState(page);
   await expectNoHorizontalOverflow(page);
-  await runAxeBaseline(page, testInfo);
   await captureVisualBaseline(page, testInfo, name);
+  await runAxeBaseline(page, testInfo);
 }
