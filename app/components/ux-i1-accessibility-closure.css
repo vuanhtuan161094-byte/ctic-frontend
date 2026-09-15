@@ -7,3 +7,7 @@
 .application-shell .global-search-trigger kbd {
   color: #5f6b7a;
 }
+
+.application-shell .configuration-route-page .ant-tag-success {
+  color: #00502d !important;
+}
