@@ -164,6 +164,8 @@ export type ConfigurationReadiness = {
   generated_at: string;
   organization: {
     ready: boolean;
+    reasons?: Array<{ code: string; field: string; message: string }>;
+    field_manifest?: Array<{ field: string; status: string; editable: boolean; effect: string }>;
     profile?: {
       legal_name?: string;
       display_name?: string;
@@ -442,6 +444,7 @@ export function MasterDataConfigurationPanel({
     queryClient.invalidateQueries({ queryKey: ["numbering-configs"] }),
     queryClient.invalidateQueries({ queryKey: ["numbering-capabilities"] }),
     queryClient.invalidateQueries({ queryKey: ["organization-profile"] }),
+    queryClient.invalidateQueries({ queryKey: ["platform-branding"] }),
     queryClient.invalidateQueries({ queryKey: ["configuration-readiness"] }),
     queryClient.invalidateQueries({ queryKey: ["import-jobs"] }),
   ]);
@@ -1250,10 +1253,11 @@ export function MasterDataConfigurationPanel({
           <Intro
             title="Thông tin này dùng ở đâu?"
             what="Đây là hồ sơ nhận diện của chính tổ chức chứng nhận đang vận hành hệ thống, không phải thông tin khách hàng."
-            example="Tên pháp lý trên tài liệu; tên hiển thị trên giao diện; tiêu đề cổng khách hàng; thông tin liên hệ và chân trang."
-            effect="Branding đã được dùng ở một số tài liệu/báo cáo và cổng hệ thống. Các thiết lập vùng/thời gian giúp chuẩn hóa hiển thị."
+            example="Tên pháp lý trong mẫu hỗ trợ trường tổ chức; tên hiển thị trên giao diện; tiêu đề cổng khách hàng và thông tin liên hệ."
+            effect="Múi giờ áp dụng cho ngày/năm cấp số tương lai và kỳ báo cáo thương mại; không sửa số đã cấp, tài liệu đã sinh hoặc lịch tác vụ cố định."
           />
           <Form form={profileForm} layout="vertical" onFinish={(values) => saveProfile.mutate(values)}>
+            {!readiness.data?.organization.ready ? <Alert type="warning" message="Hồ sơ tổ chức cần bổ sung" description={(readiness.data?.organization.reasons ?? []).map(reason => <div key={reason.code}>{reason.field}: {reason.message}</div>)} /> : null}
             <Alert
               showIcon
               type="info"
@@ -1270,24 +1274,19 @@ export function MasterDataConfigurationPanel({
                 <Form.Item name="email" label="Thư điện tử" extra="Ví dụ: certification@abc.vn."><Input placeholder="Ví dụ: certification@abc.vn" /></Form.Item>
                 <Form.Item name="phone" label="Điện thoại" extra="Ví dụ: +84 24 1234 5678."><Input placeholder="Ví dụ: +84 24 1234 5678" /></Form.Item>
                 <Form.Item name="website" label="Trang web" extra="Nhập đầy đủ https://. Ví dụ: https://abc.vn."><Input placeholder="Ví dụ: https://abc.vn" /></Form.Item>
-                <Form.Item name="logo_reference" label="Tham chiếu biểu trưng" extra="Chỉ điền khi hệ thống đã có file/logo reference; đây không phải ô tải ảnh. Ví dụ: branding/logo-primary.svg hoặc mã file do hệ thống cung cấp."><Input placeholder="Ví dụ: branding/logo-primary.svg" /></Form.Item>
               </div>
               <Form.Item name="address" label="Địa chỉ" extra="Ví dụ: Tầng 5, Tòa nhà ABC, 123 Nguyễn Trãi, Hà Nội, Việt Nam."><Input.TextArea rows={2} placeholder="Ví dụ: Tầng 5, Tòa nhà ABC, 123 Nguyễn Trãi, Hà Nội, Việt Nam" /></Form.Item>
-              <Form.Item name="document_footer" label="Chân trang tài liệu" extra="Nội dung mặc định có thể được dùng ở tài liệu/báo cáo hỗ trợ branding. Ví dụ: ABC Certification Việt Nam | abc.vn | certification@abc.vn."><Input.TextArea rows={2} placeholder="Ví dụ: ABC Certification Việt Nam | abc.vn | certification@abc.vn" /></Form.Item>
             </Card>
             <Collapse
               style={{ marginBottom: 12 }}
               items={[{
                 key: "advanced",
-                label: "2. Thiết lập vùng, thời gian và lưu trữ (nâng cao)",
+                label: "2. Thiết lập vận hành và dữ liệu tương thích",
                 children: (
                   <div className="system-admin-form-grid">
                     <Form.Item name="timezone" label="Múi giờ" extra="Ví dụ Việt Nam: Asia/Ho_Chi_Minh." rules={[{ required: true }]}><Input placeholder="Asia/Ho_Chi_Minh" /></Form.Item>
-                    <Form.Item name="locale" label="Thiết lập vùng" extra="Ví dụ: vi-VN." rules={[{ required: true }]}><Input placeholder="vi-VN" /></Form.Item>
-                    <Form.Item name="date_format" label="Định dạng ngày" rules={[{ required: true }]}><Select options={["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"].map((value) => ({ value, label: value }))} /></Form.Item>
-                    <Form.Item name="default_language" label="Ngôn ngữ mặc định" extra="Ví dụ: vi." rules={[{ required: true }]}><Input placeholder="vi" /></Form.Item>
                     <Form.Item name="certificate_reminder_days" label="Mốc nhắc hết hạn chứng chỉ (ngày)" extra="Ví dụ: 90 nghĩa là mốc nhắc dự phòng 90 ngày trước khi chứng chỉ hết hạn. Dự án mới ưu tiên Cửa sổ tái chứng nhận và Mốc nhắc vận hành trong quy tắc chương trình; giá trị ở đây dùng cho hồ sơ cũ/chưa có bản chốt cấu hình." rules={[{ required: true }]}><InputNumber min={0} placeholder="Ví dụ: 90" style={{ width: "100%" }} /></Form.Item>
-                    <Form.Item name="file_retention_days" label="Thời gian lưu siêu dữ liệu (ngày)" extra="Ví dụ: 3650 = 10 năm. Để trống nếu chưa áp dụng policy retention theo số ngày."><InputNumber min={0} placeholder="Ví dụ: 3650" style={{ width: "100%" }} /></Form.Item>
+                    <Alert type="info" message="Dữ liệu tương thích — chưa áp dụng bởi runtime" description={<><div>V1 sử dụng tiếng Việt; chưa có tùy chọn ngôn ngữ/định dạng ngày toàn hệ thống. Logo và chân trang cũ được giữ nguyên; chưa hỗ trợ tải biểu trưng tổ chức được quản lý an toàn. Retention chưa có cơ chế thực thi.</div>{(readiness.data?.organization.field_manifest ?? []).filter(field => field.status === "COMPATIBILITY_ONLY").map(field => <div key={field.field}>{field.field}: {field.effect}</div>)}</>} />
                   </div>
                 ),
               }]}

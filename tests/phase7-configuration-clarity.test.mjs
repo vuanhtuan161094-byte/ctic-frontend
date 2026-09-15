@@ -47,8 +47,10 @@ test("numbering UI only exposes entity types currently consumed by runtime", asy
 test("organization settings separate common fields from advanced technical settings", async () => {
   const panel = await readFile(panelUrl, "utf8");
   assert.match(panel, /1\. Thông tin tổ chức/);
-  assert.match(panel, /2\. Thiết lập vùng, thời gian và lưu trữ \(nâng cao\)/);
-  assert.match(panel, /đây không phải ô tải ảnh/);
+  assert.match(panel, /2\. Thiết lập vận hành và dữ liệu tương thích/);
+  assert.match(panel, /chưa áp dụng bởi runtime/);
+  assert.doesNotMatch(panel, /Form.Item name="logo_reference"/);
+  assert.doesNotMatch(panel, /Form.Item name="file_retention_days"/);
 });
 
 test("configuration UI is explicit about current runtime integration boundaries", async () => {

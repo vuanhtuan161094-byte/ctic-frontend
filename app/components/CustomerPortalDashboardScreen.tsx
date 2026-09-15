@@ -26,6 +26,8 @@ import { api, getErrorMessage } from "../lib/api";
 
 const { Text, Title } = Typography;
 
+import { useOrganizationBranding } from "../lib/useOrganizationBranding";
+
 interface CustomerPortalDashboard {
   customers: Array<{
     id: string;
@@ -79,6 +81,7 @@ export function CustomerPortalDashboardScreen({
   onOpenNotifications,
   onOpenSchedule,
 }: CustomerPortalDashboardScreenProps) {
+  const branding = useOrganizationBranding();
   const query = useQuery({
     queryKey: ["customer-portal", "dashboard"],
     queryFn: async () => (
@@ -112,7 +115,7 @@ export function CustomerPortalDashboardScreen({
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">{branding.platformName}</span>
           <Title level={2}>Tổng quan chứng nhận</Title>
           <Text type="secondary">
             {organizationLabel}. Theo dõi đơn đăng ký, lịch đánh giá, NC/CAP, kết quả và chứng chỉ trong một nơi.

@@ -52,7 +52,7 @@ import {
   type BrowserNavigationState,
   type CertificationCaseArea,
 } from "../lib/app-navigation";
-import { PLATFORM_BRANDING } from "../lib/platform-branding";
+import { useOrganizationBranding } from "../lib/useOrganizationBranding";
 import { Breadcrumb as CmpBreadcrumb, ForbiddenState, LoadingSkeleton } from "./design-system";
 import {
   resolveTaskNavigation,
@@ -351,6 +351,7 @@ function MenuLabel({ label, count }: { label: string; count?: number }) {
 }
 
 export function DashboardShell({ session, onLogout }: DashboardShellProps) {
+  const branding = useOrganizationBranding();
   const [activeView, setActiveView] = useState<ActiveView>("dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedProjectDossierKey, setSelectedProjectDossierKey] = useState<string | null>(null);
@@ -1052,8 +1053,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const navigation = (
     <>
       <div className="side-brand">
-        <span className="side-brand-mark">{PLATFORM_BRANDING.shortName}</span>
-        <span className="side-brand-copy"><strong>{PLATFORM_BRANDING.organizationName}</strong><small>{PLATFORM_BRANDING.platformName}</small></span>
+        <span className="side-brand-mark">{branding.shortName}</span>
+        <span className="side-brand-copy"><strong>{branding.organizationName}</strong><small>{branding.platformName}</small></span>
       </div>
       <Menu
         className="main-menu main-menu-v2"

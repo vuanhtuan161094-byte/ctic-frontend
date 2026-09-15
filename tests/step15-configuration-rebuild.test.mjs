@@ -65,7 +65,8 @@ test("classification and mapping destinations preserve the ISIC to NACE to IAF c
 
 test("import remains an explicit validate then commit flow", () => {
   assert.match(masterData, /validateImport/);
-  assert.match(masterData, /commitImport/);
+  assert.match(masterData, /ImportJobDetails id=\{selectedImportJob\}/);
+  assert.match(source('../app/components/ImportJobDetails.tsx'), /action.mutate\("commit"\)/);
   assert.match(masterData, /VALIDATED/);
   assert.match(masterData, /COMMITTED/);
 });

@@ -29,7 +29,12 @@ test("system administration contains guided Vietnamese master/configuration tabs
 test("Import Center exposes validate-preview-commit and CREATE_ONLY safety", async () => {
   const panel = await readFile(panelUrl, "utf8");
   assert.match(panel, /imports\/validate/);
-  assert.match(panel, /imports\/\$\{id\}\/commit/);
+  const detail = await readFile(new URL('../app/components/ImportJobDetails.tsx', import.meta.url), 'utf8');
+  assert.match(panel, /ImportJobDetails id=\{selectedImportJob\}/);
+  assert.match(detail, /imports\/\$\{id\}\/\$\{name\}/);
+  assert.match(detail, /data.can_commit/);
+  assert.match(detail, /action.mutate\("commit"\)/);
+  assert.match(detail, /data.can_publish/);
   assert.match(panel, /CREATE_ONLY/);
   assert.match(panel, /Preview không sửa dữ liệu master/);
   assert.match(panel, /accept="\.csv,text\/csv"/);
