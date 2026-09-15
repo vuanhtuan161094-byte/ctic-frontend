@@ -3,8 +3,9 @@
 Status: **READY FOR USER REVIEW**  
 Date: **2026-09-16**  
 Branch: `feature/ux-fix-batch01`  
-UX-I1 code baseline: `9b50401661844188e3ea8c796c5bd680038af38c`  
-Verification workflow: `35019596013`
+UX-I1 accepted code baseline: `9b50401661844188e3ea8c796c5bd680038af38c`  
+UX-I2 code candidate: `24039ac5f7dd0c3aa67e73bbc72c0e12c87de6db`  
+Standard verification candidate: `1ea01b0b2841cd4b6b1bef9f32d0e0235d2eb593`
 
 ## Decision
 
@@ -29,7 +30,7 @@ Legacy `--ctic-*` aliases remain temporarily for older screens, but new shared U
 
 ## Verification
 
-Workflow `35019596013` must pass before the candidate is committed:
+The fail-closed implementation workflow `35019596013` passed before the production patch was committed:
 
 - production app typecheck;
 - repository TypeScript;
@@ -39,10 +40,24 @@ Workflow `35019596013` must pass before the candidate is committed:
 - Playwright console/network/overflow gates;
 - axe WCAG A/AA serious/critical gate.
 
+The resulting code candidate was then checked again through the normal repository workflows on standard verification candidate `1ea01b0b2841cd4b6b1bef9f32d0e0235d2eb593`:
+
+- Frontend Quality run `35020032804`: **PASS**;
+- Browser Quality run `35020032766`: **PASS**;
+- browser artifact: `cmp-browser-quality-1`;
+- artifact ID: `10417486176`;
+- digest: `sha256:988160936ebf99f349900e655b73f686ace7a3bec11eba45bba353823a1e1b50`.
+
+No browser gate, axe rule, console warning or responsive condition was weakened for UX-I2.
+
 ## Scope boundary
 
 No database/schema/backend authority change, no Storybook, no ProComponents, no second UI framework, no business workflow/route change, and no broad screen redesign.
 
+The accepted frontend canonical remains the locked UX-I1 code `9b50401661844188e3ea8c796c5bd680038af38c` until the user reviews/promotes UX-I2. The UX-I2 candidate is `24039ac5f7dd0c3aa67e73bbc72c0e12c87de6db`.
+
+## Gate decision
+
 **UX-I2 implementation: COMPLETE / READY FOR USER REVIEW.**
 
-Do not start UX-I3, CFG-2, CFG-3 or Step18B until this checkpoint is reviewed.
+Do not start UX-I3, CFG-2, CFG-3 or Step18B until this checkpoint is reviewed and explicitly accepted.
