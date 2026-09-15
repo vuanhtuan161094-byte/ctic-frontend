@@ -1,38 +1,44 @@
 # UX-I1 — Playwright + axe Browser QA Baseline
 
-Status: **CLOSURE CANDIDATE — VERIFICATION RUNNING**  
-Baseline date: **2026-09-15**  
+Status: **PASS / LOCKED**  
+Closure date: **2026-09-16**  
 Branch: `feature/ux-fix-batch01`  
 Frontend canonical entering UX-I1: `9d207c39236a052157fddc397b74f9243eff2426`  
-UX-I1 tested infrastructure candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`  
-Approved closure code candidate: `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426`
+UX-I1 production closure code: `9b50401661844188e3ea8c796c5bd680038af38c`  
+Locked verification candidate: `b9d1c60e42f9dc012def67f5ca1577ffb2f24834`
 
-## 1. Scope and guardrails
+## 1. Purpose
 
-UX-I1 establishes browser-level regression evidence. The user subsequently approved a narrow closure pass for the three production debts exposed by that harness. The closure is limited to accessibility and deprecated-API corrections; it is not a visual redesign and does not begin UX-I2.
+UX-I1 establishes real-browser regression evidence for CMP before broader UI work begins. It is a QA foundation, not a visual redesign.
 
-Guardrails preserved:
+The browser gate runs Chromium at:
 
-- no database/schema changes;
-- root production dependency graph and root `package-lock.json` remain unchanged;
-- browser tooling is isolated under `e2e/` with its own lockfile;
-- controlled DEV fixtures are explicitly not SQL-backed UAT;
-- known production accessibility/runtime findings are not suppressed or whitelisted to make CI green;
-- UX-I2+, CFG-2, CFG-3 and Step18B remain blocked pending UX-I1 closure verification/review.
+- desktop `1440x900`;
+- mobile `390x844`.
 
-## 2. Browser QA implementation
+It checks:
 
-Pinned browser dependencies:
+- route/view rendering;
+- `console.error`;
+- uncaught `pageerror`;
+- failed network requests and HTTP 5xx responses;
+- horizontal overflow;
+- deterministic visual screenshots;
+- axe WCAG A/AA rules with serious/critical violations blocking;
+- labelled controls on the covered Configuration modal.
 
-- `@playwright/test@1.63.0`
-- `@axe-core/playwright@4.13.0`
+Controlled DEV fixtures remain explicitly distinct from SQL-backed UAT.
 
-Required projects:
+## 2. Tooling
 
-- Chromium desktop: `1440x900`
-- Chromium mobile: `390x844`
+Pinned isolated browser dependencies under `e2e/`:
 
-Root commands:
+- `@playwright/test@1.63.0`;
+- `@axe-core/playwright@4.13.0`.
+
+The root production dependency graph and root `package-lock.json` were not expanded for browser tooling.
+
+Primary commands:
 
 ```text
 npm run test:browser:setup
@@ -41,131 +47,97 @@ npm run test:browser:configuration
 npm run test:browser:headed
 ```
 
-The harness checks:
-
-- selected route/view loads;
-- `console.error`;
-- uncaught `pageerror`;
-- failed network requests;
-- HTTP 5xx responses;
-- horizontal page overflow;
-- deterministic screenshots after visual-state stabilization;
-- axe WCAG A/AA tags, with serious/critical violations blocking;
-- canonical Configuration modal visibility and accessible form/control names.
-
 CI workflow: `.github/workflows/browser-quality.yml`.
 
-## 3. Controlled surfaces covered
+## 3. Covered surfaces
 
-Current UX-I1 coverage intentionally stays narrow:
+The locked UX-I1 baseline covers:
 
 1. Certification Registry DEV showcase.
 2. Registry → canonical Case Overview fixture navigation.
 3. Audit Workspace DEV fixture (`section=overview`).
 4. Canonical Configuration route `/admin/configuration/schemes` with controlled API responses.
-5. Configuration “Thêm chương trình” modal, including labelled fields and primary action.
+5. Configuration “Thêm chương trình” modal and its labelled controls.
 
-This is browser regression coverage against controlled fixtures. It must not be described as full business E2E or SQL-backed UAT.
+This is deterministic browser regression coverage, not full business E2E or SQL-backed UAT.
 
-## 4. Pre-closure evidence run
+## 4. Baseline debts exposed and closed
 
-Tested infrastructure candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`.
+The first working browser baseline correctly failed on production debt rather than suppressing it. The closure pass fixed only the measured issues.
 
-Frontend quality workflow run `34971270907`: **PASS**.
+### Accessibility
 
-Passed gates:
+- WCAG normal-text contrast failures on covered Case/Audit/Configuration/shell surfaces were corrected.
+- Case Overview progress indicator received an accessible name; `aria-progressbar-name` is now clean.
+- Configuration success-status tags were adjusted to meet the active contrast gate.
 
-- application dependency install;
+No axe rule disable, selector exclusion or allowlist was introduced.
+
+### Ant Design 6 runtime/deprecation cleanup
+
+The browser gate exposed and the closure removed these warnings on the covered route:
+
+- `Drawer.width` → `size`;
+- `Space.direction` → `orientation`;
+- Form instance used before its Modal Form was mounted → Modal Form pre-render wiring;
+- `InputNumber.addonAfter` → `Space.Compact` based unit control.
+
+The InputNumber migration preserves Form value/validation behavior through a small `RuleNumberInput` wrapper; it does not alter the business payload or validation rules.
+
+## 5. Final verification evidence
+
+Locked verification candidate: `b9d1c60e42f9dc012def67f5ca1577ffb2f24834`.
+
+Frontend Quality run `35018522587`: **PASS**.
+
+Passed:
+
+- dependency installation;
 - production app typecheck;
 - repository TypeScript typecheck;
-- lint with zero warnings;
-- production build;
-- existing frontend tests.
+- lint;
+- build;
+- full frontend tests.
 
-Browser workflow run `34971271093`: **FAIL by design because unsuppressed production baseline debt remained**.
+Browser Quality run `35018522697`: **PASS**.
 
-Browser infrastructure steps all passed:
+Passed:
 
 - application dependency install;
-- isolated browser-QA dependency install;
-- Chromium installation;
-- browser evidence upload.
+- isolated e2e dependency install;
+- Chromium install;
+- all 10 Playwright tests across desktop/mobile;
+- axe gate;
+- console/runtime gate;
+- network/5xx gate;
+- horizontal-overflow gate;
+- evidence upload.
 
-Artifact: `cmp-browser-quality-1`, artifact ID `10397840114`, digest `sha256:c60b7649efc6ec8ee68290c4fb7bf3f8911b16835724527a39eefe151cb8a0e8`.
+Browser evidence artifact:
 
-Final artifact inspection found **no remaining harness/selector/fixture failure**. The previous mobile Registry selector issue was removed by asserting the semantic Registry region, fixture content and visible “Mở hồ sơ” action rather than a responsive DOM tag.
+- name: `cmp-browser-quality-1`;
+- artifact ID: `10416588179`;
+- digest: `sha256:34073899dff69b19ee2a580ee0f5505ffca1d2b5c8f3dea73679bf3b7df92d30`.
 
-## 5. Production baseline findings before closure
+A preceding fail-closed closure workflow also required the exact source patch to pass typecheck, repository TypeScript, lint, full frontend tests and Playwright/axe before committing production code.
 
-### A. WCAG color contrast — serious
+## 6. Scope safety
 
-`color-contrast` reproduced on both required viewports. Observed contrast ratios ranged approximately from `3.31:1` to `4.43:1`, below the applicable `4.5:1` AA threshold for affected normal text.
+UX-I1 did not change database schema, business workflow, route authority, production dependency topology or page layout.
 
-Representative affected areas included:
+Production changes are limited to measured browser-quality closure points: accessibility semantics/contrast and Ant Design 6 API/wiring compatibility.
 
-- CMP page-header identity/description text;
-- Case Overview identity and secondary text;
-- next-action explanatory text;
-- Audit summary/secondary text;
-- Configuration navigation labels, breadcrumb/current-page text, secondary text, tags, global-search hint and keyboard hint.
+The browser harness remains strict: genuine axe or runtime failures must fail the gate rather than be silently ignored.
 
-No contrast exception was added to the test harness.
+## 7. Gate decision
 
-### B. Case Overview progress indicator accessible name — serious
+**UX-I1: PASS / LOCKED.**
 
-Axe rule: `aria-progressbar-name`.
+The user approved continuing after this closure, so UX-I2 — CMP Design Language may begin from this locked baseline.
 
-The Ant Design progress element (`.ant-progress`) rendered in Case Overview had no accessible name. This reproduced at both desktop and mobile widths.
+Still blocked unless separately reached/approved by the roadmap:
 
-No rule disable or selector exclusion was added.
-
-### C. Ant Design deprecated API warnings — runtime console errors
-
-The canonical Configuration route reproducibly emitted:
-
-```text
-Warning: [antd: Drawer] `width` is deprecated. Please use `size` instead.
-Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead.
-```
-
-Because UX-I1 treats `console.error` as a browser-quality failure, these warnings remained visible as baseline debt rather than being ignored.
-
-## 6. Findings that did not reproduce as blockers
-
-In the final pre-closure infrastructure candidate:
-
-- no remaining Playwright locator/harness failure was found;
-- no `Horizontal overflow detected` failure was found on the screens where the overflow gate runs, at either `1440x900` or `390x844`;
-- no uncaught `pageerror` signature was found;
-- no failed-request or HTTP 5xx signature was found in the final failure set;
-- Configuration create-program fields are discoverable by accessible names: `Mã chương trình`, `Tên chương trình`, `Mô tả`, and the `Lưu` action;
-- screenshot/trace/video/axe evidence is retained for failing browser runs.
-
-## 7. Scope-safety verification
-
-The infrastructure implementation up to `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2` contained no production `app/**` repair. After user approval, closure candidate `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426` changes only the source points necessary to close the three measured debts:
-
-- add an accessible name to the Case Overview progress indicator;
-- replace deprecated Ant Design `Drawer.width` with `size`;
-- replace deprecated Ant Design `Space.direction` with `orientation`;
-- use semantic success tags instead of the low-contrast green preset on the covered Configuration program/status surface;
-- raise the existing CMP/AntD secondary text contrast and narrowly correct sidebar/search-hint contrast.
-
-No business workflow, route contract, schema, production dependency or page layout is changed by the closure candidate.
-
-## 8. Gate decision before closure verification
-
-**UX-I1 browser-QA infrastructure: IMPLEMENTED / TECHNICALLY WORKING.**
-
-The original production browser baseline was **RED** and accurately exposed the three debts above.
-
-The user approved correcting those debts without entering UX-I2. Closure candidate `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426` is now subject to the same frontend quality and browser gates. UX-I1 must not be declared PASS/LOCKED until those verification runs complete.
-
-## 9. Phase boundary
-
-Until closure verification is complete and the checkpoint is reported:
-
-- do not start UX-I2 or later UX infrastructure phases;
-- do not start CFG-2, CFG-3 or Step18B;
-- do not weaken axe/console gates to obtain a green run;
-- controlled browser QA remains distinct from SQL-backed business UAT.
+- CFG-2;
+- CFG-3;
+- Step18B;
+- full SQL-backed release UAT.
