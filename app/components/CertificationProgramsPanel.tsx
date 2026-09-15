@@ -28,6 +28,7 @@ import {
 } from "antd";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
+import type { ComponentProps } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
@@ -237,6 +238,23 @@ function isScheduledRule(row: SchemeConfig) {
 
 function nextRuleVersion(rows: SchemeConfig[]) {
   return rows.reduce((max, row) => Math.max(max, Number(row.version_no) || 0), 0) + 1;
+}
+
+type RuleNumberInputProps = ComponentProps<typeof InputNumber> & { unit: string };
+
+function RuleNumberInput({ unit, style, ...props }: RuleNumberInputProps) {
+  return (
+    <Space.Compact style={{ width: "100%" }}>
+      <InputNumber {...props} style={{ width: "100%", ...style }} />
+      <Input
+        aria-label={`Đơn vị: ${unit}`}
+        readOnly
+        tabIndex={-1}
+        value={unit}
+        style={{ width: unit === "tháng/lần" ? 96 : 72, textAlign: "center", pointerEvents: "none" }}
+      />
+    </Space.Compact>
+  );
 }
 
 export function CertificationProgramsPanel() {
@@ -864,7 +882,7 @@ export function CertificationProgramsPanel() {
               <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
             </Form.Item>
             <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
-              <InputNumber min={1} addonAfter="tháng" style={{ width: "100%" }} />
+              <RuleNumberInput min={1} unit="tháng" />
             </Form.Item>
             <Form.Item
               name="surveillance_frequency_months"
@@ -880,7 +898,7 @@ export function CertificationProgramsPanel() {
                 },
               ]}
             >
-              <InputNumber min={1} addonAfter="tháng/lần" style={{ width: "100%" }} />
+              <RuleNumberInput min={1} unit="tháng/lần" />
             </Form.Item>
             <Form.Item
               name="validity_duration_months"
@@ -896,13 +914,13 @@ export function CertificationProgramsPanel() {
                 },
               ]}
             >
-              <InputNumber min={1} addonAfter="tháng" style={{ width: "100%" }} />
+              <RuleNumberInput min={1} unit="tháng" />
             </Form.Item>
             <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
-              <InputNumber min={0} addonAfter="ngày" style={{ width: "100%" }} />
+              <RuleNumberInput min={0} unit="ngày" />
             </Form.Item>
             <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
-              <InputNumber min={0} addonAfter="ngày" style={{ width: "100%" }} />
+              <RuleNumberInput min={0} unit="ngày" />
             </Form.Item>
             <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
               <Switch checkedChildren="Có" unCheckedChildren="Không" />
