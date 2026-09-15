@@ -57,6 +57,7 @@ import {
   type NumberingRuleView,
 } from "../lib/numbering-configuration";
 import { IndustryTaxonomyPanel } from "./IndustryTaxonomyPanel";
+import { ImportJobDetails } from "./ImportJobDetails";
 
 const { Paragraph, Text, Title } = Typography;
 const base = "/master-data-configuration";
@@ -567,6 +568,7 @@ export function MasterDataConfigurationPanel({
     numberingActionForm.resetFields();
   });
   const saveProfile = useAdminMutation<OrganizationProfile>((values) => api.patch(`${base}/organization-profile`, values));
+  const [selectedImportJob, setSelectedImportJob] = useState<string | null>(null);
   const validateImport = useAdminMutation<void>(async () => {
     const file = importFiles[0]?.originFileObj;
     if (!file) throw new Error("Chọn tệp CSV trước khi kiểm tra");
@@ -574,9 +576,10 @@ export function MasterDataConfigurationPanel({
     form.append("entity_type", importEntity);
     form.append("import_mode", "CREATE_ONLY");
     form.append("file", file);
-    return api.post(`${base}/imports/validate`, form);
+    const result = await api.post<ImportJob>(`${base}/imports/validate`, form);
+    setSelectedImportJob(result.data.id);
+    return result;
   }, () => setImportFiles([]));
-  const commitImport = useAdminMutation<string>((id) => api.post(`${base}/imports/${id}/commit`));
 
   const schemeOptions = (schemes.data ?? []).map((item) => ({ value: item.id, label: `${item.code} · ${item.name}` }));
   const selectedImportDefinition = (importDefinitions.data ?? []).find((item) => item.entity_type === importEntity);
@@ -1303,9 +1306,9 @@ export function MasterDataConfigurationPanel({
             title="Khi nào dùng Trung tâm nhập dữ liệu?"
             what="Dùng khi có danh mục lớn cần nạp hàng loạt bằng CSV. Với vài bản ghi đơn lẻ, nên nhập trực tiếp ở tab tương ứng."
             example="Nạp danh mục ISIC/NACE, bảng quy đổi ISIC→NACE hoặc NACE→IAF."
-            effect="Luôn qua 2 bước: Kiểm tra/Xem trước trước, sau đó mới Ghi dữ liệu. Preview không sửa dữ liệu master."
+            effect="Kiểm tra/Xem trước → Lưu dữ liệu. Riêng mapping: Lưu bản nháp → Xem xét → Công bố để đưa vào vận hành. Preview không sửa dữ liệu master."
           />
-          <Alert showIcon type="warning" message="TẢI LÊN → KIỂM TRA/XEM TRƯỚC → GHI DỮ LIỆU" description="Chỉ nhận CSV UTF-8 ở chế độ chỉ tạo mới. Dòng lỗi hoặc trùng phải được sửa trước khi ghi dữ liệu." />
+          <Alert showIcon type="warning" message="KIỂM TRA → LƯU → XEM XÉT / CÔNG BỐ MAPPING" description="Hỗ trợ dữ liệu chương trình, phiên bản tiêu chuẩn và phân loại ngành. Mapping đã lưu vẫn là bản nháp cho đến khi công bố. Chương trình và phiên bản tiêu chuẩn được tạo ở trạng thái hoạt động, áp dụng theo ngày hiệu lực. IAF và mã ngành được thêm vào danh mục hoạt động; không tự tạo mapping." />
           <Space align="start" wrap style={{ margin: "16px 0" }}>
             <div>
               <Text strong>1. Chọn loại dữ liệu</Text>
@@ -1331,8 +1334,8 @@ export function MasterDataConfigurationPanel({
             { title: "Tệp", dataIndex: "source_file_name" },
             { title: "Loại dữ liệu", dataIndex: "entity_type", render: (value) => importEntityLabels[value] ?? value },
             { title: "Kết quả kiểm tra", render: (_, row: ImportJob) => `${row.valid_rows} hợp lệ / ${row.invalid_rows} lỗi / ${row.duplicate_rows} trùng` },
-            { title: "Trạng thái", dataIndex: "status", render: (value) => <Status value={value} /> },
-            { title: "", render: (_, row: ImportJob) => row.status === "VALIDATED" && !row.invalid_rows && !row.duplicate_rows ? <Button icon={<CheckCircleOutlined />} onClick={() => commitImport.mutate(row.id)}>Ghi dữ liệu</Button> : null },
+            { title: "Trạng thái lưu", render: (_, row: ImportJob) => row.status === "COMMITTED" ? "Đã lưu · Mở chi tiết để kiểm tra vận hành" : <Status value={row.status} /> },
+            { title: "", render: (_, row: ImportJob) => <Button onClick={() => setSelectedImportJob(row.id)}>Xem kết quả / Tiếp tục</Button> },
           ]} />
         </>
       ),
@@ -1342,6 +1345,7 @@ export function MasterDataConfigurationPanel({
   return (
     <Card className="system-admin-table-card">
       {contextHolder}
+      <ImportJobDetails id={selectedImportJob} onClose={() => setSelectedImportJob(null)} />
       {!routeMode ? <div className="page-heading page-heading-v2">
         <div>
           <span className="eyebrow">THIẾT LẬP NGHIỆP VỤ & DỮ LIỆU NỀN</span>
