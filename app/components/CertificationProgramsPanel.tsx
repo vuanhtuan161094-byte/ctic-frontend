@@ -777,6 +777,7 @@ export function CertificationProgramsPanel() {
         okText="Lưu"
         confirmLoading={saveScheme.isPending}
         destroyOnHidden
+        forceRender
       >
         <Form form={schemeForm} layout="vertical" onFinish={(values) => saveScheme.mutate(values)}>
           <Form.Item name="code" label="Mã chương trình" rules={[{ required: true, message: "Nhập mã chương trình" }]}>
@@ -804,6 +805,7 @@ export function CertificationProgramsPanel() {
         okText="Lưu"
         confirmLoading={saveStandard.isPending}
         destroyOnHidden
+        forceRender
       >
         <Form form={standardForm} layout="vertical" onFinish={(values) => saveStandard.mutate(values)}>
           <Form.Item name="scheme_id" label="Chương trình" rules={[{ required: true, message: "Chọn chương trình" }]}>
@@ -849,6 +851,7 @@ export function CertificationProgramsPanel() {
         okText="Lưu phiên bản"
         confirmLoading={saveRule.isPending}
         destroyOnHidden
+        forceRender
         width={760}
       >
         <Form form={ruleForm} layout="vertical" onFinish={(values) => saveRule.mutate(values)}>
