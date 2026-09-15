@@ -27,8 +27,8 @@ body {
 }
 
 body {
-  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  font-size: 14px;
+  font-family: var(--cmp-font-family);
+  font-size: var(--cmp-font-size-md);
 }
 
 button,
@@ -226,7 +226,7 @@ input { font: inherit; }
 .side-brand-copy small { font-size: 12px; margin-top: 2px; opacity: .86; }
 
 .main-menu { border-inline-end: 0 !important; flex: 1; padding: 12px 8px 0; }
-.main-menu .ant-menu-item-group-title { color: rgba(255, 255, 255, .48) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }
+.main-menu .ant-menu-item-group-title { color: var(--cmp-navigation-group-text) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }
 .main-menu .ant-menu-item { margin-inline: 0; width: 100%; }
 .main-menu .ant-menu-title-content {
   overflow: hidden;
@@ -310,7 +310,7 @@ input { font: inherit; }
 .account-button strong { font-size: 13px; line-height: 1.3; }
 .account-button small { color: var(--ctic-muted); font-size: 11px; margin-top: 1px; }
 
-.application-content { margin: 0 auto; max-width: 1680px; padding: 28px; width: 100%; }
+.application-content { margin: 0 auto; max-width: var(--cmp-page-shell-max-width); padding: var(--cmp-page-gutter); width: 100%; }
 .page-heading { align-items: flex-end; display: flex; gap: 20px; justify-content: space-between; margin-bottom: 22px; }
 .page-heading .ant-typography { margin-bottom: 0; }
 .page-heading h2.ant-typography { letter-spacing: -.025em; margin: 0 0 3px; }
@@ -347,7 +347,7 @@ input { font: inherit; }
   margin-top: 16px;
 }
 
-.dashboard-card { border-color: var(--ctic-border); box-shadow: 0 5px 18px rgba(29, 62, 104, .045); }
+.dashboard-card { border-color: var(--cmp-border-default); box-shadow: var(--cmp-shadow-low); }
 .dashboard-card .ant-card-head { border-bottom-color: #e8eef6; min-height: 54px; padding: 0 18px; }
 .dashboard-card .ant-card-head-title { color: var(--ctic-ink); font-size: 15px; font-weight: 700; }
 .projects-card .ant-card-body { padding: 0; }
@@ -399,7 +399,7 @@ input { font: inherit; }
 }
 
 @media (max-width: 991px) {
-  .application-content { padding: 20px; }
+  .application-content { padding: var(--cmp-page-gutter-tablet); }
   .top-header { padding: 0 16px; }
 }
 
@@ -412,7 +412,7 @@ input { font: inherit; }
 }
 
 @media (max-width: 680px) {
-  .application-content { padding: 16px 12px 24px; }
+  .application-content { padding: 16px var(--cmp-page-gutter-mobile) 24px; }
   .top-header { height: 66px; }
   .header-left small { display: none; }
   .page-heading { align-items: flex-start; flex-direction: column; }

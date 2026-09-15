@@ -1,13 +1,13 @@
-/* UX-I1 accessibility closure only. Keep these narrow overrides until UX-I2 token governance is approved. */
+/* Governed runtime overrides. Values must resolve through the CMP token contract. */
 .application-shell .main-menu .ant-menu-item-group-title {
-  color: #8fa6c7 !important;
+  color: var(--cmp-navigation-group-text) !important;
 }
 
 .application-shell .global-search-trigger > span:nth-child(2),
 .application-shell .global-search-trigger kbd {
-  color: #5f6b7a;
+  color: var(--cmp-text-secondary);
 }
 
 .application-shell .configuration-route-page .ant-tag-success {
-  color: #00502d !important;
+  color: var(--cmp-feedback-success-text-strong) !important;
 }
