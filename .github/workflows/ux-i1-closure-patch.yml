@@ -20,7 +20,7 @@ jobs:
           ref: feature/ux-fix-batch01
 
       - name: Apply narrowly scoped UX-I1 closure fixes
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
 
@@ -74,22 +74,19 @@ jobs:
               '  --cmp-text-secondary: #5f6b7a;',
           )
 
-          Path("app/components/ux-i1-accessibility-closure.css").write_text(
-              '''/* UX-I1 accessibility closure only. Keep these narrow overrides until UX-I2 token governance is approved. */
-.application-shell .main-menu .ant-menu-item-group-title {
-  color: #8fa6c7 !important;
-}
-
-.application-shell .global-search-trigger > span:nth-child(2),
-.application-shell .global-search-trigger kbd {
-  color: #5f6b7a;
-}
-''',
-              encoding="utf-8",
+          closure_css = (
+              "/* UX-I1 accessibility closure only. Keep these narrow overrides until UX-I2 token governance is approved. */\n"
+              ".application-shell .main-menu .ant-menu-item-group-title {\n"
+              "  color: #8fa6c7 !important;\n"
+              "}\n\n"
+              ".application-shell .global-search-trigger > span:nth-child(2),\n"
+              ".application-shell .global-search-trigger kbd {\n"
+              "  color: #5f6b7a;\n"
+              "}\n"
           )
+          Path("app/components/ux-i1-accessibility-closure.css").write_text(closure_css, encoding="utf-8")
 
-          workflow = Path(".github/workflows/ux-i1-closure-patch.yml")
-          workflow.unlink()
+          Path(".github/workflows/ux-i1-closure-patch.yml").unlink()
 
       - name: Verify patch shape
         run: |
