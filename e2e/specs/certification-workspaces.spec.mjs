@@ -18,17 +18,16 @@ async function openControlledView(page, view, extra = "") {
   await expect(page.getByText("DEV · MOCK DATA")).toBeVisible();
 }
 
-function visibleCaseCode(page, code) {
-  return page.locator("strong:visible", { hasText: code });
-}
-
 test.describe("controlled certification browser baseline", () => {
   test("registry has no runtime errors, blocking axe violations or page overflow", async ({ page }, testInfo) => {
     const runtime = watchRuntimeIssues(page);
     await openControlledView(page, "registry");
 
     await expect(page.getByRole("heading", { name: "Hồ sơ chứng nhận" })).toBeVisible();
-    await expect(visibleCaseCode(page, "HS-MAU-2026-0042")).toBeVisible();
+    const registry = page.getByRole("region", { name: "Sổ hồ sơ chứng nhận" });
+    await expect(registry).toBeVisible();
+    await expect(registry).toContainText("HS-MAU-2026-0042");
+    await expect(registry.getByRole("button", { name: "Mở hồ sơ" }).first()).toBeVisible();
 
     await assertControlledScreenQuality(page, testInfo, "certification-registry");
     runtime.assertClean();
