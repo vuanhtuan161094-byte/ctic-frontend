@@ -1,0 +1,50 @@
+name: UX-I1 Form Warning Patch
+
+on:
+  push:
+    branches:
+      - feature/ux-fix-batch01
+    paths:
+      - .github/workflows/ux-i1-form-warning-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ux-fix-batch01
+
+      - name: Apply Form-Modal wiring fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("app/components/CertificationProgramsPanel.tsx")
+          text = path.read_text(encoding="utf-8")
+          old = "        destroyOnHidden\n      >"
+          new = "        destroyOnHidden\n        forceRender\n      >"
+          count = text.count(old)
+          if count != 3:
+              raise SystemExit(f"Expected 3 form modals, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          Path(".github/workflows/ux-i1-form-warning-patch.yml").unlink()
+          PY
+
+      - name: Verify patch
+        run: |
+          git diff --check
+          git diff -- app/components/CertificationProgramsPanel.tsx
+
+      - name: Commit UX-I1 Form-Modal wiring closure
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/components/CertificationProgramsPanel.tsx
+          git add .github/workflows/ux-i1-form-warning-patch.yml
+          git commit -m "fix(ux-i1): connect modal forms before control calls"
+          git push origin HEAD:feature/ux-fix-batch01
