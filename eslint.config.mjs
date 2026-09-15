@@ -11,7 +11,7 @@ const hookRules =
   {};
 
 export default defineConfig([
-  globalIgnores(["node_modules/**", "dist/**"]),
+  globalIgnores(["node_modules/**", "dist/**", "e2e/node_modules/**", "e2e/playwright-report/**", "e2e/test-results/**"]),
   js.configs.recommended,
   {
     files: [
@@ -47,6 +47,14 @@ export default defineConfig([
       ecmaVersion: "latest",
       sourceType: "module",
       globals: globals.node,
+    },
+  },
+  {
+    files: ["e2e/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: { ...globals.browser, ...globals.node },
     },
   },
 ]);
