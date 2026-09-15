@@ -73,3 +73,5 @@ jobs:
             e2e/test-results
           if-no-files-found: ignore
           retention-days: 14
+
+# UX-I1 closure verification trigger — 2026-09-15
