@@ -24,7 +24,7 @@ test.describe("controlled certification browser baseline", () => {
     await openControlledView(page, "registry");
 
     await expect(page.getByRole("heading", { name: "Hồ sơ chứng nhận" })).toBeVisible();
-    await expect(page.getByText("HS-MAU-2026-0042")).toBeVisible();
+    await expect(page.getByText("HS-MAU-2026-0042").first()).toBeVisible();
 
     await assertControlledScreenQuality(page, testInfo, "certification-registry");
     runtime.assertClean();
@@ -46,7 +46,7 @@ test.describe("controlled certification browser baseline", () => {
     const runtime = watchRuntimeIssues(page);
     await openControlledView(page, "audit", "section=overview");
 
-    await expect(page.getByText("KH-MAU-2026-0108").first()).toBeVisible();
+    await expect(page.getByText("KHĐG-MAU-2026-0042-GĐ2").first()).toBeVisible();
 
     await assertControlledScreenQuality(page, testInfo, "certification-audit-overview");
     runtime.assertClean();
