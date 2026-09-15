@@ -20,9 +20,11 @@ export function UiRuntime({ children }: { children: ReactNode }) {
           colorPrimary: PLATFORM_BRANDING.primaryColor,
           colorInfo: PLATFORM_BRANDING.primaryColor,
           colorSuccess: "#168451",
+          colorSuccessText: "#00502d",
           colorWarning: "#c56a11",
           colorError: "#c83b3b",
           colorTextSecondary: "#5f6b7a",
+          colorTextDescription: "#5f6b7a",
           borderRadius: 10,
           fontFamily:
             'Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
