@@ -1,0 +1,75 @@
+name: CMP Browser Quality
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+    paths:
+      - "app/**"
+      - "src/**"
+      - "e2e/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.ctic.config.ts"
+      - ".github/workflows/browser-quality.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "src/**"
+      - "e2e/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.ctic.config.ts"
+      - ".github/workflows/browser-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install browser QA dependencies
+        run: npm --prefix e2e ci
+
+      - name: Install Chromium
+        run: cd e2e && npx playwright install --with-deps chromium
+
+      - name: Run Playwright and axe baseline
+        run: npm --prefix e2e test
+
+      - name: Upload browser QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmp-browser-quality-${{ github.run_attempt }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 14
