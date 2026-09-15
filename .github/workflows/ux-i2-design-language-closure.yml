@@ -1,0 +1,462 @@
+name: UX-I2 Design Language Closure
+
+on:
+  push:
+    branches:
+      - feature/ux-fix-batch01
+    paths:
+      - .github/workflows/ux-i2-design-language-closure.yml
+
+permissions:
+  contents: write
+
+jobs:
+  closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feature/ux-fix-batch01
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+
+      - name: Apply governed design-language layer
+        shell: bash
+        run: |
+          cat > app/components/design-system/theme.ts <<'EOF'
+          import type { ConfigProviderProps } from "antd";
+
+          export interface CmpBrandPalette {
+            primaryColor: string;
+            darkColor: string;
+            accentColor: string;
+          }
+
+          export const CMP_FOUNDATION = Object.freeze({
+            neutral: Object.freeze({
+              canvas: "#f2f6fb",
+              raised: "#ffffff",
+              subtle: "#f7f9fc",
+              selected: "#edf5ff",
+              textPrimary: "#17233b",
+              textSecondary: "#5f6b7a",
+              textDisabled: "#95a1b2",
+              border: "#dce5f0",
+              borderStrong: "#b8c6d8",
+            }),
+            feedback: Object.freeze({
+              info: "#1767a6",
+              success: "#168451",
+              successTextStrong: "#00502d",
+              warning: "#c56a11",
+              error: "#c83b3b",
+            }),
+            typography: Object.freeze({
+              fontFamily: 'Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+              bodySize: 14,
+              lineHeight: 1.5,
+            }),
+            density: Object.freeze({
+              controlHeight: 36,
+              compactControlHeight: 30,
+            }),
+            radius: Object.freeze({
+              small: 6,
+              medium: 10,
+              large: 14,
+            }),
+          });
+
+          export const CMP_BREAKPOINTS = Object.freeze({
+            phone: 480,
+            mobile: 768,
+            desktop: 1024,
+            wide: 1250,
+          });
+
+          export function createCmpAntdTheme(brand: CmpBrandPalette): NonNullable<ConfigProviderProps["theme"]> {
+            return {
+              token: {
+                colorPrimary: brand.primaryColor,
+                colorInfo: brand.primaryColor,
+                colorSuccess: CMP_FOUNDATION.feedback.success,
+                colorSuccessText: CMP_FOUNDATION.feedback.successTextStrong,
+                colorWarning: CMP_FOUNDATION.feedback.warning,
+                colorError: CMP_FOUNDATION.feedback.error,
+                colorText: CMP_FOUNDATION.neutral.textPrimary,
+                colorTextSecondary: CMP_FOUNDATION.neutral.textSecondary,
+                colorTextDescription: CMP_FOUNDATION.neutral.textSecondary,
+                colorBgLayout: CMP_FOUNDATION.neutral.canvas,
+                colorBgContainer: CMP_FOUNDATION.neutral.raised,
+                colorBorder: CMP_FOUNDATION.neutral.border,
+                borderRadius: CMP_FOUNDATION.radius.medium,
+                fontFamily: CMP_FOUNDATION.typography.fontFamily,
+                fontSize: CMP_FOUNDATION.typography.bodySize,
+                lineHeight: CMP_FOUNDATION.typography.lineHeight,
+                controlHeight: CMP_FOUNDATION.density.controlHeight,
+              },
+              components: {
+                Layout: {
+                  bodyBg: CMP_FOUNDATION.neutral.canvas,
+                  headerBg: CMP_FOUNDATION.neutral.raised,
+                  siderBg: brand.darkColor,
+                },
+                Menu: {
+                  darkItemBg: brand.darkColor,
+                  darkItemSelectedBg: CMP_FOUNDATION.neutral.raised,
+                  darkItemSelectedColor: brand.primaryColor,
+                  darkItemHoverBg: brand.accentColor,
+                },
+              },
+            };
+          }
+          EOF
+
+          cat > app/components/design-system/runtime-overrides.css <<'EOF'
+          /* Governed Ant Design/runtime overrides. Values must come from the CMP token contract. */
+          .application-shell .main-menu .ant-menu-item-group-title {
+            color: var(--cmp-navigation-group-text) !important;
+          }
+
+          .application-shell .global-search-trigger > span:nth-child(2),
+          .application-shell .global-search-trigger kbd {
+            color: var(--cmp-text-secondary);
+          }
+
+          .application-shell .configuration-route-page .ant-tag-success {
+            color: var(--cmp-feedback-success-text-strong) !important;
+          }
+          EOF
+
+          cat > app/components/UiRuntime.tsx <<'EOF'
+          "use client";
+
+          import { App as AntdApp, ConfigProvider } from "antd";
+          import viVN from "antd/locale/vi_VN";
+          import dayjs from "dayjs";
+          import "dayjs/locale/vi";
+          import type { ReactNode } from "react";
+
+          import "./design-system/runtime-overrides.css";
+          import { createCmpAntdTheme } from "./design-system/theme";
+          import { PLATFORM_BRANDING } from "../lib/platform-branding";
+
+          dayjs.locale("vi");
+
+          export function UiRuntime({ children }: { children: ReactNode }) {
+            return (
+              <ConfigProvider locale={viVN} theme={createCmpAntdTheme(PLATFORM_BRANDING)}>
+                <AntdApp>{children}</AntdApp>
+              </ConfigProvider>
+            );
+          }
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          tokens_path = Path('app/components/design-system/tokens.css')
+          tokens = tokens_path.read_text(encoding='utf-8')
+          root_end = tokens.index('\n}\n\n.cmp-page-stack') + 2
+          root = dedent('''\
+            :root {
+              /* Brand values are runtime-overridable per certification body. */
+              --cmp-brand-primary: #0b4ba2;
+              --cmp-brand-strong: #082f6b;
+              --cmp-brand-accent: #1a6ac7;
+
+              /* Neutral foundation. */
+              --cmp-neutral-0: #ffffff;
+              --cmp-neutral-50: #f7f9fc;
+              --cmp-neutral-100: #f2f6fb;
+              --cmp-neutral-200: #edf2f7;
+              --cmp-neutral-300: #dce5f0;
+              --cmp-neutral-500: #95a1b2;
+              --cmp-neutral-600: #737b87;
+              --cmp-neutral-700: #5f6b7a;
+              --cmp-neutral-900: #17233b;
+
+              /* Typography. */
+              --cmp-font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              --cmp-font-size-xs: 12px;
+              --cmp-font-size-sm: 13px;
+              --cmp-font-size-md: 14px;
+              --cmp-font-size-lg: 16px;
+              --cmp-font-size-xl: 20px;
+              --cmp-font-size-2xl: 26px;
+              --cmp-line-height-tight: 1.25;
+              --cmp-line-height-normal: 1.5;
+              --cmp-line-height-relaxed: 1.7;
+              --cmp-font-weight-medium: 500;
+              --cmp-font-weight-semibold: 600;
+              --cmp-font-weight-bold: 700;
+
+              /* Spacing. */
+              --cmp-space-1: 4px;
+              --cmp-space-2: 8px;
+              --cmp-space-3: 12px;
+              --cmp-space-4: 16px;
+              --cmp-space-5: 20px;
+              --cmp-space-6: 24px;
+              --cmp-space-8: 32px;
+              --cmp-space-10: 40px;
+              --cmp-space-12: 48px;
+
+              /* Layout hierarchy and density. */
+              --cmp-page-max-width: 1600px;
+              --cmp-page-shell-max-width: 1680px;
+              --cmp-content-narrow: 960px;
+              --cmp-page-gutter: 28px;
+              --cmp-page-gutter-tablet: 20px;
+              --cmp-page-gutter-mobile: 12px;
+              --cmp-control-height: 36px;
+              --cmp-control-height-compact: 30px;
+              --cmp-table-cell-block: 10px;
+              --cmp-table-cell-inline: 12px;
+              --cmp-form-section-gap: 16px;
+              --cmp-card-padding: 16px;
+
+              /* Radius and elevation. */
+              --cmp-radius-sm: 6px;
+              --cmp-radius-md: 10px;
+              --cmp-radius-lg: 14px;
+              --cmp-radius-full: 999px;
+              --cmp-shadow-low: 0 5px 18px rgba(29, 62, 104, .045);
+              --cmp-shadow-raised: 0 8px 24px rgba(17, 43, 77, .09);
+              --cmp-shadow-overlay: 0 18px 48px rgba(17, 43, 77, .16);
+
+              /* Surface/text/border aliases consumed by shared UI. */
+              --cmp-surface-canvas: var(--cmp-neutral-100);
+              --cmp-surface-raised: var(--cmp-neutral-0);
+              --cmp-surface-subtle: var(--cmp-neutral-50);
+              --cmp-surface-selected: #edf5ff;
+              --cmp-surface-critical-subtle: #fff7f7;
+              --cmp-surface-positive-subtle: #f1faf5;
+              --cmp-text-primary: var(--cmp-neutral-900);
+              --cmp-text-secondary: var(--cmp-neutral-700);
+              --cmp-text-disabled: var(--cmp-neutral-500);
+              --cmp-border-default: var(--cmp-neutral-300);
+              --cmp-border-strong: #b8c6d8;
+              --cmp-focus-ring: #7db5f6;
+
+              /* Feedback colors used by Ant Design. */
+              --cmp-feedback-success: #168451;
+              --cmp-feedback-success-text-strong: #00502d;
+              --cmp-feedback-warning: #c56a11;
+              --cmp-feedback-error: #c83b3b;
+              --cmp-feedback-info: #1767a6;
+
+              /* Domain/status semantics are intentionally separate from brand colors. */
+              --cmp-state-neutral: #5f6b7a;
+              --cmp-state-info: #1767a6;
+              --cmp-state-attention: #a85a0a;
+              --cmp-state-positive: #147a4b;
+              --cmp-state-critical: #b42f37;
+              --cmp-state-inactive: #737b87;
+              --cmp-state-neutral-bg: #f1f3f5;
+              --cmp-state-info-bg: #eaf4fc;
+              --cmp-state-attention-bg: #fff5e5;
+              --cmp-state-positive-bg: #eaf7f0;
+              --cmp-state-critical-bg: #fff0f0;
+              --cmp-state-inactive-bg: #f0f1f2;
+              --cmp-state-neutral-border: #d9dee5;
+              --cmp-state-info-border: #bddcf1;
+              --cmp-state-attention-border: #f1d197;
+              --cmp-state-positive-border: #b9dfcb;
+              --cmp-state-critical-border: #edbec1;
+              --cmp-state-inactive-border: #d4d7db;
+
+              /* Navigation/accessibility semantics. */
+              --cmp-navigation-group-text: #8fa6c7;
+
+              /* Reference breakpoints. CSS media queries mirror these literal values. */
+              --cmp-breakpoint-phone: 480px;
+              --cmp-breakpoint-mobile: 768px;
+              --cmp-breakpoint-desktop: 1024px;
+              --cmp-breakpoint-wide: 1250px;
+            }
+          ''').rstrip()
+          tokens = root + tokens[root_end:]
+
+          replacements = {
+              'border-radius: 999px;': 'border-radius: var(--cmp-radius-full);',
+              '.cmp-tone-neutral { background: var(--cmp-state-neutral-bg); border-color: #d9dee5; color: var(--cmp-state-neutral); }': '.cmp-tone-neutral { background: var(--cmp-state-neutral-bg); border-color: var(--cmp-state-neutral-border); color: var(--cmp-state-neutral); }',
+              '.cmp-tone-info { background: var(--cmp-state-info-bg); border-color: #bddcf1; color: var(--cmp-state-info); }': '.cmp-tone-info { background: var(--cmp-state-info-bg); border-color: var(--cmp-state-info-border); color: var(--cmp-state-info); }',
+              '.cmp-tone-attention { background: var(--cmp-state-attention-bg); border-color: #f1d197; color: var(--cmp-state-attention); }': '.cmp-tone-attention { background: var(--cmp-state-attention-bg); border-color: var(--cmp-state-attention-border); color: var(--cmp-state-attention); }',
+              '.cmp-tone-positive { background: var(--cmp-state-positive-bg); border-color: #b9dfcb; color: var(--cmp-state-positive); }': '.cmp-tone-positive { background: var(--cmp-state-positive-bg); border-color: var(--cmp-state-positive-border); color: var(--cmp-state-positive); }',
+              '.cmp-tone-critical { background: var(--cmp-state-critical-bg); border-color: #edbec1; color: var(--cmp-state-critical); }': '.cmp-tone-critical { background: var(--cmp-state-critical-bg); border-color: var(--cmp-state-critical-border); color: var(--cmp-state-critical); }',
+              '.cmp-tone-inactive { background: var(--cmp-state-inactive-bg); border-color: #d4d7db; color: var(--cmp-state-inactive); }': '.cmp-tone-inactive { background: var(--cmp-state-inactive-bg); border-color: var(--cmp-state-inactive-border); color: var(--cmp-state-inactive); }',
+              '.cmp-change-diff__before { background: #fff7f7; }': '.cmp-change-diff__before { background: var(--cmp-surface-critical-subtle); }',
+              '.cmp-change-diff__after { background: #f1faf5; }': '.cmp-change-diff__after { background: var(--cmp-surface-positive-subtle); }',
+          }
+          for old, new in replacements.items():
+              count = tokens.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one token CSS match, found {count}: {old}')
+              tokens = tokens.replace(old, new, 1)
+          tokens_path.write_text(tokens, encoding='utf-8')
+
+          globals_path = Path('app/globals.css')
+          globals_css = globals_path.read_text(encoding='utf-8')
+          global_replacements = {
+              'body {\n  font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;\n  font-size: 14px;\n}': 'body {\n  font-family: var(--cmp-font-family);\n  font-size: var(--cmp-font-size-md);\n  line-height: var(--cmp-line-height-normal);\n}',
+              '.main-menu .ant-menu-item-group-title { color: rgba(255, 255, 255, .48) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }': '.main-menu .ant-menu-item-group-title { color: var(--cmp-navigation-group-text) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }',
+              '.application-content { margin: 0 auto; max-width: 1680px; padding: 28px; width: 100%; }': '.application-content { margin: 0 auto; max-width: var(--cmp-page-shell-max-width); padding: var(--cmp-page-gutter); width: 100%; }',
+              '.dashboard-card { border-color: var(--ctic-border); box-shadow: 0 5px 18px rgba(29, 62, 104, .045); }': '.dashboard-card { border-color: var(--cmp-border-default); box-shadow: var(--cmp-shadow-low); }',
+              '@media (max-width: 991px) {\n  .application-content { padding: 20px; }': '@media (max-width: 991px) {\n  .application-content { padding: var(--cmp-page-gutter-tablet); }',
+              '@media (max-width: 680px) {\n  .application-content { padding: 16px 12px 24px; }': '@media (max-width: 680px) {\n  .application-content { padding: 16px var(--cmp-page-gutter-mobile) 24px; }',
+          }
+          for old, new in global_replacements.items():
+              count = globals_css.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one globals.css match, found {count}: {old}')
+              globals_css = globals_css.replace(old, new, 1)
+          globals_path.write_text(globals_css, encoding='utf-8')
+
+          old_closure = Path('app/components/ux-i1-accessibility-closure.css')
+          if not old_closure.exists():
+              raise SystemExit('Expected UX-I1 closure CSS before governance migration')
+          old_closure.unlink()
+
+          workflow = Path('.github/workflows/ux-i2-design-language-closure.yml')
+          workflow.unlink()
+          PY
+
+          git diff --check
+          git diff -- app/components/UiRuntime.tsx app/components/design-system/theme.ts app/components/design-system/tokens.css app/components/design-system/runtime-overrides.css app/components/ux-i1-accessibility-closure.css app/globals.css
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Production app typecheck
+        run: npm run typecheck
+
+      - name: Repository TypeScript
+        run: npm run typecheck:all
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build and full frontend tests
+        run: npm test
+
+      - name: Install browser QA dependencies
+        run: npm --prefix e2e ci
+
+      - name: Install Chromium
+        run: cd e2e && npx playwright install --with-deps chromium
+
+      - name: Run Playwright and axe UX-I2 gate
+        run: npm --prefix e2e test
+
+      - name: Write UX-I2 checkpoint evidence
+        shell: bash
+        run: |
+          cat > docs/ux/UX-I2_DESIGN_LANGUAGE.md <<'EOF'
+          # UX-I2 — CMP Design Language / Governed Tokens
+
+          Status: **READY FOR USER REVIEW**  
+          Date: **2026-09-16**  
+          Branch: `feature/ux-fix-batch01`  
+          UX-I1 code baseline: `9b50401661844188e3ea8c796c5bd680038af38c`  
+          Verification workflow: `__RUN_ID__`
+
+          ## 1. Decision
+
+          UX-I2 keeps Ant Design 6 as the sole UI foundation. `antd-style` was re-evaluated but is not installed because the existing `ConfigProvider` plus the CMP CSS token layer already provides the required governance without another production dependency.
+
+          This phase is token/theme normalization, not a broad visual redesign.
+
+          ## 2. Governed layers
+
+          - `app/components/design-system/theme.ts` — typed Ant Design theme bridge and breakpoint reference.
+          - `app/components/design-system/tokens.css` — CSS custom-property contract for CMP shared UI.
+          - `app/components/design-system/runtime-overrides.css` — narrowly scoped Ant Design/runtime overrides whose values come from governed CMP tokens.
+          - `app/components/UiRuntime.tsx` — consumes the typed CMP theme instead of defining theme literals inline.
+
+          The temporary `ux-i1-accessibility-closure.css` file is removed; the required accessibility values are now part of the governed design-language contract.
+
+          ## 3. Token domains
+
+          The central contract now explicitly governs:
+
+          - organization-overridable brand colors;
+          - neutral surfaces, text and borders;
+          - feedback colors used by Ant Design;
+          - domain/status semantics kept separate from brand colors;
+          - typography scale and line-height;
+          - spacing scale;
+          - control/table/form/card density references;
+          - radius;
+          - low/raised/overlay elevation;
+          - page hierarchy/max-width/gutters;
+          - accessibility/navigation semantics;
+          - reference breakpoints for phone/mobile/desktop/wide layouts.
+
+          ## 4. Representative consumers migrated
+
+          - Ant Design `ConfigProvider` tokens and Layout/Menu component tokens now come from `createCmpAntdTheme`.
+          - Shared PageHeader/SectionHeader/status components continue consuming `--cmp-*` tokens, with status border and diff-surface hardcoding removed.
+          - App shell typography, navigation group text, content width/gutters and dashboard-card elevation consume the governed token layer.
+          - UX-I1 search-hint and success-tag accessibility overrides now resolve through governed variables rather than one-off hex values.
+
+          Existing compatibility aliases (`--ctic-*`) remain temporarily for legacy screens, but new shared UI must use `--cmp-*` tokens.
+
+          ## 5. Scope safety
+
+          UX-I2 does not:
+
+          - add a second UI framework;
+          - install `antd-style`;
+          - add Storybook;
+          - change database/schema/backend authority;
+          - alter certification business workflows or route contracts;
+          - broadly redesign production screens.
+
+          ## 6. Verification
+
+          The fail-closed UX-I2 workflow runs before committing the production patch:
+
+          - production app typecheck;
+          - repository TypeScript typecheck;
+          - lint with zero warnings;
+          - production build and full frontend tests;
+          - Chromium browser QA at `1440x900` and `390x844`;
+          - Playwright runtime/network/overflow checks;
+          - axe WCAG A/AA serious/critical gate.
+
+          This document is committed only if every gate above passes.
+
+          ## 7. Gate decision
+
+          **UX-I2 implementation: COMPLETE / READY FOR USER REVIEW.**
+
+          Do not start UX-I3, CFG-2, CFG-3 or Step18B until this checkpoint is reviewed.
+          EOF
+          sed -i "s/__RUN_ID__/${GITHUB_RUN_ID}/g" docs/ux/UX-I2_DESIGN_LANGUAGE.md
+          git diff --check
+
+      - name: Commit verified UX-I2 candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/components/UiRuntime.tsx
+          git add app/components/design-system/theme.ts
+          git add app/components/design-system/tokens.css
+          git add app/components/design-system/runtime-overrides.css
+          git add app/components/ux-i1-accessibility-closure.css
+          git add app/globals.css
+          git add docs/ux/UX-I2_DESIGN_LANGUAGE.md
+          git add .github/workflows/ux-i2-design-language-closure.yml
+          git commit -m "feat(ux-i2): govern CMP design language tokens"
+          git push origin HEAD:feature/ux-fix-batch01
