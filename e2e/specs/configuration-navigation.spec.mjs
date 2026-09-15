@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import {
   captureVisualBaseline,
+  expectNoHorizontalOverflow,
+  runAxeBaseline,
   stabilizeVisualState,
   watchRuntimeIssues,
 } from "../helpers/quality.mjs";
@@ -154,17 +156,39 @@ async function installControlledApi(page) {
   });
 }
 
-test("canonical configuration route renders with a controlled API fixture", async ({ page }, testInfo) => {
-  const runtime = watchRuntimeIssues(page);
+async function openConfiguration(page) {
   await installControlledApi(page);
-
   await page.goto("/admin/configuration/schemes");
   await expect(page).toHaveURL(/\/admin\/configuration\/schemes$/);
   await expect(page.getByRole("heading", { name: "Chương trình & tiêu chuẩn" })).toBeVisible();
   await expect(page.getByText("QMS").first()).toBeVisible();
   await expect(page.getByText("ISO 9001:2015").first()).toBeVisible();
+}
+
+test("canonical configuration route renders with a controlled API fixture", async ({ page }, testInfo) => {
+  const runtime = watchRuntimeIssues(page);
+  await openConfiguration(page);
 
   await stabilizeVisualState(page);
   await captureVisualBaseline(page, testInfo, "configuration-schemes-smoke");
+  runtime.assertClean();
+});
+
+test("configuration create-program modal remains usable and labelled", async ({ page }, testInfo) => {
+  const runtime = watchRuntimeIssues(page);
+  await openConfiguration(page);
+
+  await page.getByRole("button", { name: "Thêm chương trình" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm chương trình" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Mã chương trình" })).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Tên chương trình" })).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Mô tả" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Lưu" })).toBeVisible();
+
+  await stabilizeVisualState(page);
+  await expectNoHorizontalOverflow(page);
+  await captureVisualBaseline(page, testInfo, "configuration-create-program-modal");
+  await runAxeBaseline(page, testInfo);
   runtime.assertClean();
 });
