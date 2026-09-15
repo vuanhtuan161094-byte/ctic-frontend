@@ -32,7 +32,7 @@ export function CertificationCaseOverview({ data, cycle, onNavigateArea }: Certi
           </div>
           <div className="cmp-case-metric">
             <span>Mức hoàn thiện nguồn hồ sơ</span>
-            <Progress percent={cycle?.summary.completion_percentage ?? 0} size="small" strokeColor="var(--cmp-brand-primary)" />
+            <Progress aria-label="Mức hoàn thiện nguồn hồ sơ" percent={cycle?.summary.completion_percentage ?? 0} size="small" strokeColor="var(--cmp-brand-primary)" />
             <small>{cycle ? `${cycle.summary.completed_items ?? 0}/${cycle.summary.total_items ?? 0} thành phần đã hoàn tất` : "Chưa có thành phần"}</small>
           </div>
           <div className="cmp-case-metric">

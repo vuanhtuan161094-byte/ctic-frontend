@@ -197,7 +197,7 @@ function isAppliedStandard(row: Standard) {
 function StandardStatus({ row }: { row: Standard }) {
   if (isStoppedStandard(row)) return <Tag>Ngừng áp dụng</Tag>;
   if (isWaitingStandard(row)) return <Tag color="cyan">Chờ hiệu lực</Tag>;
-  return <Tag color="green">Đang áp dụng</Tag>;
+  return <Tag color="success">Đang áp dụng</Tag>;
 }
 
 function standardDateText(row: Standard) {
@@ -594,7 +594,7 @@ export function CertificationProgramsPanel() {
         </Card>
       ) : null}
 
-      <Space direction="vertical" size={10} style={{ width: "100%" }}>
+      <Space orientation="vertical" size={10} style={{ width: "100%" }}>
         {allSchemes.map((scheme) => {
           const families = familiesByScheme.get(scheme.id) ?? [];
           const schemeReadiness = readinessByScheme.get(scheme.id);
@@ -619,7 +619,7 @@ export function CertificationProgramsPanel() {
                   <ProgramStatus value={scheme.status} />
                   {scheme.status === "ACTIVE" ? (
                     schemeReadiness?.status === "READY"
-                      ? <Tag color="green">Sẵn sàng</Tag>
+                      ? <Tag color="success">Sẵn sàng</Tag>
                       : <Tag color="orange">Cần thiết lập</Tag>
                   ) : null}
                 </Space>

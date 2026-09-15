@@ -1,0 +1,9 @@
+/* UX-I1 accessibility closure only. Keep these narrow overrides until UX-I2 token governance is approved. */
+.application-shell .main-menu .ant-menu-item-group-title {
+  color: #8fa6c7 !important;
+}
+
+.application-shell .global-search-trigger > span:nth-child(2),
+.application-shell .global-search-trigger kbd {
+  color: #5f6b7a;
+}

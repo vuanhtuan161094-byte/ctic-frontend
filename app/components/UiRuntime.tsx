@@ -6,6 +6,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/vi";
 import type { ReactNode } from "react";
 
+import "./ux-i1-accessibility-closure.css";
 import { PLATFORM_BRANDING } from "../lib/platform-branding";
 
 dayjs.locale("vi");
@@ -21,6 +22,7 @@ export function UiRuntime({ children }: { children: ReactNode }) {
           colorSuccess: "#168451",
           colorWarning: "#c56a11",
           colorError: "#c83b3b",
+          colorTextSecondary: "#5f6b7a",
           borderRadius: 10,
           fontFamily:
             'Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
