@@ -1,24 +1,24 @@
 # UX-I1 — Playwright + axe Browser QA Baseline
 
-Status: **COMPLETE FOR REVIEW — PRODUCTION BASELINE RED**  
+Status: **CLOSURE CANDIDATE — VERIFICATION RUNNING**  
 Baseline date: **2026-09-15**  
 Branch: `feature/ux-fix-batch01`  
 Frontend canonical entering UX-I1: `9d207c39236a052157fddc397b74f9243eff2426`  
-UX-I1 tested code candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`
+UX-I1 tested infrastructure candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`  
+Approved closure code candidate: `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426`
 
 ## 1. Scope and guardrails
 
-UX-I1 establishes browser-level regression evidence only. It does not redesign or repair production UI.
+UX-I1 establishes browser-level regression evidence. The user subsequently approved a narrow closure pass for the three production debts exposed by that harness. The closure is limited to accessibility and deprecated-API corrections; it is not a visual redesign and does not begin UX-I2.
 
 Guardrails preserved:
 
-- no `app/**` or `src/**` production UI changes;
 - no database/schema changes;
 - root production dependency graph and root `package-lock.json` remain unchanged;
 - browser tooling is isolated under `e2e/` with its own lockfile;
 - controlled DEV fixtures are explicitly not SQL-backed UAT;
 - known production accessibility/runtime findings are not suppressed or whitelisted to make CI green;
-- UX-I2+, CFG-2, CFG-3 and Step18B remain blocked pending checkpoint review.
+- UX-I2+, CFG-2, CFG-3 and Step18B remain blocked pending UX-I1 closure verification/review.
 
 ## 2. Browser QA implementation
 
@@ -67,9 +67,9 @@ Current UX-I1 coverage intentionally stays narrow:
 
 This is browser regression coverage against controlled fixtures. It must not be described as full business E2E or SQL-backed UAT.
 
-## 4. Final evidence run
+## 4. Pre-closure evidence run
 
-Tested code candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`.
+Tested infrastructure candidate: `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2`.
 
 Frontend quality workflow run `34971270907`: **PASS**.
 
@@ -82,7 +82,7 @@ Passed gates:
 - production build;
 - existing frontend tests.
 
-Browser workflow run `34971271093`: **FAIL by design because unsuppressed production baseline debt remains**.
+Browser workflow run `34971271093`: **FAIL by design because unsuppressed production baseline debt remained**.
 
 Browser infrastructure steps all passed:
 
@@ -95,13 +95,13 @@ Artifact: `cmp-browser-quality-1`, artifact ID `10397840114`, digest `sha256:c60
 
 Final artifact inspection found **no remaining harness/selector/fixture failure**. The previous mobile Registry selector issue was removed by asserting the semantic Registry region, fixture content and visible “Mở hồ sơ” action rather than a responsive DOM tag.
 
-## 5. Production baseline findings
+## 5. Production baseline findings before closure
 
 ### A. WCAG color contrast — serious
 
-`color-contrast` is reproducible on both required viewports. Observed contrast ratios in the browser evidence range approximately from `3.31:1` to `4.43:1`, below the applicable `4.5:1` AA threshold for the affected normal text.
+`color-contrast` reproduced on both required viewports. Observed contrast ratios ranged approximately from `3.31:1` to `4.43:1`, below the applicable `4.5:1` AA threshold for affected normal text.
 
-Representative affected areas include:
+Representative affected areas included:
 
 - CMP page-header identity/description text;
 - Case Overview identity and secondary text;
@@ -109,30 +109,30 @@ Representative affected areas include:
 - Audit summary/secondary text;
 - Configuration navigation labels, breadcrumb/current-page text, secondary text, tags, global-search hint and keyboard hint.
 
-No contrast exception has been added to the test harness.
+No contrast exception was added to the test harness.
 
 ### B. Case Overview progress indicator accessible name — serious
 
 Axe rule: `aria-progressbar-name`.
 
-The Ant Design progress element (`.ant-progress`) rendered in Case Overview has no accessible name. This is reproducible at both desktop and mobile widths.
+The Ant Design progress element (`.ant-progress`) rendered in Case Overview had no accessible name. This reproduced at both desktop and mobile widths.
 
-No rule disable or selector exclusion has been added.
+No rule disable or selector exclusion was added.
 
 ### C. Ant Design deprecated API warnings — runtime console errors
 
-The canonical Configuration route reproducibly emits:
+The canonical Configuration route reproducibly emitted:
 
 ```text
 Warning: [antd: Drawer] `width` is deprecated. Please use `size` instead.
 Warning: [antd: Space] `direction` is deprecated. Please use `orientation` instead.
 ```
 
-Because UX-I1 treats `console.error` as a browser-quality failure, these warnings remain visible as baseline debt rather than being ignored.
+Because UX-I1 treats `console.error` as a browser-quality failure, these warnings remained visible as baseline debt rather than being ignored.
 
 ## 6. Findings that did not reproduce as blockers
 
-In the final tested candidate:
+In the final pre-closure infrastructure candidate:
 
 - no remaining Playwright locator/harness failure was found;
 - no `Horizontal overflow detected` failure was found on the screens where the overflow gate runs, at either `1440x900` or `390x844`;
@@ -143,25 +143,29 @@ In the final tested candidate:
 
 ## 7. Scope-safety verification
 
-Compare from frontend canonical `9d207c39236a052157fddc397b74f9243eff2426` through the tested UX-I1 code candidate shows only QA/docs/workflow/config/script changes. There are no changes under `app/**` or `src/**`.
+The infrastructure implementation up to `0fb67d043a8e9d834a0d3403f2359d39e8e2b0c2` contained no production `app/**` repair. After user approval, closure candidate `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426` changes only the source points necessary to close the three measured debts:
 
-The root `package-lock.json` is unchanged. Playwright/axe remain dev/test infrastructure isolated in `e2e/`.
+- add an accessible name to the Case Overview progress indicator;
+- replace deprecated Ant Design `Drawer.width` with `size`;
+- replace deprecated Ant Design `Space.direction` with `orientation`;
+- use semantic success tags instead of the low-contrast green preset on the covered Configuration program/status surface;
+- raise the existing CMP/AntD secondary text contrast and narrowly correct sidebar/search-hint contrast.
 
-Therefore UX-I1 has not redesigned or patched production UI to make the browser gate pass.
+No business workflow, route contract, schema, production dependency or page layout is changed by the closure candidate.
 
-## 8. Gate decision
+## 8. Gate decision before closure verification
 
 **UX-I1 browser-QA infrastructure: IMPLEMENTED / TECHNICALLY WORKING.**
 
-**Current production browser baseline: RED.**
+The original production browser baseline was **RED** and accurately exposed the three debts above.
 
-**UX-I1 overall checkpoint: READY FOR USER REVIEW, NOT YET ACCEPTED OR LOCKED.**
+The user approved correcting those debts without entering UX-I2. Closure candidate `2c74a9c18bd8b2ebf18f7d6fa25631d4ae3f0426` is now subject to the same frontend quality and browser gates. UX-I1 must not be declared PASS/LOCKED until those verification runs complete.
 
-The infrastructure exit criteria are met: deterministic browser command, desktop/mobile evidence, active axe gate, and existing frontend quality gates remain green. The selected production surfaces do not yet satisfy the active browser quality gate because the accessibility/runtime debts above remain intentionally unsuppressed.
+## 9. Phase boundary
 
-Until the user reviews this checkpoint:
+Until closure verification is complete and the checkpoint is reported:
 
-- do not declare the UX-I1 candidate as the new frontend canonical;
 - do not start UX-I2 or later UX infrastructure phases;
 - do not start CFG-2, CFG-3 or Step18B;
-- do not silently convert the findings above into axe/console exceptions.
+- do not weaken axe/console gates to obtain a green run;
+- controlled browser QA remains distinct from SQL-backed business UAT.
