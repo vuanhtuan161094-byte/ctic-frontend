@@ -4,6 +4,7 @@
 
 # build output
 /dist
+/storybook-static
 /build
 /.next
 /.vinext

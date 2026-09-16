@@ -6,7 +6,7 @@ Branch: `feature/ux-fix-batch01`
 Entering frontend HEAD: `5a92d0a2b5eb776ebb588be9feff287f9a179182`  
 Accepted frontend production canonical: `24039ac5f7dd0c3aa67e73bbc72c0e12c87de6db` (UX-I2 PASS / LOCKED)  
 UX-I2 acceptance documentation commit: `199a6e75fd508f6e9cf8e24bd46d533fa52f6c28`  
-UX-I3 implementation SHA: **none — implementation remains uncommitted because the runtime gate failed**.
+UX-I3 implementation checkpoint: the commit containing this documentation update, titled `chore(ux-i3): checkpoint blocked Storybook runtime investigation`. **BLOCKED; committed only for reproducibility and independent review, not an accepted production canonical.**
 
 ## Stop decision and reproducible evidence
 
@@ -58,7 +58,7 @@ Unchanged resolved application/toolchain versions:
 
 Lockfile comparison found 170 new package-path entries (including platform-specific optional packages), no removed existing package paths, and one existing version change: dev-only `@jridgewell/sourcemap-codec` 1.5.5 -> 1.6.0. This is required by Storybook's nested `magic-string` 1.4.1 (`^1.6.0`); the application's existing magic-string version remains unchanged. No existing production dependency version changed. No new direct production dependency, ProComponents, antd-style or UI framework. The existing browser dependency lockfile is unchanged.
 
-## Local implementation architecture (not committed)
+## Blocked implementation architecture (review checkpoint)
 
 - `.storybook/main.ts`: React/Vite framework, one a11y addon, governed `stories/` directory, telemetry disabled. `envDir: false` prevents loading installation-specific `.env` inputs in the demo. Production Vite configuration is untouched.
 - `.storybook/preview.tsx`: the existing `UiRuntime`, which imports `runtime-overrides.css` and uses the existing `createCmpAntdTheme`; direct import of `tokens.css`; Vietnamese document language and a semantic main landmark. Neutral sample content and the existing default branding, no hardcoded CTIC identity or second palette.
@@ -99,7 +99,7 @@ All six semantic tones are represented using the existing application vocabulary
 | Storybook addon accessibility | NOT REACHED; no PASS claim |
 | Production build + full existing tests (`npm test`) | NOT RUN after blocker |
 | Existing application Browser Quality / axe | NOT RUN for UX-I3; existing gates/config/specs/helpers unchanged |
-| GitHub Frontend Quality / Browser Quality | NOT RUN for this uncommitted UX-I3 implementation; older UX-I2 evidence is not reused as UX-I3 PASS |
+| GitHub Frontend Quality / Browser Quality | No UX-I3 result claimed at this checkpoint; older UX-I2 evidence is not reused as UX-I3 PASS. Push-triggered workflows do not change the BLOCKED decision. |
 | `git diff --check` | PASS |
 | Production source diff vs accepted UX-I2 (`app`, `src`) | EMPTY |
 
@@ -107,7 +107,7 @@ Non-gating build warnings: large development-tool chunks and plugin timings. Ins
 
 ## Scope boundary and handoff
 
-UX-I2 remains **PASS / LOCKED** based on Product Owner acceptance and its already verified evidence. UX-I3 remains **BLOCKED**, not READY, COMPLETE or LOCKED. Only the acceptance/blocker documentation is committed; the isolated implementation and dependency changes remain in the local worktree for review, without generated build/browser output in Git.
+UX-I2 remains **PASS / LOCKED** based on Product Owner acceptance and its already verified evidence. UX-I3 remains **BLOCKED**, not READY, COMPLETE or LOCKED. The user authorized committing and pushing the exact blocked implementation for independent review. This checkpoint includes source/configuration/dependency files only, without generated build/browser output. No runtime fix or dependency-version change was attempted during checkpoint publication. This is not an accepted production canonical.
 
 No production visual or business behavior changed; no backend production change, database/schema/migration, routes or workflow change. No temporary workflow was introduced. Existing untracked user reports/tests/artifacts are preserved. UX-I4, CFG-2, CFG-3 and Step18B have **not started**.
 

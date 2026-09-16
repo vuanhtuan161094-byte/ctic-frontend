@@ -11,7 +11,7 @@ const hookRules =
   {};
 
 export default defineConfig([
-  globalIgnores(["node_modules/**", "dist/**", "e2e/node_modules/**", "e2e/playwright-report/**", "e2e/test-results/**"]),
+  globalIgnores(["node_modules/**", "dist/**", "storybook-static/**", "e2e/node_modules/**", "e2e/playwright-report/**", "e2e/test-results/**"]),
   js.configs.recommended,
   {
     files: [
@@ -20,6 +20,8 @@ export default defineConfig([
       "app/lib/**/*.ts",
       "app/types/**/*.ts",
       "vite.ctic.config.ts",
+      ".storybook/**/*.{ts,tsx}",
+      "stories/**/*.tsx",
     ],
     languageOptions: {
       parser: tsParser,

@@ -11,7 +11,8 @@
     "test": "playwright test",
     "test:configuration": "playwright test specs/configuration-navigation.spec.mjs",
     "test:headed": "playwright test --headed",
-    "install:chromium": "playwright install chromium"
+    "install:chromium": "playwright install chromium",
+    "test:storybook": "playwright test --config storybook.config.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
