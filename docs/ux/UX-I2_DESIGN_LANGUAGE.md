@@ -1,6 +1,6 @@
 # UX-I2 — CMP Design Language / Governed Tokens
 
-Status: **READY FOR USER REVIEW**  
+Status: **PASS / LOCKED**  
 Date: **2026-09-16**  
 Branch: `feature/ux-fix-batch01`  
 UX-I1 accepted code baseline: `9b50401661844188e3ea8c796c5bd680038af38c`  
@@ -54,10 +54,10 @@ No browser gate, axe rule, console warning or responsive condition was weakened 
 
 No database/schema/backend authority change, no Storybook, no ProComponents, no second UI framework, no business workflow/route change, and no broad screen redesign.
 
-The accepted frontend canonical remains the locked UX-I1 code `9b50401661844188e3ea8c796c5bd680038af38c` until the user reviews/promotes UX-I2. The UX-I2 candidate is `24039ac5f7dd0c3aa67e73bbc72c0e12c87de6db`.
+The Product Owner accepted UX-I2 on 2026-09-16. The accepted frontend production canonical is now `24039ac5f7dd0c3aa67e73bbc72c0e12c87de6db`. Inspection of entering HEAD `5a92d0a2b5eb776ebb588be9feff287f9a179182` against this candidate found only this document and a browser-workflow verification comment; there are no intervening unreviewed production changes.
 
 ## Gate decision
 
-**UX-I2 implementation: COMPLETE / READY FOR USER REVIEW.**
+**UX-I2: PASS / LOCKED.**
 
-Do not start UX-I3, CFG-2, CFG-3 or Step18B until this checkpoint is reviewed and explicitly accepted.
+UX-I3 Storybook foundation is explicitly authorized under its own review checkpoint. UX-I4, CFG-2, CFG-3 and Step18B remain unstarted and out of scope.
