@@ -90,7 +90,7 @@
   --cmp-state-attention: #a85a0a;
   --cmp-state-positive: #147a4b;
   --cmp-state-critical: #b42f37;
-  --cmp-state-inactive: #737b87;
+  --cmp-state-inactive: var(--cmp-neutral-700);
   --cmp-state-neutral-bg: #f1f3f5;
   --cmp-state-info-bg: #eaf4fc;
   --cmp-state-attention-bg: #fff5e5;

@@ -3,7 +3,10 @@ import type { StorybookConfig } from "@storybook/react-vite";
 const config: StorybookConfig = {
   stories: ["../stories/**/*.stories.tsx"],
   addons: ["@storybook/addon-a11y"],
-  framework: "@storybook/react-vite",
+  framework: {
+    name: "@storybook/react-vite",
+    options: { builder: { viteConfigPath: ".storybook/vite.config.ts" } },
+  },
   core: { disableTelemetry: true },
   async viteFinal(config) {
     // Never load installation-specific .env branding/API values in the demo.
