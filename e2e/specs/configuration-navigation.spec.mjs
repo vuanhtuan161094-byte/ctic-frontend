@@ -165,9 +165,28 @@ async function openConfiguration(page) {
   await expect(page.getByText("ISO 9001:2015").first()).toBeVisible();
 }
 
+async function expectContainedWithin(locator, container) {
+  await expect(locator).toBeVisible();
+  const [targetBox, containerBox] = await Promise.all([
+    locator.boundingBox(),
+    container.boundingBox(),
+  ]);
+  if (!targetBox || !containerBox) throw new Error("Expected visible configuration element bounds");
+  expect(targetBox.x).toBeGreaterThanOrEqual(containerBox.x - 1);
+  expect(targetBox.x + targetBox.width).toBeLessThanOrEqual(containerBox.x + containerBox.width + 1);
+}
+
 test("canonical configuration route renders with a controlled API fixture", async ({ page }, testInfo) => {
   const runtime = watchRuntimeIssues(page);
   await openConfiguration(page);
+
+  const configurationContent = page.locator(".configuration-route-page__content");
+  const editionAction = page.getByRole("button", { name: "Thao tác ISO 9001:2015" });
+  const editionRow = editionAction.locator("xpath=..");
+  await expectContainedWithin(editionRow.getByText("Đang áp dụng", { exact: true }), configurationContent);
+  await expectContainedWithin(editionRow.getByText("Áp dụng từ 15/09/2015", { exact: true }), configurationContent);
+  await expectContainedWithin(editionAction, configurationContent);
+  await expectNoHorizontalOverflow(page);
 
   await stabilizeVisualState(page);
   await captureVisualBaseline(page, testInfo, "configuration-schemes-smoke");
