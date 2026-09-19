@@ -1,10 +1,36 @@
 # UX-V1 — Configuration Visual Direction Gate
 
-Status: **READY FOR PRODUCT OWNER REVIEW**  
-Date: **2026-09-17**  
+Status: **CURRENT UI + SURGICAL POLISH — Fix 1 PASS / LOCKED**
+Date: **2026-09-19**
 Branch: `feature/ux-fix-batch01`  
 Entering frontend canonical: `dac0bc3e6d50a36dee7fa3fa34dae6d3085c50b1` (UX-I3 PASS / LOCKED)  
-Production implementation: **NOT STARTED**
+Accepted Fix 1 checkpoint: `bb67e7a45fee088025c5428ae23225d185349e48`
+
+## Current canonical decision — supersedes the historical proposal below
+
+The full Configuration-screen redesign has been rejected. The **current production UI is the canonical visual baseline**. The official UX-V1 strategy is **CURRENT UI + SURGICAL POLISH**, not a system-wide redesign. Previous redesign mockups and the historical proposal below are not canonical implementation targets and do not authorize changes to the existing business structure.
+
+Every subsequent polish must be small, evidence-driven and explicitly scoped. Preserve existing business structure, workflows and authority. Require before/after or clear browser evidence and verify both desktop and mobile after every fix; do not expand a fix opportunistically.
+
+### Fix 1 — Mobile ISO standard edition clipping
+
+Status: **PASS / LOCKED**, as accepted by the Product Owner.
+
+- Implementation: `80d33ae8511f7784db30ffb0d4ca0310b603f8bb`.
+- Browser regression guard: `bb67e7a45fee088025c5428ae23225d185349e48`.
+- Desktop `1440x900`: **PASS**.
+- Mobile `390x844`: **PASS**.
+- Browser gate: **4/4 PASS**.
+- Mobile visual review: **PASS**.
+- Confirmed visible in full: `2015`, `ISO 9001:2015`, badge `Đang áp dụng`, and `Áp dụng từ 15/09/2015`; the overflow (`...`) button does not overlap content.
+
+These are the accepted Fix 1 results supplied for this documentation checkpoint, not newly executed tests.
+
+Fix 2: **NOT STARTED**. UX-I4: **NOT STARTED**. UX-I3 remains **PASS / LOCKED**. CFG-2, CFG-3 and Step18B are not authorized to start. Stop after recording this checkpoint; a subsequent fix or phase requires separate authorization.
+
+## Historical proposal — rejected / non-canonical
+
+Sections 1–11 below retain the earlier proposal for traceability only. Their mockup, layout and next-step suggestions are superseded by the current canonical decision above; they are not active instructions.
 
 ## 1. Purpose
 
@@ -359,11 +385,11 @@ This gate does **not** authorize:
 
 The next step after Product Owner approval is a lightweight Case Overview sanity-check, then UX-I4.
 
-## 11. Decision state
+## 11. Historical decision state (superseded)
 
-Current state:
+Previous proposal state, no longer applicable:
 
-**READY FOR PRODUCT OWNER VISUAL REVIEW**
+**REJECTED AS A REDESIGN TARGET — use CURRENT UI + SURGICAL POLISH**
 
 UX-I4 remains unstarted.
 CFG-2 remains unstarted.
