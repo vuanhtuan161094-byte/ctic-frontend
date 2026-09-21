@@ -13,7 +13,6 @@ import {
   Button,
   Card,
   DatePicker,
-  Divider,
   Dropdown,
   Form,
   Input,
@@ -31,6 +30,7 @@ import { useMemo, useState } from "react";
 import type { ComponentProps } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import "./configuration-workspaces.css";
 
 const { Text } = Typography;
 const base = "/master-data-configuration";
@@ -587,10 +587,10 @@ export function CertificationProgramsPanel() {
         : null;
 
   return (
-    <div>
+    <div className="certification-programs-workspace">
       {contextHolder}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+      <div className="certification-programs-toolbar">
         <Text type="secondary">
           {allSchemes.length} chương trình · {readyCount} sẵn sàng · {needsSetupCount} cần thiết lập
         </Text>
@@ -612,7 +612,7 @@ export function CertificationProgramsPanel() {
         </Card>
       ) : null}
 
-      <Space orientation="vertical" size={10} style={{ width: "100%" }}>
+      <Space className="certification-programs-list" orientation="vertical" size={10} style={{ width: "100%" }}>
         {allSchemes.map((scheme) => {
           const families = familiesByScheme.get(scheme.id) ?? [];
           const schemeReadiness = readinessByScheme.get(scheme.id);
@@ -629,9 +629,10 @@ export function CertificationProgramsPanel() {
           return (
             <Card
               key={scheme.id}
+              className="certification-program-card"
               size="small"
               title={(
-                <Space wrap size={8}>
+                <Space className="certification-program-card__identity" wrap size={8}>
                   <Tag color="blue" style={{ margin: 0 }}>{scheme.code}</Tag>
                   <Text strong>{programName(scheme)}</Text>
                   <ProgramStatus value={scheme.status} />
@@ -643,7 +644,7 @@ export function CertificationProgramsPanel() {
                 </Space>
               )}
               extra={(
-                <Space size={4}>
+                <Space className="certification-program-card__actions" size={4}>
                   <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
                   <Dropdown
                     trigger={["click"]}
@@ -668,7 +669,7 @@ export function CertificationProgramsPanel() {
               )}
             >
               {scheme.status === "ACTIVE" && issues.length ? (
-                <div style={{ borderBottom: "1px solid #f0f0f0", paddingBottom: 8, marginBottom: 8 }}>
+                <div className="certification-program-card__readiness">
                   {issues.map((issue) => {
                     const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
                     const missingRule = /quy tắc|configuration|ACTIVE/i.test(issue) && !missingStandard;
@@ -695,8 +696,8 @@ export function CertificationProgramsPanel() {
                 </div>
               ) : null}
 
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "6px 2px 10px" }}>
-                <div>
+              <div className="certification-program-rule">
+                <div className="certification-program-rule__copy">
                   <Text strong>Quy tắc chứng nhận</Text>
                   {currentRule ? (
                     <div><Text type="secondary">v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · giám sát {currentRule.surveillance_frequency_months} tháng/lần · chứng chỉ {currentRule.validity_duration_months} tháng</Text></div>
@@ -709,18 +710,18 @@ export function CertificationProgramsPanel() {
                     <div><Text type="secondary">Phiên bản kế tiếp: v{scheduledRule.version_no} · {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text></div>
                   ) : null}
                 </div>
-                <Button size="small" onClick={() => openRule(scheme)}>
+                <Button className="certification-program-rule__action" size="small" onClick={() => openRule(scheme)}>
                   {currentRule || scheduledRule ? "Tạo phiên bản mới" : "Thiết lập"}
                 </Button>
               </div>
 
-              <Divider style={{ margin: "2px 0 8px" }} />
+              <div className="certification-program-card__divider" aria-hidden="true" />
 
               {families.length ? (
-                <div>
-                  {families.map((family, familyIndex) => (
-                    <div key={family.key} style={{ paddingTop: familyIndex ? 10 : 0, borderTop: familyIndex ? "1px solid #f0f0f0" : undefined }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "4px 2px" }}>
+                <div className="certification-standard-families">
+                  {families.map((family) => (
+                    <div key={family.key} className="certification-standard-family">
+                      <div className="certification-standard-family__header">
                         <div>
                           <Text strong>{family.code}</Text>
                           <Text type="secondary"> · {family.name}</Text>
@@ -742,13 +743,13 @@ export function CertificationProgramsPanel() {
                         return (
                           <div
                             key={standard.id}
-                            style={{ display: "grid", gridTemplateColumns: "minmax(160px, 1fr) minmax(220px, auto) 36px", gap: 10, alignItems: "center", padding: "8px 2px 8px 18px" }}
+                            className="certification-standard-row"
                           >
-                            <div>
+                            <div className="certification-standard-row__identity">
                               <Text strong>{standard.edition}</Text>
                               <div><Text type="secondary">{standardEditionLabel(standard)}</Text></div>
                             </div>
-                            <div style={{ textAlign: "right" }}>
+                            <div className="certification-standard-row__status">
                               <StandardStatus row={standard} />
                               <div><Text type="secondary">{standardDateText(standard)}</Text></div>
                             </div>
@@ -773,7 +774,7 @@ export function CertificationProgramsPanel() {
                   ))}
                 </div>
               ) : (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "8px 2px 2px" }}>
+                <div className="certification-program-card__empty">
                   <Text type="secondary">Chưa có tiêu chuẩn trong chương trình này.</Text>
                   <Button size="small" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
                 </div>
@@ -858,6 +859,7 @@ export function CertificationProgramsPanel() {
       </Modal>
 
       <Modal
+        className="certification-rule-modal"
         title={ruleScheme ? `Quy tắc chứng nhận · ${ruleScheme.code}` : "Quy tắc chứng nhận"}
         open={ruleOpen}
         onCancel={() => {
@@ -870,88 +872,122 @@ export function CertificationProgramsPanel() {
         confirmLoading={saveRule.isPending}
         destroyOnHidden
         forceRender
-        width={760}
+        width={820}
       >
-        <Form form={ruleForm} layout="vertical" onFinish={(values) => saveRule.mutate(values)}>
+        <Form
+          className="certification-rule-form"
+          form={ruleForm}
+          layout="vertical"
+          onFinish={(values) => saveRule.mutate(values)}
+        >
           <Form.Item name="scheme_id" hidden><Input /></Form.Item>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
-            <Form.Item name="version_no" label="Phiên bản quy tắc" rules={[{ required: true }]}>
-              <InputNumber disabled min={1} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
-              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
-              <RuleNumberInput min={1} unit="tháng" />
-            </Form.Item>
+
+          <section className="certification-rule-form__section certification-rule-form__section--first">
+            <div className="certification-rule-form__section-title">Phiên bản</div>
+            <div className="certification-rule-form__grid">
+              <Form.Item name="version_no" label="Phiên bản quy tắc" rules={[{ required: true }]}>
+                <InputNumber disabled min={1} style={{ width: "100%" }} />
+              </Form.Item>
+              <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
+                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+              </Form.Item>
+            </div>
+          </section>
+
+          <section className="certification-rule-form__section">
+            <div className="certification-rule-form__section-title">Chu kỳ chứng nhận</div>
+            <div className="certification-rule-form__grid">
+              <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
+                <RuleNumberInput min={1} unit="tháng" />
+              </Form.Item>
+              <Form.Item
+                name="surveillance_frequency_months"
+                label="Giám sát định kỳ"
+                dependencies={["cycle_duration_months"]}
+                rules={[
+                  { required: true },
+                  {
+                    validator: async (_, value) => {
+                      const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                      if (value && cycle && Number(value) > cycle) throw new Error("Khoảng giám sát không được dài hơn chu kỳ");
+                    },
+                  },
+                ]}
+              >
+                <RuleNumberInput min={1} unit="tháng/lần" />
+              </Form.Item>
+              <Form.Item
+                name="validity_duration_months"
+                label="Hiệu lực chứng chỉ"
+                dependencies={["cycle_duration_months"]}
+                rules={[
+                  { required: true },
+                  {
+                    validator: async (_, value) => {
+                      const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                      if (value && cycle && Number(value) > cycle) throw new Error("Thời hạn chứng chỉ không được dài hơn chu kỳ");
+                    },
+                  },
+                ]}
+              >
+                <RuleNumberInput min={1} unit="tháng" />
+              </Form.Item>
+              <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
+                <Switch checkedChildren="Có" unCheckedChildren="Không" />
+              </Form.Item>
+            </div>
+          </section>
+
+          <section className="certification-rule-form__section">
+            <div className="certification-rule-form__section-title">Tái chứng nhận & nhắc việc</div>
+            <div className="certification-rule-form__grid">
+              <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
+                <RuleNumberInput min={0} unit="ngày" />
+              </Form.Item>
+              <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
+                <RuleNumberInput min={0} unit="ngày" />
+              </Form.Item>
+            </div>
+          </section>
+
+          <section className="certification-rule-form__section">
+            <div className="certification-rule-form__section-title">Phạm vi quy tắc</div>
             <Form.Item
-              name="surveillance_frequency_months"
-              label="Giám sát định kỳ"
-              dependencies={["cycle_duration_months"]}
+              name="required_audit_types"
+              label="Danh mục loại đánh giá"
+              dependencies={["stage1_applicable", "required_decision_types"]}
               rules={[
-                { required: true },
+                { required: true, message: "Chọn ít nhất một loại đánh giá" },
                 {
-                  validator: async (_, value) => {
-                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
-                    if (value && cycle && Number(value) > cycle) throw new Error("Khoảng giám sát không được dài hơn chu kỳ");
+                  validator: async (_, value: string[] | undefined) => {
+                    const selected = value ?? [];
+                    const stage1 = Boolean(ruleForm.getFieldValue("stage1_applicable"));
+                    const decisions = (ruleForm.getFieldValue("required_decision_types") ?? []) as string[];
+                    if (stage1 && !selected.includes("INITIAL_STAGE_1")) throw new Error("Có Giai đoạn 1 thì phải chọn đánh giá Giai đoạn 1");
+                    if (!stage1 && selected.includes("INITIAL_STAGE_1")) throw new Error("Không áp dụng Giai đoạn 1 thì bỏ đánh giá Giai đoạn 1");
+                    if (decisions.includes("GRANT") && !selected.includes("INITIAL_STAGE_2")) throw new Error("Có quyết định cấp thì phải chọn đánh giá Giai đoạn 2");
                   },
                 },
               ]}
             >
-              <RuleNumberInput min={1} unit="tháng/lần" />
+              <Select
+                mode="multiple"
+                maxTagCount="responsive"
+                options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))}
+              />
             </Form.Item>
-            <Form.Item
-              name="validity_duration_months"
-              label="Hiệu lực chứng chỉ"
-              dependencies={["cycle_duration_months"]}
-              rules={[
-                { required: true },
-                {
-                  validator: async (_, value) => {
-                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
-                    if (value && cycle && Number(value) > cycle) throw new Error("Thời hạn chứng chỉ không được dài hơn chu kỳ");
-                  },
-                },
-              ]}
-            >
-              <RuleNumberInput min={1} unit="tháng" />
+            <Form.Item name="required_decision_types" label="Danh mục loại quyết định" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
+              <Select
+                mode="multiple"
+                maxTagCount="responsive"
+                options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))}
+              />
             </Form.Item>
-            <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
-              <RuleNumberInput min={0} unit="ngày" />
-            </Form.Item>
-            <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
-              <RuleNumberInput min={0} unit="ngày" />
-            </Form.Item>
-            <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
-              <Switch checkedChildren="Có" unCheckedChildren="Không" />
-            </Form.Item>
+          </section>
+
+          <div className="certification-rule-form__note">
+            <Text type="secondary">Phiên bản mới chỉ áp dụng từ ngày hiệu lực và không thay đổi lịch sử hồ sơ đã chốt.</Text>
           </div>
-
-          <Form.Item
-            name="required_audit_types"
-            label="Danh mục loại đánh giá"
-            dependencies={["stage1_applicable", "required_decision_types"]}
-            rules={[
-              { required: true, message: "Chọn ít nhất một loại đánh giá" },
-              {
-                validator: async (_, value: string[] | undefined) => {
-                  const selected = value ?? [];
-                  const stage1 = Boolean(ruleForm.getFieldValue("stage1_applicable"));
-                  const decisions = (ruleForm.getFieldValue("required_decision_types") ?? []) as string[];
-                  if (stage1 && !selected.includes("INITIAL_STAGE_1")) throw new Error("Có Giai đoạn 1 thì phải chọn đánh giá Giai đoạn 1");
-                  if (!stage1 && selected.includes("INITIAL_STAGE_1")) throw new Error("Không áp dụng Giai đoạn 1 thì bỏ đánh giá Giai đoạn 1");
-                  if (decisions.includes("GRANT") && !selected.includes("INITIAL_STAGE_2")) throw new Error("Có quyết định cấp thì phải chọn đánh giá Giai đoạn 2");
-                },
-              },
-            ]}
-          >
-            <Select mode="multiple" options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))} />
-          </Form.Item>
-          <Form.Item name="required_decision_types" label="Danh mục loại quyết định" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
-            <Select mode="multiple" options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))} />
-          </Form.Item>
-
-          <Text type="secondary">Tạo phiên bản mới không sửa lịch sử hồ sơ đã chốt. Nếu ngày áp dụng ở tương lai, hệ thống tự chờ đến ngày đó.</Text>
         </Form>
       </Modal>
     </div>
