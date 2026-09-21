@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
+  Collapse,
   DatePicker,
   Dropdown,
   Form,
@@ -700,14 +701,14 @@ export function CertificationProgramsPanel() {
                 <div className="certification-program-rule__copy">
                   <Text strong>Quy tắc chứng nhận</Text>
                   {currentRule ? (
-                    <div><Text type="secondary">v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · giám sát {currentRule.surveillance_frequency_months} tháng/lần · chứng chỉ {currentRule.validity_duration_months} tháng</Text></div>
+                    <Text type="secondary"> · v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · giám sát {currentRule.surveillance_frequency_months} tháng/lần · chứng chỉ {currentRule.validity_duration_months} tháng</Text>
                   ) : scheduledRule ? (
-                    <div><Text type="secondary">v{scheduledRule.version_no} chờ hiệu lực từ {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text></div>
+                    <Text type="secondary"> · v{scheduledRule.version_no} · chờ hiệu lực {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
                   ) : (
-                    <div><Text type="secondary">Chưa có bộ quy tắc đang áp dụng.</Text></div>
+                    <Text type="secondary"> · Chưa có bộ quy tắc đang áp dụng</Text>
                   )}
                   {currentRule && scheduledRule ? (
-                    <div><Text type="secondary">Phiên bản kế tiếp: v{scheduledRule.version_no} · {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text></div>
+                    <Text className="certification-program-rule__next" type="secondary">Kế tiếp v{scheduledRule.version_no} · {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
                   ) : null}
                 </div>
                 <Button className="certification-program-rule__action" size="small" onClick={() => openRule(scheme)}>
@@ -747,11 +748,10 @@ export function CertificationProgramsPanel() {
                           >
                             <div className="certification-standard-row__identity">
                               <Text strong>{standard.edition}</Text>
-                              <div><Text type="secondary">{standardEditionLabel(standard)}</Text></div>
                             </div>
                             <div className="certification-standard-row__status">
                               <StandardStatus row={standard} />
-                              <div><Text type="secondary">{standardDateText(standard)}</Text></div>
+                              <Text type="secondary">{standardDateText(standard)}</Text>
                             </div>
                             <Dropdown
                               trigger={["click"]}
@@ -872,7 +872,7 @@ export function CertificationProgramsPanel() {
         confirmLoading={saveRule.isPending}
         destroyOnHidden
         forceRender
-        width={820}
+        width={780}
       >
         <Form
           className="certification-rule-form"
@@ -881,109 +881,118 @@ export function CertificationProgramsPanel() {
           onFinish={(values) => saveRule.mutate(values)}
         >
           <Form.Item name="scheme_id" hidden><Input /></Form.Item>
+          <Form.Item name="version_no" hidden><InputNumber /></Form.Item>
 
-          <section className="certification-rule-form__section certification-rule-form__section--first">
-            <div className="certification-rule-form__section-title">Phiên bản</div>
-            <div className="certification-rule-form__grid">
-              <Form.Item name="version_no" label="Phiên bản quy tắc" rules={[{ required: true }]}>
-                <InputNumber disabled min={1} style={{ width: "100%" }} />
-              </Form.Item>
-              <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
-                <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
-              </Form.Item>
+          <div className="certification-rule-form__intro">
+            <div>
+              <Text type="secondary">Phiên bản mới</Text>
+              <strong>v{ruleScheme ? nextRuleVersion(configsByScheme.get(ruleScheme.id) ?? []) : "—"}</strong>
             </div>
-          </section>
+            <Text type="secondary">Thiết lập các mốc chính; tùy chọn nghiệp vụ nâng cao được thu gọn bên dưới.</Text>
+          </div>
 
-          <section className="certification-rule-form__section">
-            <div className="certification-rule-form__section-title">Chu kỳ chứng nhận</div>
-            <div className="certification-rule-form__grid">
-              <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
-                <RuleNumberInput min={1} unit="tháng" />
-              </Form.Item>
-              <Form.Item
-                name="surveillance_frequency_months"
-                label="Giám sát định kỳ"
-                dependencies={["cycle_duration_months"]}
-                rules={[
-                  { required: true },
-                  {
-                    validator: async (_, value) => {
-                      const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
-                      if (value && cycle && Number(value) > cycle) throw new Error("Khoảng giám sát không được dài hơn chu kỳ");
-                    },
-                  },
-                ]}
-              >
-                <RuleNumberInput min={1} unit="tháng/lần" />
-              </Form.Item>
-              <Form.Item
-                name="validity_duration_months"
-                label="Hiệu lực chứng chỉ"
-                dependencies={["cycle_duration_months"]}
-                rules={[
-                  { required: true },
-                  {
-                    validator: async (_, value) => {
-                      const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
-                      if (value && cycle && Number(value) > cycle) throw new Error("Thời hạn chứng chỉ không được dài hơn chu kỳ");
-                    },
-                  },
-                ]}
-              >
-                <RuleNumberInput min={1} unit="tháng" />
-              </Form.Item>
-              <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
-                <Switch checkedChildren="Có" unCheckedChildren="Không" />
-              </Form.Item>
-            </div>
-          </section>
-
-          <section className="certification-rule-form__section">
-            <div className="certification-rule-form__section-title">Tái chứng nhận & nhắc việc</div>
-            <div className="certification-rule-form__grid">
-              <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
-                <RuleNumberInput min={0} unit="ngày" />
-              </Form.Item>
-              <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
-                <RuleNumberInput min={0} unit="ngày" />
-              </Form.Item>
-            </div>
-          </section>
-
-          <section className="certification-rule-form__section">
-            <div className="certification-rule-form__section-title">Phạm vi quy tắc</div>
+          <div className="certification-rule-form__core">
+            <Form.Item name="effective_from" label="Áp dụng từ" rules={[{ required: true, message: "Chọn ngày áp dụng" }]}>
+              <DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} />
+            </Form.Item>
+            <Form.Item name="cycle_duration_months" label="Chu kỳ chứng nhận" rules={[{ required: true }]}>
+              <RuleNumberInput min={1} unit="tháng" />
+            </Form.Item>
             <Form.Item
-              name="required_audit_types"
-              label="Danh mục loại đánh giá"
-              dependencies={["stage1_applicable", "required_decision_types"]}
+              name="surveillance_frequency_months"
+              label="Giám sát định kỳ"
+              dependencies={["cycle_duration_months"]}
               rules={[
-                { required: true, message: "Chọn ít nhất một loại đánh giá" },
+                { required: true },
                 {
-                  validator: async (_, value: string[] | undefined) => {
-                    const selected = value ?? [];
-                    const stage1 = Boolean(ruleForm.getFieldValue("stage1_applicable"));
-                    const decisions = (ruleForm.getFieldValue("required_decision_types") ?? []) as string[];
-                    if (stage1 && !selected.includes("INITIAL_STAGE_1")) throw new Error("Có Giai đoạn 1 thì phải chọn đánh giá Giai đoạn 1");
-                    if (!stage1 && selected.includes("INITIAL_STAGE_1")) throw new Error("Không áp dụng Giai đoạn 1 thì bỏ đánh giá Giai đoạn 1");
-                    if (decisions.includes("GRANT") && !selected.includes("INITIAL_STAGE_2")) throw new Error("Có quyết định cấp thì phải chọn đánh giá Giai đoạn 2");
+                  validator: async (_, value) => {
+                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                    if (value && cycle && Number(value) > cycle) throw new Error("Khoảng giám sát không được dài hơn chu kỳ");
                   },
                 },
               ]}
             >
-              <Select
-                mode="multiple"
-                maxTagCount="responsive"
-                options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))}
-              />
+              <RuleNumberInput min={1} unit="tháng/lần" />
             </Form.Item>
-            <Form.Item name="required_decision_types" label="Danh mục loại quyết định" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
-              <Select
-                mode="multiple"
-                maxTagCount="responsive"
-                options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))}
-              />
+            <Form.Item
+              name="validity_duration_months"
+              label="Hiệu lực chứng chỉ"
+              dependencies={["cycle_duration_months"]}
+              rules={[
+                { required: true },
+                {
+                  validator: async (_, value) => {
+                    const cycle = Number(ruleForm.getFieldValue("cycle_duration_months") ?? 0);
+                    if (value && cycle && Number(value) > cycle) throw new Error("Thời hạn chứng chỉ không được dài hơn chu kỳ");
+                  },
+                },
+              ]}
+            >
+              <RuleNumberInput min={1} unit="tháng" />
             </Form.Item>
-          </section>
+            <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" rules={[{ required: true }]}>
+              <RuleNumberInput min={0} unit="ngày" />
+            </Form.Item>
+            <Form.Item name="reminder_lead_days" label="Nhắc trước mốc" rules={[{ required: true }]}>
+              <RuleNumberInput min={0} unit="ngày" />
+            </Form.Item>
+          </div>
+
+          <Collapse
+            className="certification-rule-form__advanced"
+            ghost
+            size="small"
+            items={[{
+              key: "advanced",
+              forceRender: true,
+              label: (
+                <div className="certification-rule-form__advanced-label">
+                  <Text strong>Phạm vi quy tắc & loại áp dụng</Text>
+                  <Text type="secondary">Giai đoạn 1, loại đánh giá và loại quyết định</Text>
+                </div>
+              ),
+              children: (
+                <div className="certification-rule-form__advanced-content">
+                  <Form.Item name="stage1_applicable" label="Áp dụng Giai đoạn 1" valuePropName="checked">
+                    <Switch checkedChildren="Có" unCheckedChildren="Không" />
+                  </Form.Item>
+                  <Form.Item
+                    name="required_audit_types"
+                    label="Danh mục loại đánh giá"
+                    dependencies={["stage1_applicable", "required_decision_types"]}
+                    rules={[
+                      { required: true, message: "Chọn ít nhất một loại đánh giá" },
+                      {
+                        validator: async (_, value: string[] | undefined) => {
+                          const selected = value ?? [];
+                          const stage1 = Boolean(ruleForm.getFieldValue("stage1_applicable"));
+                          const decisions = (ruleForm.getFieldValue("required_decision_types") ?? []) as string[];
+                          if (stage1 && !selected.includes("INITIAL_STAGE_1")) throw new Error("Có Giai đoạn 1 thì phải chọn đánh giá Giai đoạn 1");
+                          if (!stage1 && selected.includes("INITIAL_STAGE_1")) throw new Error("Không áp dụng Giai đoạn 1 thì bỏ đánh giá Giai đoạn 1");
+                          if (decisions.includes("GRANT") && !selected.includes("INITIAL_STAGE_2")) throw new Error("Có quyết định cấp thì phải chọn đánh giá Giai đoạn 2");
+                        },
+                      },
+                    ]}
+                  >
+                    <Select
+                      mode="multiple"
+                      maxTagCount={0}
+                      maxTagPlaceholder={(omittedValues) => `${omittedValues.length} loại đánh giá đã chọn`}
+                      options={Object.entries(auditTypeLabels).map(([value, label]) => ({ value, label }))}
+                    />
+                  </Form.Item>
+                  <Form.Item name="required_decision_types" label="Danh mục loại quyết định" rules={[{ required: true, message: "Chọn ít nhất một loại quyết định" }]}>
+                    <Select
+                      mode="multiple"
+                      maxTagCount={0}
+                      maxTagPlaceholder={(omittedValues) => `${omittedValues.length} loại quyết định đã chọn`}
+                      options={Object.entries(decisionTypeLabels).map(([value, label]) => ({ value, label }))}
+                    />
+                  </Form.Item>
+                </div>
+              ),
+            }]}
+          />
 
           <div className="certification-rule-form__note">
             <Text type="secondary">Phiên bản mới chỉ áp dụng từ ngày hiệu lực và không thay đổi lịch sử hồ sơ đã chốt.</Text>
