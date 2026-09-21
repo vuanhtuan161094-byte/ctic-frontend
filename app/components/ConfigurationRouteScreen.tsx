@@ -2,7 +2,7 @@
 
 import { ImportOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Tag } from "antd";
+import { Alert, Card, Tag } from "antd";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CertificationBodyCapabilitiesPanel } from "./CertificationBodyCapabilitiesPanel";
@@ -149,6 +149,7 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
   const destination = destinations.find((item) => item.key === activeSection) ?? destinations[0];
   const blockers = readinessBlockers(activeSection, readiness.data);
   const programsSurface = activeSection === "schemes";
+  const compactReadiness = ["classifications", "mappings", "capabilities"].includes(activeSection);
 
   return (
     <div className="configuration-route-page">
@@ -160,13 +161,15 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
 
       {!programsSurface ? (
         <section className="configuration-route-page__readiness" aria-label="Trạng thái sẵn sàng">
-          <SectionHeader title="Trạng thái sẵn sàng" description="Hoàn tất các mục còn thiếu trước khi sử dụng cấu hình này." />
+          {!compactReadiness ? <SectionHeader title="Trạng thái sẵn sàng" description="Hoàn tất các mục còn thiếu trước khi sử dụng cấu hình này." /> : null}
           {readiness.isLoading ? <LoadingSkeleton variant="detail" rows={2} /> : readiness.isError ? (
             <ErrorState
               title="Không thể tải trạng thái cấu hình"
               description={getErrorMessage(readiness.error)}
               retry={{ label: "Thử lại", onAction: () => void readiness.refetch() }}
             />
+          ) : compactReadiness && blockers.length === 0 ? (
+            <Alert type="success" showIcon title="Không có mục cấu hình bắt buộc nào còn thiếu." />
           ) : <ReadinessBlockerPanel blockers={blockers} readyMessage="Không có mục cấu hình bắt buộc nào còn thiếu." />}
         </section>
       ) : null}
@@ -176,7 +179,7 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
           <ConfigurationContent section={activeSection} />
         </div>
       ) : (
-        <Card className="configuration-route-page__content" bordered={false}>
+        <Card className="configuration-route-page__content" {...(compactReadiness ? { variant: "borderless" as const } : { bordered: false })}>
           <ConfigurationContent section={activeSection} />
         </Card>
       )}

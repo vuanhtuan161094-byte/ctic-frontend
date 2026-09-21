@@ -5,14 +5,12 @@ import {
   EditOutlined,
   PlusOutlined,
   ReloadOutlined,
-  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
   Alert,
   Button,
-  Card,
   Col,
   Collapse,
   DatePicker,
@@ -23,7 +21,6 @@ import {
   Select,
   Space,
   Statistic,
-  Table,
   Tag,
   Typography,
   message,
@@ -32,6 +29,8 @@ import dayjs, { type Dayjs } from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { DataTable, LoadingSkeleton } from "./design-system";
+import "./configuration-workspaces.css";
 
 const { Text } = Typography;
 
@@ -105,6 +104,30 @@ function isEffective(record: Capability) {
     && (!record.effective_to || !dayjs(record.effective_to).startOf("day").isBefore(today));
 }
 
+function isExpiring(record: Capability) {
+  return isEffective(record) && Boolean(record.effective_to)
+    && dayjs(record.effective_to).startOf("day").diff(dayjs().startOf("day"), "day") <= 30;
+}
+
+function isExpired(record: Capability) {
+  return record.status === "ACTIVE" && Boolean(record.effective_to)
+    && dayjs(record.effective_to).startOf("day").isBefore(dayjs().startOf("day"));
+}
+
+function capabilityStatus(record: Capability) {
+  return <Tag color={isEffective(record) ? "green" : record.status === "ACTIVE" ? "gold" : "default"}>
+    {isEffective(record) ? "Đang có năng lực" : record.status === "ACTIVE" ? "Chưa/không còn hiệu lực" : "Ngừng năng lực"}
+  </Tag>;
+}
+
+function capabilityValidity(record: Capability) {
+  return <div>
+    <div>Từ {dayjs(record.effective_from).format("DD/MM/YYYY")}</div>
+    <Text type="secondary">{record.effective_to ? `Đến ${dayjs(record.effective_to).format("DD/MM/YYYY")}` : "Không thời hạn"}</Text>
+    {isExpiring(record) ? <div><Tag color="gold">Hết hạn trong 30 ngày</Tag></div> : null}
+  </div>;
+}
+
 export function CertificationBodyCapabilitiesPanel() {
   const queryClient = useQueryClient();
   const [batchForm] = Form.useForm<BatchForm>();
@@ -115,6 +138,9 @@ export function CertificationBodyCapabilitiesPanel() {
   const [standardFilter, setStandardFilter] = useState<string | undefined>();
   const [iafFilter, setIafFilter] = useState<string | undefined>();
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+
+  const [search, setSearch] = useState("");
+  const [validityFilter, setValidityFilter] = useState("ALL");
 
   const selectedStandardId = Form.useWatch("standard_edition_id", batchForm);
   const selectedIafIds = Form.useWatch("iaf_scope_ids", batchForm) ?? [];
@@ -204,9 +230,14 @@ export function CertificationBodyCapabilitiesPanel() {
       if (standardFilter && (item.standard_edition_id ?? item.program_code) !== standardFilter) return false;
       if (iafFilter && item.iaf_scope_id !== iafFilter) return false;
       if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
-      return true;
+      if (validityFilter === "EFFECTIVE" && !isEffective(item)) return false;
+      if (validityFilter === "EXPIRING" && !isExpiring(item)) return false;
+      if (validityFilter === "EXPIRED" && !isExpired(item)) return false;
+      const term = search.trim().toLocaleLowerCase();
+      return !term || [standardLabel(item.standard_edition, item.program_name), item.program_code,
+        item.iaf_scope.iaf_code, item.iaf_scope.iaf_name, item.notes ?? ""].join(" ").toLocaleLowerCase().includes(term);
     });
-  }, [capabilitiesQuery.data, iafFilter, standardFilter, statusFilter]);
+  }, [capabilitiesQuery.data, iafFilter, standardFilter, statusFilter, search, validityFilter]);
 
   const activeRows = (capabilitiesQuery.data ?? []).filter(isEffective);
   const activeStandards = new Set(activeRows.map((item) => item.standard_edition_id ?? item.program_code)).size;
@@ -214,25 +245,9 @@ export function CertificationBodyCapabilitiesPanel() {
 
   const columns: TableColumnsType<Capability> = [
     {
-      title: "Chương trình / tiêu chuẩn",
-      key: "standard",
-      width: 270,
-      render: (_, record) => (
-        <div>
-          <strong>{standardLabel(record.standard_edition, record.program_name)}</strong>
-          <br />
-          <Text type="secondary">
-            {record.standard_edition?.scheme
-              ? `${record.standard_edition.scheme.code} · ${record.standard_edition.scheme.name}`
-              : "Năng lực dữ liệu cũ chưa gắn edition"}
-          </Text>
-        </div>
-      ),
-    },
-    {
       title: "Lĩnh vực IAF",
       key: "iaf",
-      width: 320,
+      width: 280,
       render: (_, record) => (
         <div>
           <Tag color="blue">IAF {record.iaf_scope.iaf_code}</Tag>
@@ -244,17 +259,13 @@ export function CertificationBodyCapabilitiesPanel() {
       title: "Trạng thái",
       key: "status",
       width: 145,
-      render: (_, record) => (
-        <Tag color={isEffective(record) ? "green" : record.status === "ACTIVE" ? "gold" : "default"}>
-          {isEffective(record) ? "Đang có năng lực" : record.status === "ACTIVE" ? "Chưa/không còn hiệu lực" : "Ngừng năng lực"}
-        </Tag>
-      ),
+      render: (_, record) => capabilityStatus(record),
     },
     {
       title: "Hiệu lực",
       key: "effective",
-      width: 210,
-      render: (_, record) => `${dayjs(record.effective_from).format("DD/MM/YYYY")} → ${record.effective_to ? dayjs(record.effective_to).format("DD/MM/YYYY") : "Không thời hạn"}`,
+      width: 180,
+      render: (_, record) => capabilityValidity(record),
     },
     { title: "Tham chiếu / ghi chú", dataIndex: "notes", key: "notes", render: (value) => value || "—" },
     {
@@ -270,32 +281,91 @@ export function CertificationBodyCapabilitiesPanel() {
     value: item.id,
     label: `${item.scheme.code} · ${formatStandardCode(item)} — ${item.standard_name}`,
   }));
-  const filterStandardOptions = [
-    ...standardOptions,
-    ...(capabilitiesQuery.data ?? [])
-      .filter((item) => !item.standard_edition_id)
-      .map((item) => ({ value: item.program_code, label: `${item.program_name} · dữ liệu cũ` })),
-  ].filter((item, index, array) => array.findIndex((other) => other.value === item.value) === index);
+  const filterStandardOptions = (capabilitiesQuery.data ?? []).map((item) => ({
+    value: item.standard_edition_id ?? item.program_code,
+    label: standardLabel(item.standard_edition, item.program_name),
+  })).filter((item, index, array) => array.findIndex((other) => other.value === item.value) === index);
+  const groups = new Map<string, Capability[]>();
+  for (const record of rows) {
+    const key = record.standard_edition_id ?? record.program_code;
+    groups.set(key, [...(groups.get(key) ?? []), record]);
+  }
+  const totalIaf = iafQuery.isSuccess ? new Set(iafQuery.data.map((item) => item.iaf_code)).size : undefined;
+  const summaryValue = (value: number) => capabilitiesQuery.isSuccess ? value : "—";
+
 
   return (
     <>
       {contextHolder}
-      <Card
-        className="system-admin-table-card"
-        extra={(
+      <section className="capability-workspace" aria-label="Năng lực tổ chức">
+        <div className="configuration-summary" aria-label="Tổng quan năng lực">
+          <div><Statistic title="Đang hiệu lực" value={summaryValue(activeRows.length)} /></div>
+          <div><Statistic title="Tiêu chuẩn / chương trình" value={summaryValue(activeStandards)} /><Text type="secondary">Đang hiệu lực</Text></div>
+          <div><Statistic title="IAF khác nhau" value={summaryValue(activeIaf)} suffix={totalIaf === undefined ? undefined : `/ ${totalIaf}`} /><Text type="secondary">Đang hiệu lực / danh mục</Text></div>
+          <div><Statistic title="Hết hạn trong 30 ngày" value={summaryValue(activeRows.filter(isExpiring).length)} /></div>
+          <div><Statistic title="Đã hết hạn" value={summaryValue((capabilitiesQuery.data ?? []).filter(isExpired).length)} /></div>
+          <div><Statistic title="Ngừng năng lực" value={summaryValue((capabilitiesQuery.data ?? []).filter((item) => item.status === "INACTIVE").length)} /></div>
+        </div>
+        <div className="capability-toolbar">
+          <Text strong>Năng lực theo tiêu chuẩn · {rows.length} kết quả</Text>
           <Space>
             <Button icon={<ReloadOutlined />} loading={capabilitiesQuery.isFetching} onClick={() => void capabilitiesQuery.refetch()}>Làm mới</Button>
             <Button icon={<PlusOutlined />} onClick={openCreate} type="primary">Thêm năng lực</Button>
           </Space>
-        )}
-        title={<Space><SafetyCertificateOutlined />Năng lực tổ chức</Space>}
-      >
-        <Space wrap style={{ marginBottom: 12 }}>
-          <Tag color="green">Đang hiệu lực: {activeRows.length}</Tag>
-          <Tag>Tiêu chuẩn: {activeStandards}</Tag>
-          <Tag>IAF: {activeIaf}/39</Tag>
-        </Space>
-
+        </div>
+        <div className="capability-filters" aria-label="Lọc năng lực">
+          <Select allowClear aria-label="Lọc theo tiêu chuẩn" options={filterStandardOptions} placeholder="Tất cả tiêu chuẩn" showSearch optionFilterProp="label" value={standardFilter} onChange={setStandardFilter} />
+          <Input allowClear aria-label="Tìm năng lực" placeholder="Tìm IAF, tiêu chuẩn, ghi chú..." value={search} onChange={(event) => setSearch(event.target.value)} />
+        </div>
+        <Collapse ghost size="small" items={[{
+          key: "filters",
+          label: "Bộ lọc",
+          children: <div className="capability-filters">
+            <Select allowClear aria-label="Lọc theo IAF" options={(iafQuery.data ?? []).map((item) => ({ value: item.id, label: `IAF ${item.iaf_code} · ${item.iaf_name}` }))} placeholder="Tất cả IAF" showSearch optionFilterProp="label" value={iafFilter} onChange={setIafFilter} />
+            <Select aria-label="Lọc theo trạng thái" options={[
+              { value: "ALL", label: "Tất cả trạng thái" },
+              { value: "ACTIVE", label: "Đang/được lên lịch hiệu lực" },
+              { value: "INACTIVE", label: "Ngừng năng lực" },
+            ]} value={statusFilter} onChange={setStatusFilter} />
+            <Select aria-label="Lọc theo hiệu lực" options={[
+              { value: "ALL", label: "Tất cả thời hạn" },
+              { value: "EFFECTIVE", label: "Đang hiệu lực" },
+              { value: "EXPIRING", label: "Hết hạn trong 30 ngày" },
+              { value: "EXPIRED", label: "Đã hết hạn" },
+            ]} value={validityFilter} onChange={setValidityFilter} />
+          </div>,
+        }]} />
+        {capabilitiesQuery.isError ? <Alert type="error" showIcon title="Không tải được năng lực" description={getErrorMessage(capabilitiesQuery.error)} /> : capabilitiesQuery.isLoading ? <LoadingSkeleton variant="list" /> : rows.length ? (
+          <Collapse defaultActiveKey={[...groups.keys()]} items={[...groups].map(([key, records]) => {
+            const first = records[0];
+            return {
+              key,
+              label: <div className="capability-group-heading">
+                <div><Text strong>{standardLabel(first.standard_edition, first.program_name)}</Text><Text type="secondary">{first.standard_edition?.scheme ? `${first.standard_edition.scheme.code} · ${first.standard_edition.scheme.name}` : "Dữ liệu cũ theo chương trình"}</Text></div>
+                <Space wrap><Tag>{new Set(records.map((item) => item.iaf_scope_id)).size} lĩnh vực IAF</Tag><Tag>{records.filter(isEffective).length} đang hiệu lực</Tag></Space>
+              </div>,
+              children: <DataTable<Capability>
+                size="small"
+                columns={columns}
+                dataSource={records}
+                pagination={{ pageSize: 15, showSizeChanger: true }}
+                rowKey="id"
+                scroll={{ x: 760 }}
+                responsiveCards={records.map((record) => ({
+                  key: record.id,
+                  title: <Tag color="blue">IAF {record.iaf_scope.iaf_code}</Tag>,
+                  status: capabilityStatus(record),
+                  fields: [
+                    { key: "name", label: "Lĩnh vực", value: record.iaf_scope.iaf_name },
+                    { key: "validity", label: "Hiệu lực", value: capabilityValidity(record) },
+                    ...(record.notes ? [{ key: "notes", label: "Ghi chú", value: record.notes }] : []),
+                  ],
+                  actions: <Button icon={<EditOutlined />} onClick={() => openEdit(record)} size="small">Sửa</Button>,
+                }))}
+              />,
+            };
+          })} />
+        ) : <Text type="secondary">{capabilitiesQuery.data?.length ? "Không có năng lực phù hợp bộ lọc" : "Chưa khai báo năng lực tổ chức"}</Text>}
         <Collapse
           ghost
           size="small"
@@ -306,18 +376,12 @@ export function CertificationBodyCapabilitiesPanel() {
             children: (
               <>
                 <Alert
-                  message="Năng lực tổ chức = tiêu chuẩn/phiên bản + các lĩnh vực IAF được phép chứng nhận"
+                  title="Năng lực tổ chức = tiêu chuẩn/phiên bản + các lĩnh vực IAF được phép chứng nhận"
                   description="Khi xem xét đơn, CMP lấy ISIC của khách → NACE → IAF rồi đối chiếu bảng này. Năng lực tổ chức và năng lực từng chuyên gia là hai lớp kiểm tra riêng."
                   showIcon
                   style={{ marginBottom: 12 }}
                   type="info"
                 />
-                <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-                  <Col xs={12} lg={6}><Card size="small"><Statistic title="Dòng đang hiệu lực" value={activeRows.length} /></Card></Col>
-                  <Col xs={12} lg={6}><Card size="small"><Statistic title="Tiêu chuẩn" value={activeStandards} /></Card></Col>
-                  <Col xs={12} lg={6}><Card size="small"><Statistic title="IAF khác nhau" value={activeIaf} suffix="/ 39" /></Card></Col>
-                  <Col xs={12} lg={6}><Card size="small"><Statistic title="Tổng cấu hình" value={(capabilitiesQuery.data ?? []).length} /></Card></Col>
-                </Row>
                 <Text>
                   Ví dụ: ISO 9001:2015 có năng lực IAF 14, 19 và 28 → chọn đúng ISO 9001:2015, tích 3 IAF rồi lưu một lần. Khi có ISO 9001:2026, khai báo riêng cho phiên bản mới để giữ nguyên lịch sử 2015.
                 </Text>
@@ -326,62 +390,10 @@ export function CertificationBodyCapabilitiesPanel() {
           }]}
         />
 
-        <Collapse
-          ghost
-          size="small"
-          style={{ marginBottom: 12 }}
-          items={[{
-            key: "filters",
-            label: "Bộ lọc",
-            children: (
-              <Space wrap>
-          <Select
-            allowClear
-            options={filterStandardOptions}
-            placeholder="Lọc theo tiêu chuẩn"
-            showSearch
-            optionFilterProp="label"
-            style={{ minWidth: 300 }}
-            value={standardFilter}
-            onChange={setStandardFilter}
-          />
-          <Select
-            allowClear
-            options={(iafQuery.data ?? []).map((item) => ({ value: item.id, label: `IAF ${item.iaf_code} · ${item.iaf_name}` }))}
-            placeholder="Lọc theo IAF"
-            showSearch
-            optionFilterProp="label"
-            style={{ minWidth: 280 }}
-            value={iafFilter}
-            onChange={setIafFilter}
-          />
-                <Select
-                  options={[
-                    { value: "ALL", label: "Tất cả trạng thái" },
-                    { value: "ACTIVE", label: "Đang/được lên lịch hiệu lực" },
-                    { value: "INACTIVE", label: "Ngừng năng lực" },
-                  ]}
-                  style={{ width: 220 }}
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                />
-              </Space>
-            ),
-          }]}
-        />
-
-        <Table<Capability>
-          columns={columns}
-          dataSource={rows}
-          loading={capabilitiesQuery.isLoading}
-          locale={{ emptyText: capabilitiesQuery.isError ? getErrorMessage(capabilitiesQuery.error) : "Chưa khai báo năng lực tổ chức" }}
-          pagination={{ pageSize: 15, showSizeChanger: true }}
-          rowKey="id"
-          scroll={{ x: 1200 }}
-        />
-      </Card>
+      </section>
 
       <Modal
+        className="capability-modal"
         afterOpenChange={(open) => {
           if (!open) return;
           batchForm.resetFields();
@@ -409,7 +421,7 @@ export function CertificationBodyCapabilitiesPanel() {
               <Alert
                 showIcon
                 type="info"
-                message="Chọn 1 tiêu chuẩn, sau đó tích nhiều IAF và lưu một lần"
+                title="Chọn 1 tiêu chuẩn, sau đó tích nhiều IAF và lưu một lần"
                 description="Các IAF đã có cho đúng phiên bản tiêu chuẩn sẽ được đánh dấu để tránh tạo trùng."
               />
             ),
@@ -443,7 +455,7 @@ export function CertificationBodyCapabilitiesPanel() {
           <Form.Item
             label={`Lĩnh vực IAF được cấp năng lực${selectedIafIds.length ? ` · đã chọn ${selectedIafIds.length}` : ""}`}
             name="iaf_scope_ids"
-            extra={`Toàn hệ thống hiện có ${(iafQuery.data ?? []).length || 39} lĩnh vực IAF. Chỉ tích những lĩnh vực thật sự nằm trong phạm vi năng lực/công nhận của tổ chức.`}
+            extra={`Toàn hệ thống hiện có ${iafQuery.data?.length ?? "—"} lĩnh vực IAF. Chỉ tích những lĩnh vực thật sự nằm trong phạm vi năng lực/công nhận của tổ chức.`}
             rules={[{ required: true, message: "Chọn ít nhất một lĩnh vực IAF" }]}
           >
             <Select
@@ -510,6 +522,7 @@ export function CertificationBodyCapabilitiesPanel() {
       </Modal>
 
       <Modal
+        className="capability-modal"
         afterOpenChange={(open) => {
           if (!open || !editing) return;
           editForm.resetFields();
@@ -532,7 +545,7 @@ export function CertificationBodyCapabilitiesPanel() {
             <Alert
               type="info"
               showIcon
-              message={`${standardLabel(editing.standard_edition, editing.program_name)} · IAF ${editing.iaf_scope.iaf_code}`}
+              title={`${standardLabel(editing.standard_edition, editing.program_name)} · IAF ${editing.iaf_scope.iaf_code}`}
               description={editing.iaf_scope.iaf_name}
               style={{ marginBottom: 16 }}
             />

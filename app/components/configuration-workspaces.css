@@ -1,0 +1,159 @@
+.taxonomy-workspace,
+.capability-workspace {
+  display: grid;
+  gap: var(--cmp-space-4);
+  min-width: 0;
+}
+
+.configuration-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--cmp-space-3);
+}
+
+.configuration-summary > div {
+  padding: var(--cmp-space-3);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+}
+
+.configuration-summary .ant-statistic-title {
+  font-size: var(--cmp-font-size-xs);
+}
+
+.configuration-summary .ant-statistic-content {
+  font-size: var(--cmp-font-size-xl);
+}
+
+.configuration-task-controls,
+.capability-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cmp-space-2);
+}
+
+.configuration-task-controls > .ant-select,
+.configuration-task-controls > .ant-input,
+.configuration-task-controls > .ant-input-affix-wrapper,
+.capability-filters > .ant-select,
+.capability-filters > .ant-input-affix-wrapper {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.configuration-task-controls > .configuration-isic-selection {
+  flex-basis: 360px;
+}
+
+.taxonomy-workspace .ant-tabs,
+.capability-workspace .ant-collapse,
+.capability-workspace .cmp-data-table--responsive {
+  min-width: 0;
+}
+
+.taxonomy-workspace .ant-card-body,
+.capability-workspace .ant-card-body {
+  padding: var(--cmp-space-3);
+}
+
+.taxonomy-workspace .ant-card-head-title,
+.taxonomy-workspace .ant-tag,
+.capability-workspace .ant-tag {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.capability-toolbar,
+.capability-group-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cmp-space-2);
+}
+
+.capability-group-heading > div {
+  display: grid;
+  gap: var(--cmp-space-1);
+  min-width: 0;
+}
+
+.capability-workspace .cmp-responsive-card .ant-card-head-wrapper {
+  flex-wrap: wrap;
+  gap: var(--cmp-space-2);
+  padding-block: var(--cmp-space-2);
+}
+
+.capability-workspace .cmp-responsive-card__field {
+  grid-template-columns: minmax(70px, .35fr) minmax(0, 1fr);
+  overflow-wrap: anywhere;
+}
+
+.taxonomy-workspace .ant-tag.ant-tag-green,
+.capability-workspace .ant-tag.ant-tag-green {
+  color: var(--cmp-feedback-success-text-strong) !important;
+}
+
+.taxonomy-workspace .ant-tag.ant-tag-gold,
+.capability-workspace .ant-tag.ant-tag-gold {
+  color: var(--cmp-state-attention) !important;
+}
+
+.taxonomy-workspace .ant-select-placeholder,
+.capability-workspace .ant-select-placeholder,
+.capability-modal .ant-select-placeholder {
+  color: var(--cmp-text-secondary);
+}
+
+@media (max-width: 600px) {
+  /* Keep every local tab reachable without an overflow menu inside the tablist. */
+  .taxonomy-workspace .ant-tabs-nav-wrap {
+    overflow: visible;
+  }
+
+  .taxonomy-workspace .ant-tabs-nav-list {
+    flex-wrap: wrap;
+    width: 100%;
+    transform: none !important;
+  }
+
+  .taxonomy-workspace .ant-tabs-tab {
+    margin: 0 !important;
+    padding: var(--cmp-space-2);
+  }
+
+  .taxonomy-workspace .ant-tabs-tab-active {
+    box-shadow: inset 0 -2px var(--cmp-brand-primary);
+  }
+
+  .taxonomy-workspace .ant-tabs-nav-operations,
+  .taxonomy-workspace .ant-tabs-ink-bar,
+  .taxonomy-workspace .ant-tabs-nav-wrap::before,
+  .taxonomy-workspace .ant-tabs-nav-wrap::after {
+    display: none;
+  }
+
+  .configuration-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .configuration-task-controls > .ant-select,
+  .configuration-task-controls > .ant-input,
+  .configuration-task-controls > .ant-input-affix-wrapper,
+  .configuration-task-controls > .ant-btn,
+  .capability-filters > .ant-select,
+  .capability-filters > .ant-input-affix-wrapper {
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .capability-toolbar > .ant-space {
+    flex-wrap: wrap;
+  }
+}
+
+.taxonomy-workspace table:focus-visible {
+  outline: 2px solid var(--cmp-brand-primary);
+  outline-offset: -2px;
+}
