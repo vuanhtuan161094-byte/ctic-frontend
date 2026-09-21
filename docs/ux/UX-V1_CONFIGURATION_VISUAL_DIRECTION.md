@@ -1,7 +1,7 @@
 # UX-V1 — Configuration Visual Direction Gate
 
-Status: **CURRENT UI + SURGICAL POLISH — Fix 1 PASS / LOCKED**
-Date: **2026-09-19**
+Status: **CURRENT UI + SURGICAL POLISH — Fix 2 PASS / LOCKED**
+Date: **2026-09-21**
 Branch: `feature/ux-fix-batch01`  
 Entering frontend canonical: `dac0bc3e6d50a36dee7fa3fa34dae6d3085c50b1` (UX-I3 PASS / LOCKED)  
 Accepted Fix 1 checkpoint: `bb67e7a45fee088025c5428ae23225d185349e48`
@@ -26,7 +26,21 @@ Status: **PASS / LOCKED**, as accepted by the Product Owner.
 
 These are the accepted Fix 1 results supplied for this documentation checkpoint, not newly executed tests.
 
-Fix 2: **NOT STARTED**. UX-I4: **NOT STARTED**. UX-I3 remains **PASS / LOCKED**. CFG-2, CFG-3 and Step18B are not authorized to start. Stop after recording this checkpoint; a subsequent fix or phase requires separate authorization.
+### Fix 2 — Classification lookup and competence scope
+
+Status: **PASS / LOCKED**.
+
+- Validated frontend implementation HEAD: `f3d63e95e6b70e78d1a47d19e51a53517f3b7092`.
+- Screens: Classification Catalog, Classification Conversion, Competence Scope.
+- Classification: lookup/checking tasks first, compact source-backed metrics and readiness, collapsed reference guidance; mobile tabs wrap and tables support keyboard scrolling.
+- Competence: summary from existing records, standard/search/IAF/status/validity filters, exact-edition groups and existing responsive cards; add/edit payloads and effective-date rules are preserved.
+- Scope: three screen components, one local stylesheet and one browser spec. No shared-component, App Shell/sidebar, backend, database/migration, dependency or business-rule changes.
+- Targeted tests: **31/31 PASS** (`phase7-industry-classification-master`, `organization-capability-ux`, `organization-capability-compact-ux`, `step15-configuration-rebuild`). Targeted component lint, TypeScript, frontend build and `git diff --check`: **PASS**.
+- Browser gate: `cd e2e && node node_modules/@playwright/test/cli.js test specs/configuration-fix2.spec.mjs --workers=1` — **10/10 PASS**, desktop **1440×900 PASS**, mobile **390×844 PASS**. Verified lookup, multi-activity resolution, coverage, reference access, blocking state, summary/filter values and add/edit payloads.
+- Visual QA: inspected desktop/mobile runtime screenshots; no page overflow or clipped actions. Browser assertions include keyboard interactions and axe checks for critical/serious accessibility issues.
+- Evidence: ignored local `e2e/test-results/configuration-fix2-*` screenshots and `e2e/playwright-report`. Browser QA uses controlled API fixtures (fixed date 2026-09-20); mutations are intercepted, with no writes to the real database. This is UI verification, not live SQL-backed UAT.
+
+Fix 1 and UX-I3 remain **PASS / LOCKED**. UX-I4: **NOT STARTED**. CFG-2, CFG-3 and Step18B remain unstarted. Stop after Fix 2; a subsequent fix or phase requires separate authorization.
 
 ## Historical proposal — rejected / non-canonical
 
