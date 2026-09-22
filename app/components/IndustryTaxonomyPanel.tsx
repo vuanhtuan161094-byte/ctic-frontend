@@ -232,7 +232,9 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
   });
   const isicNaceMappings = useQuery({
     queryKey: ["industry-isic-nace-mappings"],
-    queryFn: async () => (await api.get<IndustryMapping[]>("/industry-classifications/mappings?status=APPROVED")).data,
+    queryFn: async () => (await api.get<IndustryMapping[]>("/industry-classifications/mappings", {
+      params: { status: "APPROVED" },
+    })).data,
   });
   const naceIafProjection = useQuery({
     queryKey: ["industry-nace-iaf-projection", naceIafSystem],
@@ -406,7 +408,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
             <Text type="secondary">Hoạt động khách hàng được xác định theo ISIC, quy đổi qua NACE và xác định lĩnh vực IAF.</Text>
           </div>
           <Tag color={coverage.data?.unresolved ? "red" : "green"}>
-            {coverage.data?.unresolved ? `${coverage.data.unresolved} lỗi ánh xạ` : "Dữ liệu vận hành đạt"}
+            {coverage.data?.unresolved ? `${coverage.data.unresolved} lỗi ánh xạ` : "Dữ liệu sẵn sàng"}
           </Tag>
         </div>
         <div className="taxonomy-model__flow">
@@ -696,7 +698,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
                     aria-label="Hệ thống quản lý kiểm tra độ phủ"
                   />
                   <div><Text type="secondary">ISIC lớp chi tiết</Text><strong>{coverage.data?.total_isic_classes ?? "—"}</strong></div>
-                  <div><Text type="secondary">Phân giải được IAF</Text><strong>{coverage.data?.resolved ?? "—"}</strong></div>
+                  <div><Text type="secondary">Đã xác định IAF</Text><strong>{coverage.data?.resolved ?? "—"}</strong></div>
                   <div><Text type="secondary">Cần chọn IAF</Text><strong>{coverage.data?.multiple_iaf ?? "—"}</strong></div>
                   <div><Text type="secondary">Ngoài bảng IAF</Text><strong>{coverage.data?.outside_iaf_table ?? "—"}</strong></div>
                   <div className={(coverage.data?.unresolved ?? 0) ? "taxonomy-control-strip__critical" : undefined}><Text type="secondary">Lỗi ánh xạ</Text><strong>{coverage.data?.unresolved ?? "—"}</strong></div>
@@ -711,7 +713,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
                   items={[
                     {
                       key: "isic-nace",
-                      label: `ISIC → NACE · ${summary.data?.counts.isic_nace_approved ?? 0}`,
+                      label: "ISIC → NACE",
                       children: (
                         <>
                           <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm ánh xạ ISIC NACE" placeholder="Tìm ISIC, NACE hoặc hoạt động..." value={mappingSearch} onChange={(event) => setMappingSearch(event.target.value)} className="taxonomy-catalog-search" />
@@ -720,7 +722,8 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
                             scroll={{ x: 700 }}
                             size="small"
                             rowKey="id"
-                            loading={isicNaceMappings.isLoading}
+                            loading={isicNaceMappings.isPending || isicNaceMappings.isFetching}
+                            locale={{ emptyText: isicNaceMappings.isFetching ? "Đang tải dữ liệu..." : "Không có ánh xạ phù hợp" }}
                             dataSource={filteredIsicNace}
                             pagination={{ pageSize: 20, showSizeChanger: true }}
                             columns={[
