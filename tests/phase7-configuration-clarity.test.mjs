@@ -29,6 +29,16 @@ test("program rule configuration groups core fields and hides secondary scope un
   assert.match(programs, /maxTagCount=\{0\}/);
 });
 
+test("program list uses progressive disclosure instead of rendering all configuration detail by default", () => {
+  assert.match(programs, /expandedSchemes/);
+  assert.match(programs, /certification-program-summary/);
+  assert.match(programs, /aria-expanded=\{expanded\}/);
+  assert.match(programs, /expanded \? "Thu gọn" : "Chi tiết"/);
+  assert.match(programs, /expanded \? \(/);
+  assert.match(programs, /certification-program-details/);
+  assert.match(programs, /Tiêu chuẩn & phiên bản/);
+});
+
 test("numbering UI exposes current runtime scope without pretending all document numbers are centralized", () => {
   assert.match(master, /numbering-capabilities/);
   assert.match(master, /numberingCapabilityOptions\(numberingCapabilities\.data\)/);
