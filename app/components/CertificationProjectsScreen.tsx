@@ -3767,7 +3767,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         open={creationOpen}
         styles={{ body: { maxHeight: "78vh", overflowY: "auto" } }}
         title={isApplicationWorkspace ? "Đơn đăng ký chứng nhận" : "Khởi tạo hồ sơ chứng nhận"}
-        width={isApplicationWorkspace ? 1040 : 1180}
+        width={isApplicationWorkspace ? (actualCreationStep === 0 ? 980 : 1080) : 1180}
       >
         {createdProjectId ? (
           <Result
@@ -4213,7 +4213,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                     </div>
                     <div>
                       <span>Tiêu chuẩn</span>
-                      <strong>{reviewApplication?.standard_name ?? calculationStandardNames.join(" + ") ?? "—"}</strong>
+                      <strong>{reviewApplication?.standard_name || calculationStandardNames.join(" + ") || "—"}</strong>
                     </div>
                     <div>
                       <span>Nhân sự hiệu dụng</span>
