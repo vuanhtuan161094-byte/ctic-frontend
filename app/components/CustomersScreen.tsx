@@ -33,7 +33,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -443,11 +442,11 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         {canManage ? <Button icon={<PlusOutlined />} onClick={openCreate} size="large" type="primary">Thêm khách hàng</Button> : null}
       </div>
 
-      <section className="project-summary-grid" aria-label="Tổng hợp khách hàng">
-        <Card><Statistic prefix={<TeamOutlined />} title="Tổng khách hàng" value={customers.length} /></Card>
-        <Card><Statistic prefix={<CheckCircleOutlined />} title="Đang hoạt động" value={activeCount} /></Card>
-        <Card><Statistic prefix={<FolderOpenOutlined />} title="Đã có hồ sơ chứng nhận" value={linkedCount} /></Card>
-        <Card><Statistic prefix={<StopOutlined />} title="Ngừng hoạt động" value={inactiveCount} /></Card>
+      <section className="customer-summary-strip" aria-label="Tổng hợp khách hàng">
+        <div><TeamOutlined /><span>Tổng khách hàng</span><strong>{customers.length}</strong></div>
+        <div><CheckCircleOutlined /><span>Đang hoạt động</span><strong>{activeCount}</strong></div>
+        <div><FolderOpenOutlined /><span>Đã có hồ sơ</span><strong>{linkedCount}</strong></div>
+        <div><StopOutlined /><span>Ngừng hoạt động</span><strong>{inactiveCount}</strong></div>
       </section>
 
       <Card className="customers-list-card">
@@ -651,6 +650,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       />
 
       <Modal
+        className="customer-form-modal"
         cancelText="Hủy"
         confirmLoading={saveMutation.isPending}
         destroyOnHidden
@@ -659,79 +659,105 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         onOk={() => void form.validateFields().then((values) => saveMutation.mutate(values))}
         open={formOpen}
         title={editingCustomer ? "Cập nhật khách hàng" : "Thêm khách hàng"}
-        width={720}
+        width={700}
       >
-        <Form form={form} layout="vertical" requiredMark="optional">
-          <div className="customer-form-grid">
-            <Form.Item label="Mã khách hàng" name="customer_code" rules={[{ required: true, message: "Nhập mã khách hàng" }, { max: 20 }]}>
-              <Input disabled={Boolean(editingCustomer)} placeholder="Ví dụ: CUST004" />
-            </Form.Item>
-            <Form.Item label="Quốc gia">
-              <Select
-                value={countryChoice}
-                options={COUNTRY_CODE_OPTIONS}
-                onChange={(value) => {
-                  setCountryChoice(value);
-                  if (value !== "OTHER") {
-                    form.setFieldValue("country_code", value);
-                    form.setFieldValue("country_name", undefined);
-                  } else {
-                    form.setFieldValue("country_code", "OT");
-                  }
-                }}
-              />
-            </Form.Item>
-            {countryChoice === "OTHER" ? (
-              <Form.Item
-                label="Tên quốc gia"
-                name="country_name"
-                rules={[
-                  { required: true, message: "Nhập tên quốc gia" },
-                  { max: 100, message: "Tên quốc gia không được vượt quá 100 ký tự" },
-                ]}
-                extra="Ví dụ: Lào, Hoa Kỳ, Vương quốc Anh. Tax ID sẽ dùng định dạng tự do của quốc gia đó."
-              >
-                <Input maxLength={100} placeholder="Nhập tên quốc gia" />
+        <Form className="customer-form" form={form} layout="vertical">
+          <section className="customer-form-section">
+            <div className="customer-form-section__heading">
+              <div>
+                <strong>Thông tin tổ chức</strong>
+                <span>Thông tin nhận diện và pháp lý dùng xuyên suốt hồ sơ chứng nhận.</span>
+              </div>
+              <Tag color="blue">Bắt buộc: mã & tên tổ chức</Tag>
+            </div>
+
+            <div className="customer-form-grid">
+              <Form.Item label="Mã khách hàng" name="customer_code" rules={[{ required: true, message: "Nhập mã khách hàng" }, { max: 20 }]}>
+                <Input disabled={Boolean(editingCustomer)} placeholder="Ví dụ: CUST004" />
               </Form.Item>
-            ) : null}
-            <Form.Item hidden name="country_code"><Input /></Form.Item>
-            <Form.Item
-              dependencies={["country_code"]}
-              label={taxIdentifierLabel(watchedCountryCode)}
-              name="tax_code"
-              rules={[
-                { max: 20, message: "Tax ID/Business ID không được vượt quá 20 ký tự" },
-                ({ getFieldValue }) => ({
-                  validator: async (_, value) => {
-                    if (!value) return;
-                    const countryCode = normalizeCountryCode(getFieldValue("country_code"));
-                    if (countryCode !== "VN") return;
-                    const normalized = String(value).replace(/[\s-]/g, "");
-                    if (!/^\d{10}(?:\d{3})?$/.test(normalized)) {
-                      throw new Error("Mã số thuế Việt Nam phải gồm 10 hoặc 13 chữ số");
+              <Form.Item label="Quốc gia">
+                <Select
+                  value={countryChoice}
+                  options={COUNTRY_CODE_OPTIONS}
+                  onChange={(value) => {
+                    setCountryChoice(value);
+                    if (value !== "OTHER") {
+                      form.setFieldValue("country_code", value);
+                      form.setFieldValue("country_name", undefined);
+                    } else {
+                      form.setFieldValue("country_code", "OT");
                     }
-                  },
-                }),
-              ]}
-              extra={normalizeCountryCode(watchedCountryCode) === "VN"
-                ? "Chấp nhận 10 số hoặc 13 số; có thể nhập dạng 0101234567-001."
-                : "Khách hàng nước ngoài: nhập Tax ID/Business ID theo định dạng của quốc gia đó."}
-            >
-              <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Tax ID / Business ID"} />
-            </Form.Item>
-            <Form.Item className="customer-form-wide" label="Tên tổ chức" name="company_name" rules={[{ required: true, message: "Nhập tên tổ chức" }, { max: 255 }]}>
-              <Input placeholder="Tên pháp lý đầy đủ của tổ chức" />
-            </Form.Item>
-            <Form.Item label="Điện thoại" name="phone" rules={[{ max: 20 }]}>
-              <Input placeholder="Số điện thoại liên hệ" />
-            </Form.Item>
-            <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Email không hợp lệ" }]}>
-              <Input placeholder="Email liên hệ" />
-            </Form.Item>
-            <Form.Item className="customer-form-wide" label="Địa chỉ" name="address">
-              <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} placeholder="Địa chỉ trụ sở hoặc địa điểm liên hệ" />
-            </Form.Item>
-          </div>
+                  }}
+                />
+              </Form.Item>
+
+              {countryChoice === "OTHER" ? (
+                <Form.Item
+                  label="Tên quốc gia"
+                  name="country_name"
+                  rules={[
+                    { required: true, message: "Nhập tên quốc gia" },
+                    { max: 100, message: "Tên quốc gia không được vượt quá 100 ký tự" },
+                  ]}
+                >
+                  <Input maxLength={100} placeholder="Ví dụ: Lào, Hoa Kỳ, Vương quốc Anh" />
+                </Form.Item>
+              ) : null}
+
+              <Form.Item hidden name="country_code"><Input /></Form.Item>
+
+              <Form.Item
+                dependencies={["country_code"]}
+                label={taxIdentifierLabel(watchedCountryCode)}
+                name="tax_code"
+                rules={[
+                  { max: 20, message: "Tax ID/Business ID không được vượt quá 20 ký tự" },
+                  ({ getFieldValue }) => ({
+                    validator: async (_, value) => {
+                      if (!value) return;
+                      const countryCode = normalizeCountryCode(getFieldValue("country_code"));
+                      if (countryCode !== "VN") return;
+                      const normalized = String(value).replace(/[\s-]/g, "");
+                      if (!/^\d{10}(?:\d{3})?$/.test(normalized)) {
+                        throw new Error("Mã số thuế Việt Nam phải gồm 10 hoặc 13 chữ số");
+                      }
+                    },
+                  }),
+                ]}
+                extra={normalizeCountryCode(watchedCountryCode) === "VN"
+                  ? "10 hoặc 13 chữ số; chấp nhận dạng 0101234567-001."
+                  : "Nhập Tax ID/Business ID theo định dạng của quốc gia."}
+              >
+                <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Tax ID / Business ID"} />
+              </Form.Item>
+
+              <Form.Item className="customer-form-wide" label="Tên tổ chức" name="company_name" rules={[{ required: true, message: "Nhập tên tổ chức" }, { max: 255 }]}>
+                <Input placeholder="Tên pháp lý đầy đủ của tổ chức" />
+              </Form.Item>
+            </div>
+          </section>
+
+          <section className="customer-form-section customer-form-section--contact">
+            <div className="customer-form-section__heading">
+              <div>
+                <strong>Thông tin liên hệ</strong>
+                <span>Dùng cho trao đổi nghiệp vụ và thông báo trong quá trình chứng nhận.</span>
+              </div>
+              <Text type="secondary">Không bắt buộc</Text>
+            </div>
+
+            <div className="customer-form-grid">
+              <Form.Item label="Điện thoại" name="phone" rules={[{ max: 20 }]}>
+                <Input placeholder="Số điện thoại liên hệ" />
+              </Form.Item>
+              <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Email không hợp lệ" }]}>
+                <Input placeholder="Email liên hệ" />
+              </Form.Item>
+              <Form.Item className="customer-form-wide" label="Địa chỉ" name="address">
+                <Input.TextArea autoSize={{ minRows: 2, maxRows: 3 }} placeholder="Địa chỉ trụ sở hoặc địa điểm liên hệ" />
+              </Form.Item>
+            </div>
+          </section>
         </Form>
       </Modal>
     </div>
