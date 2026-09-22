@@ -22,24 +22,24 @@ const configurationPaths = [
   "/admin/configuration/import",
 ];
 
-test("Step 15 exposes each configuration domain at a canonical route", () => {
-  for (const path of configurationPaths) assert.ok(navigation.includes(path), `missing ${path}`);
-  assert.match(navigation, /configurationRoute[\s\S]*activeView: configurationRoute\[1\]/);
+test("configuration keeps canonical and legacy-compatible routes", () => {
+  for (const path of configurationPaths) assert.ok(navigation.includes(path), "missing " + path);
+  assert.match(navigation, /"configuration-mappings": "\/admin\/configuration\/classifications"/);
   assert.match(navigation, /"system-admin": "\/admin\/accounts"/);
 });
 
-test("configuration navigation is grouped by business purpose without implementation copy", () => {
+test("configuration navigation is grouped by business purpose without duplicate taxonomy destinations", () => {
   assert.match(shell, /Cấu hình chứng nhận/);
   assert.match(shell, /Dữ liệu phân loại/);
+  assert.match(shell, /label: "Phân loại ngành"/);
+  assert.doesNotMatch(shell, /label: "Quy đổi phân loại"/);
   assert.match(shell, /canManageConfiguration = hasPermission\("classifications\.manage"\)/);
   assert.match(shell, /configurationSection[\s\S]*ForbiddenState/);
-  assert.doesNotMatch(routes, /backend kiểm soát/);
-  assert.doesNotMatch(routes, /chiếu trực tiếp từ dữ liệu/);
 });
 
 test("programme, standard family and edition configuration uses one focused hierarchy", () => {
   assert.match(routes, /CertificationProgramsPanel/);
-  assert.match(routes, /standards" \? "schemes"/);
+  assert.match(routes, /if \(section === "standards"\) return "schemes"/);
   assert.match(programs, /familiesByScheme/);
   assert.match(programs, /type StandardFamily/);
   assert.match(programs, /Thêm tiêu chuẩn/);
@@ -51,22 +51,25 @@ test("capability configuration remains exact-edition and IAF scoped", () => {
   assert.match(routes, /CertificationBodyCapabilitiesPanel/);
   assert.match(capabilities, /standard_edition_id/);
   assert.match(capabilities, /iaf_scope_id/);
+  assert.match(capabilities, /Tiêu chuẩn × lĩnh vực IAF/);
   assert.match(capabilities, /effective_from/);
   assert.match(capabilities, /effective_to/);
 });
 
-test("classification and mapping destinations preserve the ISIC to NACE to IAF chain", () => {
-  assert.match(routes, /IndustryTaxonomyPanel mode="classifications"/);
-  assert.match(routes, /IndustryTaxonomyPanel mode="mappings"/);
-  assert.match(taxonomy, /ISIC[^\n]*→ NACE Rev\.2 → IAF/);
-  assert.match(taxonomy, /mode === "mappings"/);
-  assert.match(taxonomy, /\["isic-nace", "nace-iaf"\]\.includes\(item\.key\)/);
+test("classification catalog and mappings are unified in one taxonomy workspace", () => {
+  assert.match(routes, /if \(section === "mappings"\) return "classifications"/);
+  assert.match(routes, /<IndustryTaxonomyPanel mode="all" \/>/);
+  assert.match(taxonomy, /Chuỗi phân loại dùng trong CMP/);
+  assert.match(taxonomy, /label: "Tra cứu"/);
+  assert.match(taxonomy, /label: "Danh mục"/);
+  assert.match(taxonomy, /label: "Ánh xạ & kiểm soát"/);
+  assert.match(taxonomy, /label: "Nguồn tham chiếu"/);
 });
 
 test("import remains an explicit validate then commit flow", () => {
   assert.match(masterData, /validateImport/);
   assert.match(masterData, /ImportJobDetails id=\{selectedImportJob\}/);
-  assert.match(source('../app/components/ImportJobDetails.tsx'), /action.mutate\("commit"\)/);
+  assert.match(source("../app/components/ImportJobDetails.tsx"), /action.mutate\("commit"\)/);
   assert.match(masterData, /VALIDATED/);
   assert.match(masterData, /COMMITTED/);
 });
@@ -81,7 +84,7 @@ test("route pages keep shared states and source-backed readiness without a secon
   assert.doesNotMatch(routes, /ConfigurationNavigation/);
 });
 
-test("Step 15 route shell does not add product-name branding literals", () => {
+test("route shell does not add product-name branding literals", () => {
   assert.doesNotMatch(routes, /\bCTIC\b/);
   assert.doesNotMatch(programs, /\bCTIC\b/);
   assert.doesNotMatch(navigation, /\bCTIC\b/);
