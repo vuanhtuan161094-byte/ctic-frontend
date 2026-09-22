@@ -733,11 +733,12 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
     assignable: role.assignable === true,
   }));
   const roleOptions = availableRoles
-    .filter((role) => role.assignable === true && normalizeRole(role.role_name) !== "customer")
+    .filter((role) => role.assignable === true)
     .map((role) => ({
       value: role.role_name,
       label: `${getRoleLabel(role.role_name)} · ${role.permissions.length} quyền`,
     }));
+  const internalRoleOptions = roleOptions.filter((option) => normalizeRole(option.value) !== "customer");
 
   const columns: TableColumnsType<SystemUser> = [
     {
@@ -1023,7 +1024,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             type="info"
           />
           <div className="system-permission-catalog-summary">
-            <span><strong>{availableRoles.filter((role) => role.assignable).length}</strong> vai trò có thể gán</span>
+            <span><strong>{internalRoleOptions.length}</strong> vai trò nội bộ có thể gán</span>
             <span><strong>{permissionCatalogNames.length}</strong> quyền trong hệ thống</span>
             <span><strong>{createBasePermissions.length}</strong> quyền từ lựa chọn hiện tại</span>
           </div>
@@ -1037,8 +1038,8 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
               maxTagCount="responsive"
               mode="multiple"
               optionFilterProp="label"
-              options={roleOptions}
-              placeholder="Chọn vai trò · mỗi vai trò có hiển thị số quyền"
+              options={internalRoleOptions}
+              placeholder="Chọn vai trò nội bộ · mỗi vai trò có hiển thị số quyền"
               showSearch
             />
           </Form.Item>
@@ -1175,7 +1176,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                           <Space size={8}>
                             {roleSelectionChanged ? <Tag color="gold">Chưa lưu</Tag> : <Tag color="green">Đã đồng bộ</Tag>}
                             <Button
-                              disabled={selectedUser.id === currentUserId || !roleSelectionChanged}
+                              disabled={selectedUser.id === currentUserId || isCustomerAccount(selectedUser) || !roleSelectionChanged}
                               htmlType="submit"
                               loading={rolesMutation.isPending}
                               type="primary"
@@ -1189,6 +1190,14 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                           <Alert
                             message="Không thể thay đổi vai trò của tài khoản đang đăng nhập."
                             description="Quy tắc này giúp tránh tự thu hồi quyền quản trị hoặc thay đổi quyền của chính phiên đang sử dụng."
+                            showIcon
+                            type="info"
+                          />
+                        ) : null}
+                        {isCustomerAccount(selectedUser) ? (
+                          <Alert
+                            message="Vai trò CUSTOMER được quản lý bởi flow tài khoản khách hàng"
+                            description="Không chuyển CUSTOMER sang vai trò nội bộ tại đây. Liên kết tổ chức và quyền Portal được quản lý theo customer access để giữ đúng phạm vi dữ liệu khách hàng."
                             showIcon
                             type="info"
                           />
@@ -1207,7 +1216,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                           rules={[{ required: true, message: "Chọn ít nhất một vai trò" }]}
                         >
                           <Select
-                            disabled={selectedUser.id === currentUserId}
+                            disabled={selectedUser.id === currentUserId || isCustomerAccount(selectedUser)}
                             maxTagCount="responsive"
                             mode="multiple"
                             optionFilterProp="label"
