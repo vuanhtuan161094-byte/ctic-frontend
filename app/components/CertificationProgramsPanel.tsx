@@ -2,8 +2,10 @@
 
 import {
   DeleteOutlined,
+  DownOutlined,
   EditOutlined,
   MoreOutlined,
+  RightOutlined,
   PlusOutlined,
   StopOutlined,
   UndoOutlined,
@@ -264,6 +266,7 @@ export function CertificationProgramsPanel() {
   const [schemeOpen, setSchemeOpen] = useState(false);
   const [standardOpen, setStandardOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
+  const [expandedSchemes, setExpandedSchemes] = useState<Set<string>>(() => new Set());
   const [editingScheme, setEditingScheme] = useState<Scheme | null>(null);
   const [editingStandard, setEditingStandard] = useState<Standard | null>(null);
   const [standardFamilyPreset, setStandardFamilyPreset] = useState<StandardFamily | null>(null);
@@ -459,6 +462,15 @@ export function CertificationProgramsPanel() {
     onError: (error) => messageApi.error(getErrorMessage(error)),
   });
 
+  const toggleSchemeDetails = (schemeId: string) => {
+    setExpandedSchemes((current) => {
+      const next = new Set(current);
+      if (next.has(schemeId)) next.delete(schemeId);
+      else next.add(schemeId);
+      return next;
+    });
+  };
+
   const openNewScheme = () => {
     setEditingScheme(null);
     schemeForm.resetFields();
@@ -613,7 +625,7 @@ export function CertificationProgramsPanel() {
         </Card>
       ) : null}
 
-      <Space className="certification-programs-list" orientation="vertical" size={10} style={{ width: "100%" }}>
+      <div className="certification-programs-list">
         {allSchemes.map((scheme) => {
           const families = familiesByScheme.get(scheme.id) ?? [];
           const schemeReadiness = readinessByScheme.get(scheme.id);
@@ -626,27 +638,62 @@ export function CertificationProgramsPanel() {
           const scheduledRule = [...schemeConfigs]
             .filter(isScheduledRule)
             .sort((left, right) => dayjs(left.effective_from).valueOf() - dayjs(right.effective_from).valueOf())[0] ?? null;
+          const standardsForScheme = families
+            .flatMap((family) => family.editions)
+            .sort((left, right) => {
+              const leftRank = isAppliedStandard(left) ? 0 : isWaitingStandard(left) ? 1 : 2;
+              const rightRank = isAppliedStandard(right) ? 0 : isWaitingStandard(right) ? 1 : 2;
+              if (leftRank !== rightRank) return leftRank - rightRank;
+              return dayjs(right.effective_from).valueOf() - dayjs(left.effective_from).valueOf();
+            });
+          const primaryStandard = standardsForScheme[0] ?? null;
+          const editionCount = standardsForScheme.length;
+          const expanded = expandedSchemes.has(scheme.id);
 
           return (
-            <Card
-              key={scheme.id}
-              className="certification-program-card"
-              size="small"
-              title={(
-                <Space className="certification-program-card__identity" wrap size={8}>
-                  <Tag color="blue" style={{ margin: 0 }}>{scheme.code}</Tag>
-                  <Text strong>{programName(scheme)}</Text>
-                  <ProgramStatus value={scheme.status} />
+            <Card key={scheme.id} className={`certification-program-card certification-program-card--${expanded ? "expanded" : "collapsed"}`} size="small">
+              <div className="certification-program-summary">
+                <button
+                  className="certification-program-summary__main"
+                  type="button"
+                  aria-expanded={expanded}
+                  aria-controls={`program-details-${scheme.id}`}
+                  onClick={() => toggleSchemeDetails(scheme.id)}
+                >
+                  <div className="certification-program-summary__title">
+                    <Tag color="blue">{scheme.code}</Tag>
+                    <Text strong>{programName(scheme)}</Text>
+                    {scheme.status !== "ACTIVE" ? <ProgramStatus value={scheme.status} /> : null}
+                  </div>
+                  <div className="certification-program-summary__meta">
+                    {primaryStandard ? (
+                      <>
+                        <Text strong>{standardEditionLabel(primaryStandard)}</Text>
+                        <StandardStatus row={primaryStandard} />
+                      </>
+                    ) : (
+                      <Text type="secondary">Chưa có tiêu chuẩn</Text>
+                    )}
+                    {families.length > 1 ? <Text type="secondary">+{families.length - 1} tiêu chuẩn</Text> : null}
+                    {editionCount > 1 ? <Text type="secondary">{editionCount} phiên bản</Text> : null}
+                  </div>
+                </button>
+
+                <div className="certification-program-summary__actions">
                   {scheme.status === "ACTIVE" ? (
                     schemeReadiness?.status === "READY"
                       ? <Tag color="success">Sẵn sàng</Tag>
                       : <Tag color="orange">Cần thiết lập</Tag>
                   ) : null}
-                </Space>
-              )}
-              extra={(
-                <Space className="certification-program-card__actions" size={4}>
-                  <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
+                  <Button
+                    className="certification-program-summary__details"
+                    size="small"
+                    type="text"
+                    icon={expanded ? <DownOutlined /> : <RightOutlined />}
+                    onClick={() => toggleSchemeDetails(scheme.id)}
+                  >
+                    {expanded ? "Thu gọn" : "Chi tiết"}
+                  </Button>
                   <Dropdown
                     trigger={["click"]}
                     menu={{
@@ -666,123 +713,134 @@ export function CertificationProgramsPanel() {
                   >
                     <Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác ${scheme.code}`} />
                   </Dropdown>
-                </Space>
-              )}
-            >
-              {scheme.status === "ACTIVE" && issues.length ? (
-                <div className="certification-program-card__readiness">
-                  {issues.map((issue) => {
-                    const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
-                    const missingRule = /quy tắc|configuration|ACTIVE/i.test(issue) && !missingStandard;
-                    return (
-                      <div
-                        key={issue}
-                        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", minHeight: 30 }}
-                      >
-                        <Text type="secondary">• {readinessText(issue)}</Text>
-                        {missingStandard ? (
-                          restoreCandidate ? (
-                            <Button size="small" type="link" icon={<UndoOutlined />} onClick={() => confirmRestore(restoreCandidate)}>
-                              Khôi phục {standardEditionLabel(restoreCandidate)}
-                            </Button>
-                          ) : (
-                            <Button size="small" type="link" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
-                          )
-                        ) : missingRule ? (
-                          <Button size="small" type="link" onClick={() => openRule(scheme)}>Thiết lập quy tắc</Button>
-                        ) : null}
-                      </div>
-                    );
-                  })}
                 </div>
-              ) : null}
-
-              <div className="certification-program-rule">
-                <div className="certification-program-rule__copy">
-                  <Text strong>Quy tắc chứng nhận</Text>
-                  {currentRule ? (
-                    <Text type="secondary"> · v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · giám sát {currentRule.surveillance_frequency_months} tháng/lần · chứng chỉ {currentRule.validity_duration_months} tháng</Text>
-                  ) : scheduledRule ? (
-                    <Text type="secondary"> · v{scheduledRule.version_no} · chờ hiệu lực {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
-                  ) : (
-                    <Text type="secondary"> · Chưa có bộ quy tắc đang áp dụng</Text>
-                  )}
-                  {currentRule && scheduledRule ? (
-                    <Text className="certification-program-rule__next" type="secondary">Kế tiếp v{scheduledRule.version_no} · {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
-                  ) : null}
-                </div>
-                <Button className="certification-program-rule__action" size="small" onClick={() => openRule(scheme)}>
-                  {currentRule || scheduledRule ? "Tạo phiên bản mới" : "Thiết lập"}
-                </Button>
               </div>
 
-              <div className="certification-program-card__divider" aria-hidden="true" />
-
-              {families.length ? (
-                <div className="certification-standard-families">
-                  {families.map((family) => (
-                    <div key={family.key} className="certification-standard-family">
-                      <div className="certification-standard-family__header">
-                        <div>
-                          <Text strong>{family.code}</Text>
-                          <Text type="secondary"> · {family.name}</Text>
-                          <Text type="secondary"> · {family.editions.length} phiên bản</Text>
-                        </div>
-                        <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewEdition(scheme.id, family)}>Thêm phiên bản</Button>
-                      </div>
-
-                      {family.editions.map((standard) => {
-                        const applied = isAppliedStandard(standard);
-                        const restorable = canRestoreStandard(standard);
-                        const actions = [
-                          { key: "edit", icon: <EditOutlined />, label: "Sửa phiên bản" },
-                          ...(applied ? [{ key: "stop", icon: <StopOutlined />, label: "Ngừng áp dụng", danger: true }] : []),
-                          ...(restorable ? [{ key: "restore", icon: <UndoOutlined />, label: "Khôi phục áp dụng" }] : []),
-                          { type: "divider" as const },
-                          { key: "delete", icon: <DeleteOutlined />, label: "Xóa nếu chưa sử dụng", danger: true },
-                        ];
+              {expanded ? (
+                <div className="certification-program-details" id={`program-details-${scheme.id}`}>
+                  {scheme.status === "ACTIVE" && issues.length ? (
+                    <div className="certification-program-details__issues">
+                      {issues.map((issue) => {
+                        const missingStandard = /phiên bản tiêu chuẩn/i.test(issue);
+                        const missingRule = /quy tắc|configuration|ACTIVE/i.test(issue) && !missingStandard;
                         return (
-                          <div
-                            key={standard.id}
-                            className="certification-standard-row"
-                          >
-                            <div className="certification-standard-row__identity">
-                              <Text strong>{standard.edition}</Text>
-                            </div>
-                            <div className="certification-standard-row__status">
-                              <StandardStatus row={standard} />
-                              <Text type="secondary">{standardDateText(standard)}</Text>
-                            </div>
-                            <Dropdown
-                              trigger={["click"]}
-                              menu={{
-                                items: actions,
-                                onClick: ({ key }) => {
-                                  if (key === "edit") openEditStandard(standard);
-                                  if (key === "stop") confirmStop(standard);
-                                  if (key === "restore") confirmRestore(standard);
-                                  if (key === "delete") confirmDelete(standard);
-                                },
-                              }}
-                            >
-                              <Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác ${standardEditionLabel(standard)}`} />
-                            </Dropdown>
+                          <div className="certification-program-details__issue" key={issue}>
+                            <Text type="secondary">{readinessText(issue)}</Text>
+                            {missingStandard ? (
+                              restoreCandidate ? (
+                                <Button size="small" type="link" icon={<UndoOutlined />} onClick={() => confirmRestore(restoreCandidate)}>
+                                  Khôi phục {standardEditionLabel(restoreCandidate)}
+                                </Button>
+                              ) : (
+                                <Button size="small" type="link" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
+                              )
+                            ) : missingRule ? (
+                              <Button size="small" type="link" onClick={() => openRule(scheme)}>Thiết lập quy tắc</Button>
+                            ) : null}
                           </div>
                         );
                       })}
                     </div>
-                  ))}
+                  ) : null}
+
+                  <section className="certification-program-details__section">
+                    <div className="certification-program-details__heading">
+                      <div>
+                        <Text strong>Quy tắc chứng nhận</Text>
+                        {currentRule ? (
+                          <Text type="secondary">
+                            v{currentRule.version_no} · {currentRule.cycle_duration_months} tháng · Giám sát {currentRule.surveillance_frequency_months} tháng/lần · Chứng chỉ {currentRule.validity_duration_months} tháng
+                          </Text>
+                        ) : scheduledRule ? (
+                          <Text type="secondary">v{scheduledRule.version_no} · Chờ hiệu lực {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
+                        ) : (
+                          <Text type="secondary">Chưa có bộ quy tắc đang áp dụng</Text>
+                        )}
+                        {currentRule && scheduledRule ? (
+                          <Text type="secondary">Kế tiếp v{scheduledRule.version_no} từ {dayjs(scheduledRule.effective_from).format("DD/MM/YYYY")}</Text>
+                        ) : null}
+                      </div>
+                      <Button size="small" onClick={() => openRule(scheme)}>
+                        {currentRule || scheduledRule ? "Tạo phiên bản mới" : "Thiết lập quy tắc"}
+                      </Button>
+                    </div>
+                  </section>
+
+                  <section className="certification-program-details__section">
+                    <div className="certification-program-details__heading">
+                      <div>
+                        <Text strong>Tiêu chuẩn & phiên bản</Text>
+                        <Text type="secondary">
+                          {families.length} tiêu chuẩn · {editionCount} phiên bản
+                        </Text>
+                      </div>
+                      <Button size="small" icon={<PlusOutlined />} onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
+                    </div>
+
+                    {families.length ? (
+                      <div className="certification-standard-families">
+                        {families.map((family) => (
+                          <div key={family.key} className="certification-standard-family">
+                            <div className="certification-standard-family__header">
+                              <div>
+                                <Text strong>{family.code}</Text>
+                                <Text type="secondary"> · {family.name}</Text>
+                              </div>
+                              <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => openNewEdition(scheme.id, family)}>Thêm phiên bản</Button>
+                            </div>
+
+                            {family.editions.map((standard) => {
+                              const applied = isAppliedStandard(standard);
+                              const restorable = canRestoreStandard(standard);
+                              const actions = [
+                                { key: "edit", icon: <EditOutlined />, label: "Sửa phiên bản" },
+                                ...(applied ? [{ key: "stop", icon: <StopOutlined />, label: "Ngừng áp dụng", danger: true }] : []),
+                                ...(restorable ? [{ key: "restore", icon: <UndoOutlined />, label: "Khôi phục áp dụng" }] : []),
+                                { type: "divider" as const },
+                                { key: "delete", icon: <DeleteOutlined />, label: "Xóa nếu chưa sử dụng", danger: true },
+                              ];
+                              return (
+                                <div key={standard.id} className="certification-standard-row">
+                                  <div className="certification-standard-row__identity">
+                                    <Text strong>{standardEditionLabel(standard)}</Text>
+                                  </div>
+                                  <div className="certification-standard-row__status">
+                                    <StandardStatus row={standard} />
+                                    <Text type="secondary">{standardDateText(standard)}</Text>
+                                  </div>
+                                  <Dropdown
+                                    trigger={["click"]}
+                                    menu={{
+                                      items: actions,
+                                      onClick: ({ key }) => {
+                                        if (key === "edit") openEditStandard(standard);
+                                        if (key === "stop") confirmStop(standard);
+                                        if (key === "restore") confirmRestore(standard);
+                                        if (key === "delete") confirmDelete(standard);
+                                      },
+                                    }}
+                                  >
+                                    <Button type="text" icon={<MoreOutlined />} aria-label={`Thao tác ${standardEditionLabel(standard)}`} />
+                                  </Dropdown>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="certification-program-card__empty">
+                        <Text type="secondary">Chưa có tiêu chuẩn trong chương trình này.</Text>
+                        <Button size="small" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
+                      </div>
+                    )}
+                  </section>
                 </div>
-              ) : (
-                <div className="certification-program-card__empty">
-                  <Text type="secondary">Chưa có tiêu chuẩn trong chương trình này.</Text>
-                  <Button size="small" onClick={() => openNewFamily(scheme.id)}>Thêm tiêu chuẩn</Button>
-                </div>
-              )}
+              ) : null}
             </Card>
           );
         })}
-      </Space>
+      </div>
 
       <Modal
         title={editingScheme ? "Sửa chương trình" : "Thêm chương trình"}
