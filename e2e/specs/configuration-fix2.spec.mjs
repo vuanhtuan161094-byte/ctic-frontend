@@ -109,7 +109,7 @@ test('taxonomy unified workspace keeps lookup, catalog, mapping and sources usab
   await page.getByRole('textbox', { name: 'Mã cần tra', exact: true }).fill('2220');
   await page.getByRole('button', { name: /Tra IAF$/ }).click();
   await expect(page.getByText('Kết quả:')).toBeVisible();
-  await expect(page.getByText(/IAF 14/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/IAF 14/).filter({ visible: true }).first()).toBeVisible();
   expect(fixture.resolves.at(-1)).toEqual({
     classification_type: 'ISIC',
     revision: 'ISIC_REV_4',
@@ -124,7 +124,7 @@ test('taxonomy unified workspace keeps lookup, catalog, mapping and sources usab
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /Tra NACE & IAF$/ }).click();
   await expect(page.getByText(/IAF 14/).filter({ visible: true })).toBeVisible();
-  await expect(page.getByText(/IAF 19/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/IAF 19/).filter({ visible: true }).first()).toBeVisible();
   expect(fixture.resolves.slice(-2).map(item => item.code)).toEqual(['2220', '2651']);
 
   await page.getByRole('tab', { name: 'Ánh xạ & kiểm soát', exact: true }).click();
@@ -190,9 +190,9 @@ test('competence matrix, summary and filters use the existing records', async ({
   await expect(matrix).toBeVisible();
   await expect(matrix.getByText('ISO 14001:2015', { exact: true })).toBeVisible();
   await expect(matrix.getByText('ISO 9001:2015', { exact: true })).toBeVisible();
-  await expect(matrix.getByRole('button', { name: /Sắp hết · ISO 14001:2015 · IAF 14/ })).toBeVisible();
-  await expect(matrix.getByRole('button', { name: /Hết hạn · ISO 14001:2015 · IAF 15/ })).toBeVisible();
-  await expect(matrix.getByRole('button', { name: /Ngừng · ISO 14001:2015 · IAF 16/ })).toBeVisible();
+  await expect(matrix.locator('button[title="Sắp hết · ISO 14001:2015 · IAF 14"]')).toBeVisible();
+  await expect(matrix.locator('button[title="Hết hạn · ISO 14001:2015 · IAF 15"]')).toBeVisible();
+  await expect(matrix.locator('button[title="Ngừng · ISO 14001:2015 · IAF 16"]')).toBeVisible();
   await quality(page, testInfo, 'capabilities-matrix');
 
   await selectOption(page, 'Lọc theo tiêu chuẩn', 'ISO 14001:2015');
@@ -246,7 +246,7 @@ test('competence add and matrix edit keep exact edition, IAF and validity payloa
 
   await selectOption(page, 'Lọc theo tiêu chuẩn', 'ISO 9001:2015');
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('Hóa chất');
-  await page.getByRole('button', { name: /Có · ISO 9001:2015 · IAF 12/ }).click();
+  await page.locator('button[title="Có · ISO 9001:2015 · IAF 12"]').click();
 
   const edit = page.getByRole('dialog', { name: 'Cập nhật năng lực', exact: true });
   await expect(edit.getByRole('textbox', { name: /Có hiệu lực từ$/ })).toHaveValue('20/09/2026');
