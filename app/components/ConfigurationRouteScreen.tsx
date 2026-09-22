@@ -2,7 +2,7 @@
 
 import { ImportOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Card, Tag } from "antd";
+import { Alert, Tag } from "antd";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CertificationBodyCapabilitiesPanel } from "./CertificationBodyCapabilitiesPanel";
@@ -177,15 +177,9 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
         </section>
       ) : null}
 
-      {programsSurface ? (
-        <div className="configuration-route-page__content">
-          <ConfigurationContent section={activeSection} />
-        </div>
-      ) : (
-        <Card className="configuration-route-page__content" {...(compactReadiness ? { variant: "borderless" as const } : { bordered: false })}>
-          <ConfigurationContent section={activeSection} />
-        </Card>
-      )}
+      <section className="configuration-route-page__content" aria-label={destination.label}>
+        <ConfigurationContent section={activeSection} />
+      </section>
     </div>
   );
 }
