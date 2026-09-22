@@ -2367,9 +2367,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const focusValidationIssue = (issue: CreationValidationIssue) => {
     setCreationStep(issue.step);
+    if (issue.step === 0) {
+      setApplicationEntrySection(applicationEntrySectionForField(String(issue.name[0] ?? "")));
+    }
     window.setTimeout(() => {
       wizardForm.scrollToField(issue.name, { block: "center" });
-    }, 80);
+    }, 120);
   };
 
   const validateCurrentStep = async (step = creationStep) => {
