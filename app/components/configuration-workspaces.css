@@ -1170,7 +1170,7 @@
 
 .taxonomy-model__step {
   align-items: center;
-  background: var(--cmp-brand-soft);
+  background: var(--cmp-surface-selected);
   border-radius: 50%;
   color: var(--cmp-brand-primary);
   display: inline-flex;
@@ -1196,7 +1196,7 @@
 
 .taxonomy-model__arrow {
   align-self: center;
-  color: var(--cmp-text-tertiary);
+  color: var(--cmp-text-secondary);
   font-size: var(--cmp-font-size-xl);
 }
 
