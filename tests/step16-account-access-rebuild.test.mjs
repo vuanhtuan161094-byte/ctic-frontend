@@ -37,6 +37,13 @@ test("account list supports useful filters, pagination and responsive cards", ()
   assert.match(accounts, /pagination=\{\{ pageSize: 10/);
 });
 
+test("account admin uses compact summary and clear account grouping", () => {
+  assert.match(accounts, /system-admin-summary/);
+  assert.match(accounts, /aria-label="Tổng quan tài khoản"/);
+  assert.match(accounts, /title: "Nhóm"/);
+  assert.doesNotMatch(accounts, /system-admin-kpi-grid/);
+});
+
 test("admin uses one account list with separate safe creation flows", () => {
   assert.match(accounts, /title="Thêm tài khoản"/);
   assert.match(accounts, /Tài khoản nội bộ/);
