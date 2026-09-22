@@ -6969,3 +6969,15 @@ input { font: inherit; }
     padding-inline: 9px !important;
   }
 }
+
+
+/* Compact route breadcrumb baseline */
+.application-content > .cmp-shell-breadcrumb {
+  line-height: 20px;
+  margin-bottom: 8px;
+  min-height: 20px;
+}
+
+.application-content > .cmp-shell-breadcrumb .ant-breadcrumb {
+  font-size: 12px;
+}
