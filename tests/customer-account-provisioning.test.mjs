@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const modal = fs.readFileSync(new URL('../app/components/CustomerPortalAccountModal.tsx', import.meta.url), 'utf8');
 const customers = fs.readFileSync(new URL('../app/components/CustomersScreen.tsx', import.meta.url), 'utf8');
 const governance = fs.readFileSync(new URL('../app/components/SystemGovernancePanel.tsx', import.meta.url), 'utf8');
+const accounts = fs.readFileSync(new URL('../app/components/SystemAdminScreen.tsx', import.meta.url), 'utf8');
 
 test('customer drawer can create portal accounts directly', () => {
   assert.match(customers, /Tài khoản khách hàng/);
@@ -44,6 +45,15 @@ test('customer drawer exposes simple access lifecycle actions', () => {
   assert.match(customers, /Mật khẩu mới/);
   assert.match(customers, /Ngừng quyền/);
   assert.match(customers, /Khôi phục quyền/);
+});
+
+test('central account admin provisions internal and customer accounts from one entry point', () => {
+  assert.match(accounts, /Thêm tài khoản/);
+  assert.match(accounts, /Tài khoản nội bộ/);
+  assert.match(accounts, /Tài khoản khách hàng/);
+  assert.match(accounts, /CustomerPortalAccountModal/);
+  assert.match(accounts, /customerCreateOpen/);
+  assert.match(accounts, /internalRoleOptions/);
 });
 
 test('system governance offers quick customer account provisioning', () => {
