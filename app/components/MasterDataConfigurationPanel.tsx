@@ -1423,11 +1423,6 @@ export function MasterDataConfigurationPanel({
                   <InputNumber min={0} max={3650} precision={0} addonAfter="ngày" style={{ width: "100%" }} />
                 </Form.Item>
               </div>
-              <Collapse className="organization-compatibility" ghost size="small" items={[{
-                key: "compatibility",
-                label: "Thông tin tương thích hệ thống",
-                children: <Text type="secondary">CMP V1 hiện cố định giao diện tiếng Việt, locale vi-VN và định dạng ngày DD/MM/YYYY. Logo, chân trang và thời hạn lưu tệp cũ được giữ để tương thích dữ liệu nhưng chưa phải thiết lập runtime.</Text>,
-              }]} />
             </div>
 
             <div className="organization-form__actions">
