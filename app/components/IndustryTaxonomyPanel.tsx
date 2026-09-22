@@ -200,9 +200,11 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
   const [demoIsicIds, setDemoIsicIds] = useState<string[]>([]);
   const [demoResults, setDemoResults] = useState<ResolveResult[]>([]);
   const [demoLoading, setDemoLoading] = useState(false);
-  const [quickType, setQuickType] = useState<"ISIC" | "NACE">("NACE");
-  const [quickCode, setQuickCode] = useState("26.5");
+  const [quickType, setQuickType] = useState<"ISIC" | "NACE">("ISIC");
+  const [quickCode, setQuickCode] = useState("");
   const [quickSystem, setQuickSystem] = useState("QMS");
+  const [isicLevel, setIsicLevel] = useState<"CLASS" | "ALL">("CLASS");
+  const [naceLevel, setNaceLevel] = useState<"CLASS" | "ALL">("CLASS");
   const [quickResult, setQuickResult] = useState<ResolveResult | null>(null);
   const [quickLoading, setQuickLoading] = useState(false);
   const [coverageSystem, setCoverageSystem] = useState("QMS");
@@ -245,12 +247,18 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
   const isicClasses = useMemo(() => (isic.data ?? []).filter((row) => row.level === 4), [isic.data]);
   const filteredIsic = useMemo(() => {
     const key = isicSearch.trim().toLowerCase();
-    return (isic.data ?? []).filter((row) => !key || `${row.code} ${row.title_en} ${row.title_vi ?? ""}`.toLowerCase().includes(key));
-  }, [isic.data, isicSearch]);
+    return (isic.data ?? []).filter((row) =>
+      (isicLevel === "ALL" || row.level === 4)
+      && (!key || `${row.code} ${row.title_en} ${row.title_vi ?? ""}`.toLowerCase().includes(key)),
+    );
+  }, [isic.data, isicSearch, isicLevel]);
   const filteredNace = useMemo(() => {
     const key = naceSearch.trim().toLowerCase();
-    return (nace.data ?? []).filter((row) => !key || `${row.code} ${row.title_en} ${row.title_vi ?? ""}`.toLowerCase().includes(key));
-  }, [nace.data, naceSearch]);
+    return (nace.data ?? []).filter((row) =>
+      (naceLevel === "ALL" || row.level === 4)
+      && (!key || `${row.code} ${row.title_en} ${row.title_vi ?? ""}`.toLowerCase().includes(key)),
+    );
+  }, [nace.data, naceSearch, naceLevel]);
   const filteredIaf = useMemo(() => {
     const key = iafSearch.trim().toLowerCase();
     return (iaf.data ?? []).filter((row) => !key || `${row.iaf_code} ${row.iaf_name} ${row.description ?? ""}`.toLowerCase().includes(key));
@@ -396,7 +404,35 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
         />
       ) : null}
 
-      <Card size="small" title="Tra cứu & kiểm tra phân loại">
+      <section className="taxonomy-model" aria-label="Chuỗi phân loại nghiệp vụ">
+        <div className="taxonomy-model__heading">
+          <div>
+            <Text strong>Chuỗi phân loại dùng trong CMP</Text>
+            <Text type="secondary">Đi từ hoạt động của khách hàng đến lĩnh vực chứng nhận, theo đúng từng lớp dữ liệu.</Text>
+          </div>
+          <Tag color={coverage.data?.unresolved ? "red" : "green"}>
+            {coverage.data?.unresolved ? `${coverage.data.unresolved} lỗi mapping` : "Mapping vận hành đạt"}
+          </Tag>
+        </div>
+        <div className="taxonomy-model__flow">
+          <div className="taxonomy-model__node">
+            <span className="taxonomy-model__step">1</span>
+            <div><strong>ISIC Rev.4</strong><small>Hoạt động kinh tế của khách hàng</small></div>
+          </div>
+          <span className="taxonomy-model__arrow">→</span>
+          <div className="taxonomy-model__node">
+            <span className="taxonomy-model__step">2</span>
+            <div><strong>NACE Rev.2</strong><small>Lớp trung gian để quy đổi</small></div>
+          </div>
+          <span className="taxonomy-model__arrow">→</span>
+          <div className="taxonomy-model__node">
+            <span className="taxonomy-model__step">3</span>
+            <div><strong>IAF</strong><small>Lĩnh vực dùng cho chứng nhận & năng lực</small></div>
+          </div>
+        </div>
+      </section>
+
+      <Card className="taxonomy-lookup-card" size="small" title={mode === "mappings" ? "Kiểm tra chất lượng quy đổi" : "Tra cứu nghiệp vụ"}>
         <Tabs items={[
           { key: "quick", label: "Tra nhanh ISIC / NACE", children: (<div aria-label="Tra nhanh bất kỳ mã ISIC / NACE">
         <div className="configuration-task-controls">
@@ -494,27 +530,58 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
         </Row>
         <Text type="secondary">Mục tiêu kiểm soát là <b>Lỗi chưa ánh xạ = 0</b>. Các hoạt động chỉ quy đổi tới NACE 97/98/99 được ghi rõ là ngoài bảng IAF, không tự gán IAF sai chuẩn.</Text>
       </div>) },
-        ]} />
+        ].filter((item) => mode === "mappings" ? item.key === "coverage" : mode === "classifications" ? item.key !== "coverage" : true)} />
       </Card>
 
-      <div className="configuration-summary" aria-label="Tổng quan dữ liệu phân loại">
-        <div><Statistic title="ISIC Rev.4" value={summary.data?.counts.isic_total ?? "—"} /><Text type="secondary">{summary.data?.counts.isic_classes ?? "—"} lớp chi tiết</Text></div>
-        <div><Statistic title="NACE Rev.2" value={summary.data?.counts.nace_total ?? "—"} /><Text type="secondary">{summary.data?.counts.nace_classes ?? "—"} lớp chi tiết</Text></div>
-        <div><Statistic title="Lĩnh vực IAF" value={summary.data?.counts.iaf_total ?? "—"} /></div>
-        <div><Statistic title="Quy đổi ISIC → NACE" value={summary.data?.counts.isic_nace_approved ?? "—"} /><Text type="secondary">Đã phê duyệt</Text></div>
-        <div><Statistic title={`Lỗi chưa ánh xạ · ${coverageSystem}`} value={coverage.data?.unresolved ?? "—"} /></div>
-        <div><Statistic title={`Ngoài bảng IAF · ${coverageSystem}`} value={coverage.data?.outside_iaf_table ?? "—"} /></div>
+      <div className="taxonomy-data-strip" aria-label="Tình trạng dữ liệu phân loại">
+        <div>
+          <Text type="secondary">ISIC Rev.4</Text>
+          <strong>{summary.data?.counts.isic_classes ?? "—"}</strong>
+          <small>{summary.data?.counts.isic_total ?? "—"} mã toàn cây</small>
+        </div>
+        <div>
+          <Text type="secondary">NACE Rev.2</Text>
+          <strong>{summary.data?.counts.nace_classes ?? "—"}</strong>
+          <small>{summary.data?.counts.nace_total ?? "—"} mã toàn cây</small>
+        </div>
+        <div>
+          <Text type="secondary">Lĩnh vực IAF</Text>
+          <strong>{summary.data?.counts.iaf_total ?? "—"}</strong>
+          <small>lĩnh vực đang dùng</small>
+        </div>
+        <div className={(coverage.data?.unresolved ?? 0) ? "taxonomy-data-strip__attention" : undefined}>
+          <Text type="secondary">Chất lượng quy đổi · {coverageSystem}</Text>
+          <strong>{coverage.data?.unresolved ?? "—"} lỗi</strong>
+          <small>{coverage.data?.outside_iaf_table ?? "—"} ngoài bảng IAF</small>
+        </div>
+      </div>
+      <div className="taxonomy-catalog-heading">
+        <div>
+          <Text strong>{mode === "mappings" ? "Bảng quy đổi" : "Danh mục nền"}</Text>
+          <Text type="secondary">{mode === "mappings" ? "Kiểm tra quan hệ ISIC → NACE → IAF." : "Tra cứu dữ liệu gốc; mặc định ưu tiên lớp chi tiết dùng trong hồ sơ chứng nhận."}</Text>
+        </div>
       </div>
       <Tabs
-        style={{ marginTop: 16 }}
+        className="taxonomy-catalog-tabs"
         defaultActiveKey={mode === "mappings" ? "isic-nace" : "isic"}
         items={[
           {
             key: "isic",
-            label: `Danh mục ISIC (${summary.data?.counts.isic_total ?? 0})`,
+            label: `ISIC · ${summary.data?.counts.isic_classes ?? 0} lớp`,
             children: <>
-              <Paragraph type="secondary">Ưu tiên lớp ISIC 4 chữ số; có thể chọn nhiều hoạt động. Tên tiếng Anh giữ để đối chiếu.</Paragraph>
-              <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm trong danh mục" placeholder="Tìm ISIC theo mã, tên tiếng Việt hoặc tiếng Anh..." value={isicSearch} onChange={(event) => setIsicSearch(event.target.value)} style={{ maxWidth: 520, margin: "12px 0" }} />
+              <div className="taxonomy-catalog-toolbar">
+                <Text type="secondary">Lớp 4 chữ số là mức ưu tiên khi xác định hoạt động chứng nhận.</Text>
+                <Select
+                  value={isicLevel}
+                  onChange={setIsicLevel}
+                  options={[
+                    { value: "CLASS", label: `Lớp chi tiết (${summary.data?.counts.isic_classes ?? 0})` },
+                    { value: "ALL", label: `Toàn bộ cây (${summary.data?.counts.isic_total ?? 0})` },
+                  ]}
+                  aria-label="Mức phân cấp ISIC"
+                />
+              </div>
+              <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm trong danh mục" placeholder="Tìm mã hoặc hoạt động ISIC..." value={isicSearch} onChange={(event) => setIsicSearch(event.target.value)} className="taxonomy-catalog-search" />
               <Table components={{ table: ClassificationTable }} scroll={{ x: 640 }} size="small" rowKey="id" loading={isic.isLoading} dataSource={filteredIsic} pagination={{ pageSize: 20, showSizeChanger: true }} columns={[
                 { title: "Mã ISIC", dataIndex: "code", width: 110, render: (value, row: IndustryCode) => <><b>{value}</b><div><Tag>{row.level === 1 ? "Phần" : row.level === 2 ? "Ngành" : row.level === 3 ? "Nhóm" : "Lớp"}</Tag></div></> },
                 { title: "Hoạt động kinh tế", render: (_, row: IndustryCode) => <><div>{codeTitle(row)}</div>{row.title_vi ? <Text type="secondary">Tên chính thức EN: {row.title_en}</Text> : <Text type="secondary">Tên chính thức theo UNSD (EN)</Text>}</> },
@@ -525,10 +592,21 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
           },
           {
             key: "nace",
-            label: `Danh mục NACE (${summary.data?.counts.nace_total ?? 0})`,
+            label: `NACE · ${summary.data?.counts.nace_classes ?? 0} lớp`,
             children: <>
-              <Paragraph type="secondary">NACE trung gian xác định IAF; thẩm xét viên xác nhận hoạt động thực tế khi có nhiều ứng viên.</Paragraph>
-              <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm trong danh mục" placeholder="Tìm NACE theo mã, tên tiếng Việt hoặc tiếng Anh..." value={naceSearch} onChange={(event) => setNaceSearch(event.target.value)} style={{ maxWidth: 520, margin: "12px 0" }} />
+              <div className="taxonomy-catalog-toolbar">
+                <Text type="secondary">NACE là lớp trung gian của chuỗi quy đổi; mặc định hiển thị lớp chi tiết.</Text>
+                <Select
+                  value={naceLevel}
+                  onChange={setNaceLevel}
+                  options={[
+                    { value: "CLASS", label: `Lớp chi tiết (${summary.data?.counts.nace_classes ?? 0})` },
+                    { value: "ALL", label: `Toàn bộ cây (${summary.data?.counts.nace_total ?? 0})` },
+                  ]}
+                  aria-label="Mức phân cấp NACE"
+                />
+              </div>
+              <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm trong danh mục" placeholder="Tìm mã hoặc hoạt động NACE..." value={naceSearch} onChange={(event) => setNaceSearch(event.target.value)} className="taxonomy-catalog-search" />
               <Table components={{ table: ClassificationTable }} scroll={{ x: 640 }} size="small" rowKey="id" loading={nace.isLoading} dataSource={filteredNace} pagination={{ pageSize: 20, showSizeChanger: true }} columns={[
                 { title: "Mã NACE", dataIndex: "code", width: 110, render: (value, row: IndustryCode) => <><b>{value}</b><div><Tag>{row.level === 1 ? "Phần" : row.level === 2 ? "Ngành" : row.level === 3 ? "Nhóm" : "Lớp"}</Tag></div></> },
                 { title: "Hoạt động kinh tế", render: (_, row: IndustryCode) => <><div>{codeTitle(row)}</div>{row.title_vi ? <Text type="secondary">Tên chính thức EN: {row.title_en}</Text> : <Text type="secondary">Nguồn danh mục: Eurostat NACE Rev.2</Text>}</> },
@@ -538,7 +616,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
           },
           {
             key: "iaf",
-            label: `Lĩnh vực IAF (${summary.data?.counts.iaf_total ?? 0})`,
+            label: `IAF · ${summary.data?.counts.iaf_total ?? 0} lĩnh vực`,
             children: <>
               <Paragraph type="secondary">IAF dùng cho phạm vi công nhận, năng lực tổ chức và chuyên gia; được đề xuất theo hệ thống quản lý.</Paragraph>
               <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm trong danh mục" placeholder="Tìm IAF theo số hoặc tên lĩnh vực..." value={iafSearch} onChange={(event) => setIafSearch(event.target.value)} style={{ maxWidth: 520, margin: "12px 0" }} />
@@ -583,7 +661,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
           },
           {
             key: "sources",
-            label: "Nguồn & phiên bản",
+            label: "Nguồn tham chiếu",
             children: <>
               <Title level={5}>Nguồn tham chiếu đang dùng</Title>
               <Paragraph type="secondary">Các nguồn dưới đây được lưu như baseline nghiệp vụ của chuỗi phân loại chứng nhận. Việc cập nhật lên phiên bản phân loại mới phải đi kèm bảng correspondence và rule IAF phù hợp, không thay tự động.</Paragraph>
@@ -599,25 +677,6 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
           || (mode === "classifications" && ["isic", "nace", "iaf", "sources"].includes(item.key))
           || (mode === "mappings" && ["isic-nace", "nace-iaf"].includes(item.key)))}
       />
-      <Collapse size="small" items={[{
-        key: "reference",
-        label: "Hướng dẫn & phiên bản tham chiếu",
-        children: <>
-          <Text strong>ISIC của khách hàng → NACE Rev.2 → IAF</Text>
-          <ol>
-            <li>Khách hàng có thể có nhiều hoạt động: chọn các mã ISIC Rev.4 phù hợp.</li>
-            <li>CMP quy đổi sang NACE Rev.2 và xác định IAF theo hệ thống quản lý.</li>
-            <li>Nếu có nhiều NACE hoặc IAF, thẩm xét viên chọn theo phạm vi thực tế.</li>
-          </ol>
-          <Paragraph>Ví dụ: ISIC 2220 → NACE 22.21 / 22.22 / 22.23 / 22.29 → IAF 14.</Paragraph>
-          <Paragraph>Tra được cả mã cha: NACE 26.5 tổng hợp từ 26.51 / 26.52 → IAF 19.</Paragraph>
-          <Text strong>Phiên bản tham chiếu cho chứng nhận</Text>
-          <ul>
-            <li>ISIC Rev.4 → NACE Rev.2 theo IAF ID 1:2023 (QMS/EMS) và IAF MD 22:2023 (OH&SMS).</li>
-            <li>Chỉ cập nhật phiên bản khi có bảng quy đổi IAF tương ứng; không tự thay bằng phiên bản thống kê mới.</li>
-          </ul>
-        </>,
-      }]} />
     </div>
   );
 }
