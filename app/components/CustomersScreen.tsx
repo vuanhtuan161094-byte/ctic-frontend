@@ -522,7 +522,12 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
               <Card
                 className="customer-access-card"
                 size="small"
-                title="Tài khoản khách hàng"
+                title={(
+                  <div className="customer-card-title">
+                    <span>Tài khoản khách hàng</span>
+                    <small>Quyền Portal của tổ chức</small>
+                  </div>
+                )}
                 extra={
                   <Button
                     icon={<UserAddOutlined />}
@@ -530,16 +535,10 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                     type="primary"
                     disabled={normalize(selectedCustomer.status || "active") !== "active"}
                   >
-                    Tạo tài khoản khách hàng
+                    Thêm tài khoản
                   </Button>
                 }
               >
-                <Alert
-                  className="customer-access-note"
-                  showIcon
-                  type="info"
-                  message="Mỗi người liên hệ có thể có một tài khoản Portal riêng và chỉ truy cập dữ liệu của tổ chức này."
-                />
                 <List
                   loading={customerAccessQuery.isLoading}
                   dataSource={customerAccess}
@@ -559,7 +558,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                             loading={resetPortalPasswordMutation.isPending}
                             onClick={() => resetPortalPasswordMutation.mutate(access.user_id)}
                           >
-                            Mật khẩu mới
+                            Mật khẩu
                           </Button>,
                           active ? (
                             <Popconfirm
@@ -573,7 +572,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                               disabled={blockLastRevoke}
                               onConfirm={() => customerAccessMutation.mutate({ userId: access.user_id, action: "revoke" })}
                             >
-                              <Button danger size="small" disabled={blockLastRevoke}>Ngừng quyền</Button>
+                              <Button danger size="small" disabled={blockLastRevoke}>Ngừng</Button>
                             </Popconfirm>
                           ) : (
                             <Button
@@ -582,15 +581,15 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                               disabled={!accountActive}
                               onClick={() => customerAccessMutation.mutate({ userId: access.user_id, action: "reactivate" })}
                             >
-                              Khôi phục quyền
+                              Khôi phục
                             </Button>
                           ),
                         ]}
                       >
                         <List.Item.Meta
                           avatar={<span className="customer-project-icon"><TeamOutlined /></span>}
-                          title={<Space wrap><strong>{access.user.full_name || access.user.username}</strong><Tag color={active ? "green" : "default"}>{active ? "Đang truy cập" : "Đã ngừng quyền"}</Tag></Space>}
-                          description={<><Text type="secondary">@{access.user.username} · {access.user.email}</Text>{!accountActive ? <><br /><Text type="danger">Tài khoản đang bị khóa/ngừng hoạt động</Text></> : null}</>}
+                          title={<Space wrap size={6}><strong>{access.user.full_name || access.user.username}</strong><Tag color={active ? "green" : "default"}>{active ? "Có quyền Portal" : "Đã ngừng quyền"}</Tag></Space>}
+                          description={<><Text type="secondary">{access.user.email} · @{access.user.username}</Text>{!accountActive ? <><br /><Text type="danger">Tài khoản đang bị khóa/ngừng hoạt động</Text></> : null}</>}
                         />
                       </List.Item>
                     );
@@ -660,22 +659,20 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         onOk={() => void form.validateFields().then((values) => saveMutation.mutate(values))}
         open={formOpen}
         title={editingCustomer ? "Cập nhật khách hàng" : "Thêm khách hàng"}
-        width={700}
+        width={760}
       >
-        <Form className="customer-form" form={form} layout="vertical">
+        <Form className="customer-form customer-form--compact" form={form} layout="vertical">
           <section className="customer-form-section">
-            <div className="customer-form-section__heading">
-              <div>
-                <strong>Thông tin tổ chức</strong>
-                <span>Thông tin nhận diện và pháp lý dùng xuyên suốt hồ sơ chứng nhận.</span>
-              </div>
-              <Tag color="blue">Bắt buộc: mã & tên tổ chức</Tag>
+            <div className="customer-form-section__heading customer-form-section__heading--compact">
+              <strong>Thông tin tổ chức</strong>
+              <Text type="secondary">Mã khách hàng và tên tổ chức là bắt buộc</Text>
             </div>
 
-            <div className="customer-form-grid">
+            <div className="customer-form-grid customer-form-grid--identity">
               <Form.Item label="Mã khách hàng" name="customer_code" rules={[{ required: true, message: "Nhập mã khách hàng" }, { max: 20 }]}>
                 <Input disabled={Boolean(editingCustomer)} placeholder="Ví dụ: CUST004" />
               </Form.Item>
+
               <Form.Item label="Quốc gia">
                 <Select
                   value={countryChoice}
@@ -701,7 +698,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                     { max: 100, message: "Tên quốc gia không được vượt quá 100 ký tự" },
                   ]}
                 >
-                  <Input maxLength={100} placeholder="Ví dụ: Lào, Hoa Kỳ, Vương quốc Anh" />
+                  <Input maxLength={100} placeholder="Ví dụ: Lào, Hoa Kỳ" />
                 </Form.Item>
               ) : null}
 
@@ -727,7 +724,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 ]}
                 extra={normalizeCountryCode(watchedCountryCode) === "VN"
                   ? "10 hoặc 13 chữ số; chấp nhận dạng 0101234567-001."
-                  : "Nhập Tax ID/Business ID theo định dạng của quốc gia."}
+                  : "Theo định dạng của quốc gia."}
               >
                 <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Tax ID / Business ID"} />
               </Form.Item>
@@ -738,24 +735,21 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
             </div>
           </section>
 
-          <section className="customer-form-section customer-form-section--contact">
-            <div className="customer-form-section__heading">
-              <div>
-                <strong>Thông tin liên hệ</strong>
-                <span>Dùng cho trao đổi nghiệp vụ và thông báo trong quá trình chứng nhận.</span>
-              </div>
+          <section className="customer-form-section">
+            <div className="customer-form-section__heading customer-form-section__heading--compact">
+              <strong>Liên hệ</strong>
               <Text type="secondary">Không bắt buộc</Text>
             </div>
 
             <div className="customer-form-grid">
               <Form.Item label="Điện thoại" name="phone" rules={[{ max: 20 }]}>
-                <Input placeholder="Số điện thoại liên hệ" />
+                <Input placeholder="Số điện thoại" />
               </Form.Item>
               <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Email không hợp lệ" }]}>
                 <Input placeholder="Email liên hệ" />
               </Form.Item>
               <Form.Item className="customer-form-wide" label="Địa chỉ" name="address">
-                <Input.TextArea autoSize={{ minRows: 2, maxRows: 3 }} placeholder="Địa chỉ trụ sở hoặc địa điểm liên hệ" />
+                <Input placeholder="Địa chỉ trụ sở hoặc địa điểm liên hệ" />
               </Form.Item>
             </div>
           </section>
