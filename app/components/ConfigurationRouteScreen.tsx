@@ -156,6 +156,7 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
     && blockers.length === 0;
   const numberingOwnsReadiness = activeSection === "numbering";
   const organizationOwnsReadiness = activeSection === "branding";
+  const taxonomyOwnsReadiness = activeSection === "classifications" || activeSection === "mappings";
 
   return (
     <div className="configuration-route-page">
@@ -165,7 +166,7 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
         description={destination.description}
       />
 
-      {!programsSurface && !hideCapabilityReadyBanner && !numberingOwnsReadiness && !organizationOwnsReadiness ? (
+      {!programsSurface && !hideCapabilityReadyBanner && !numberingOwnsReadiness && !organizationOwnsReadiness && !taxonomyOwnsReadiness ? (
         <section className="configuration-route-page__readiness" aria-label="Trạng thái sẵn sàng">
           {!compactReadiness ? <SectionHeader title="Trạng thái sẵn sàng" description="Hoàn tất các mục còn thiếu trước khi sử dụng cấu hình này." /> : null}
           {readiness.isLoading ? <LoadingSkeleton variant="detail" rows={2} /> : readiness.isError ? (
