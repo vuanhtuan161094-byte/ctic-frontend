@@ -2,78 +2,63 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const panelUrl = new URL("../app/components/MasterDataConfigurationPanel.tsx", import.meta.url);
+const root = new URL("../app/", import.meta.url);
+const master = await readFile(new URL("components/MasterDataConfigurationPanel.tsx", root), "utf8");
+const routes = await readFile(new URL("components/ConfigurationRouteScreen.tsx", root), "utf8");
+const programs = await readFile(new URL("components/CertificationProgramsPanel.tsx", root), "utf8");
+const taxonomy = await readFile(new URL("components/IndustryTaxonomyPanel.tsx", root), "utf8");
 
-test("configuration starts with a plain-language guided overview", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /Bắt đầu từ đâu\?/);
-  assert.match(panel, /Không cần cấu hình tất cả cùng lúc/);
-  assert.match(panel, /1\. Chương trình & tiêu chuẩn/);
-  assert.match(panel, /2\. Quy tắc chu kỳ/);
-  assert.match(panel, /3\. Phân loại ngành/);
-  assert.match(panel, /ISIC → NACE → IAF/);
+test("configuration routes use concise business-facing destinations", () => {
+  for (const label of [
+    "Chương trình & tiêu chuẩn",
+    "Phạm vi năng lực",
+    "Quy tắc đánh số",
+    "Tổ chức & nhận diện",
+    "Phân loại ngành",
+    "Nhập dữ liệu",
+  ]) assert.match(routes, new RegExp(label.replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(routes, /backend kiểm soát|chiếu trực tiếp từ dữ liệu/);
 });
 
-test("scheme and standard UI explains concepts with concrete examples", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /QMS – Hệ thống quản lý chất lượng/);
-  assert.match(panel, /ISO 9001 · phiên bản 2015/);
-  assert.match(panel, /Đây không phải tiêu chuẩn và cũng không phải IAF/);
+test("program rule configuration groups core fields and hides secondary scope until needed", () => {
+  assert.match(programs, /Quy tắc chứng nhận/);
+  assert.match(programs, /Chu kỳ chứng nhận/);
+  assert.match(programs, /Cửa sổ tái chứng nhận/);
+  assert.match(programs, /Nhắc trước mốc/);
+  assert.match(programs, /Phạm vi quy tắc & loại áp dụng/);
+  assert.match(programs, /maxTagCount=\{0\}/);
 });
 
-test("scheme rule configuration explains every operational field", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  for (const text of [
-    "Độ dài chu kỳ chứng nhận",
-    "Khoảng giám sát định kỳ",
-    "Thời hạn hiệu lực chứng chỉ",
-    "Cửa sổ tái chứng nhận",
-    "Nhắc vận hành trước mốc",
-    "Có áp dụng Giai đoạn 1",
-    "Danh mục loại đánh giá của chương trình",
-    "Danh mục loại quyết định của chương trình",
-  ]) assert.match(panel, new RegExp(text));
+test("numbering UI exposes current runtime scope without pretending all document numbers are centralized", () => {
+  assert.match(master, /numbering-capabilities/);
+  assert.match(master, /numberingCapabilityOptions\(numberingCapabilities\.data\)/);
+  assert.match(master, /Workflow đang quản lý riêng/);
+  assert.match(master, /Quyết định chỉ định đoàn, Quyết định chứng nhận và Thông báo kết quả/);
+  assert.doesNotMatch(master, /const runtimeNumberingEntities\s*=/);
 });
 
-test("numbering UI only exposes entity types currently consumed by runtime", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /numbering-capabilities/);
-  assert.match(panel, /numberingCapabilityOptions\(numberingCapabilities\.data\)/);
-  assert.match(panel, /non_configurable_entities/);
-  assert.doesNotMatch(panel, /const runtimeNumberingEntities\s*=/);
-  assert.doesNotMatch(panel, /series_key: values\.prefix/);
+test("organization settings show business data and active operational settings only", () => {
+  assert.match(master, /Thông tin tổ chức/);
+  assert.match(master, /Thiết lập vận hành/);
+  assert.match(master, /Múi giờ nghiệp vụ/);
+  assert.match(master, /Mốc nhắc hết hạn chứng chỉ/);
+  assert.doesNotMatch(master, /Form.Item name="logo_reference"/);
+  assert.doesNotMatch(master, /Form.Item name="file_retention_days"/);
+  assert.doesNotMatch(master, /CMP V1 hiện cố định giao diện/);
 });
 
-test("organization settings separate common fields from advanced technical settings", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /1\. Thông tin tổ chức/);
-  assert.match(panel, /2\. Thiết lập vận hành và dữ liệu tương thích/);
-  assert.match(panel, /chưa áp dụng bởi runtime/);
-  assert.doesNotMatch(panel, /Form.Item name="logo_reference"/);
-  assert.doesNotMatch(panel, /Form.Item name="file_retention_days"/);
+test("taxonomy is one focused workspace rather than separate catalog and conversion screens", () => {
+  assert.match(taxonomy, /Chuỗi phân loại dùng trong CMP/);
+  assert.match(taxonomy, /label: "Tra cứu"/);
+  assert.match(taxonomy, /label: "Danh mục"/);
+  assert.match(taxonomy, /label: "Ánh xạ & kiểm soát"/);
+  assert.match(taxonomy, /label: "Nguồn tham chiếu"/);
+  assert.match(routes, /if \(section === "mappings"\) return "classifications"/);
 });
 
-test("configuration UI is explicit about current runtime integration boundaries", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  assert.match(panel, /được lấy từ bản cấu hình đã chốt của dự án/);
-  assert.match(panel, /Độ dài chu kỳ chưa tự sinh thêm hồ sơ giám sát/);
-  assert.match(panel, /Xem trường nào đang tác động thật đến hệ thống/);
-});
-
-test("configuration forms show concrete fill-in examples for every difficult field", async () => {
-  const panel = await readFile(panelUrl, "utf8");
-  for (const text of [
-    "Ví dụ một hồ sơ tổ chức đã điền",
-    "CÔNG TY TNHH ABC CERTIFICATION VIỆT NAM",
-    "certification@abc.vn",
-    "Ví dụ: 01/01/2026",
-    "Ví dụ: 36",
-    "Ví dụ: 12",
-    "Ví dụ: 90",
-    "Ví dụ: 60",
-    "Ví dụ: GĐ1, GĐ2, Giám sát, Tái chứng nhận",
-    "Ví dụ: Cấp, Duy trì, Tái cấp / tái chứng nhận",
-    "Ví dụ: Khiếu nại",
-    "số đầu tiên là 0001",
-  ]) assert.match(panel, new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+test("import center remains a deliberate bulk-data workflow", () => {
+  assert.match(master, /Trung tâm nhập dữ liệu/);
+  assert.match(master, /Kiểm tra \/ Xem trước/);
+  assert.match(master, /Preview không sửa dữ liệu master/);
+  assert.match(master, /accept="\.csv,text\/csv"/);
 });
