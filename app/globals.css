@@ -6981,3 +6981,349 @@ input { font: inherit; }
 .application-content > .cmp-shell-breadcrumb .ant-breadcrumb {
   font-size: 12px;
 }
+
+
+/* Application workflow focus pass */
+/* Entry: fit the identifying fields in one compact viewport. */
+.application-wizard-form .application-general-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.application-wizard-form .application-general-grid .span-2 {
+  grid-column: span 2;
+}
+
+.application-contact-pair {
+  border-top: 1px solid var(--cmp-border-default);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 2px;
+  padding-top: 9px;
+}
+
+.application-contact-pair > section {
+  min-width: 0;
+}
+
+.application-contact-pair__title {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  font-weight: var(--cmp-font-weight-semibold);
+  margin-bottom: 6px;
+}
+
+.application-contact-pair .project-creation-grid.compact {
+  gap: 0 8px;
+}
+
+.application-contact-pair .ant-form-item {
+  margin-bottom: 7px;
+}
+
+.application-wizard-form .application-entry-collapse .ant-collapse-content-box {
+  padding-bottom: 4px !important;
+}
+
+/* Review: one task at a time. Source data stays available but no longer dominates. */
+.application-review-workspace {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.application-review-context {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 150px minmax(220px, 1fr) minmax(260px, 1.35fr) 135px;
+  overflow: hidden;
+}
+
+.application-review-context > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.application-review-context > div + div {
+  border-left: 1px solid var(--cmp-border-default);
+}
+
+.application-review-context span {
+  color: var(--cmp-text-secondary);
+  font-size: 10.5px;
+  line-height: 1.2;
+}
+
+.application-review-context strong {
+  color: var(--cmp-text-primary);
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-source-collapse,
+.application-review-collapse {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.application-source-collapse > .ant-collapse-item,
+.application-review-collapse > .ant-collapse-item {
+  border-bottom: 0;
+}
+
+.application-source-collapse .ant-collapse-header,
+.application-review-collapse .ant-collapse-header {
+  align-items: center !important;
+  min-height: 36px;
+  padding: 7px 10px !important;
+}
+
+.application-source-collapse .ant-collapse-header {
+  background: var(--cmp-surface-subtle);
+}
+
+.application-source-collapse .ant-collapse-header-text {
+  color: var(--cmp-text-secondary);
+  font-size: 11.5px;
+}
+
+.application-review-collapse .ant-collapse-header {
+  background: var(--cmp-surface-raised);
+}
+
+.application-review-collapse .ant-collapse-item-active > .ant-collapse-header {
+  background: var(--cmp-surface-selected);
+}
+
+.application-review-collapse .ant-collapse-header-text {
+  color: var(--cmp-text-primary);
+  font-size: 12.5px;
+  font-weight: var(--cmp-font-weight-semibold);
+}
+
+.application-source-collapse .ant-collapse-content,
+.application-review-collapse .ant-collapse-content {
+  border-top: 1px solid var(--cmp-border-default);
+}
+
+.application-source-collapse .ant-collapse-content-box {
+  padding: 8px 10px !important;
+}
+
+.application-review-collapse .ant-collapse-content-box {
+  padding: 9px 10px 3px !important;
+}
+
+.application-source-collapse .ant-card {
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.application-source-collapse .ant-card + .ant-card {
+  margin-top: 7px;
+}
+
+.application-source-collapse .ant-card-head {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.application-source-collapse .ant-card-head-title {
+  font-size: 11.5px;
+  padding-block: 6px;
+}
+
+.application-source-collapse .ant-card-body {
+  padding: 8px 10px;
+}
+
+.application-source-collapse .ant-descriptions-item-label,
+.application-source-collapse .ant-descriptions-item-content {
+  font-size: 11px;
+  padding-block: 6px !important;
+}
+
+.application-source-collapse .ant-table-thead > tr > th,
+.application-source-collapse .ant-table-tbody > tr > td {
+  font-size: 11px;
+  padding-block: 6px;
+}
+
+.application-review-collapse .ant-card {
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.application-review-collapse .ant-card-head {
+  min-height: 36px;
+  padding-inline: 10px;
+}
+
+.application-review-collapse .ant-card-head-title {
+  font-size: 12px;
+  padding-block: 6px;
+}
+
+.application-review-collapse .ant-card-body {
+  padding: 9px 10px;
+}
+
+/* The checklist is the primary review task; keep each row scan-friendly. */
+.application-review-collapse .application-review-list {
+  gap: 5px;
+}
+
+.application-review-collapse .application-review-row {
+  align-items: center;
+  border-radius: 7px;
+  gap: 8px;
+  grid-template-columns: 26px minmax(240px, 1fr) 135px minmax(180px, 260px);
+  padding: 7px 8px;
+}
+
+.application-review-collapse .application-review-row__number {
+  font-size: 11px;
+  height: 24px;
+  width: 24px;
+}
+
+.application-review-collapse .application-review-row__content {
+  gap: 1px;
+}
+
+.application-review-collapse .application-review-row__content strong {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+.application-review-collapse .application-review-row__content small {
+  font-size: 9.5px;
+  line-height: 1.25;
+}
+
+.application-review-collapse .application-review-row .ant-select {
+  width: 100% !important;
+}
+
+.application-review-collapse .application-review-row .ant-input {
+  width: 100% !important;
+}
+
+.application-review-collapse .manday-standard-basis {
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.application-review-collapse .manday-standard-basis .ant-tag {
+  font-size: 10.5px;
+  line-height: 19px;
+}
+
+.application-review-collapse .project-creation-grid.manday-grid {
+  gap: 0 8px;
+}
+
+.application-review-collapse .ant-form-item {
+  margin-bottom: 8px;
+}
+
+.application-review-collapse .ant-form-item-label {
+  padding-bottom: 2px;
+}
+
+.application-review-collapse .ant-form-item-label > label {
+  font-size: 11px;
+}
+
+.application-review-collapse .ant-alert {
+  padding: 7px 10px;
+}
+
+.application-review-collapse .ant-alert-message {
+  font-size: 11.5px;
+}
+
+.application-review-collapse .ant-alert-description {
+  font-size: 10.5px;
+  line-height: 1.35;
+}
+
+.application-review-collapse .ant-divider {
+  font-size: 11px;
+  margin: 7px 0 9px;
+}
+
+/* Review workflow status is supporting information, not the page hero. */
+.application-review-workspace > .ant-card {
+  box-shadow: none;
+  margin: 0;
+}
+
+.application-review-workspace > .ant-card > .ant-card-head {
+  min-height: 36px;
+}
+
+.application-review-workspace > .ant-card > .ant-card-head .ant-card-head-title {
+  font-size: 12px;
+  padding-block: 6px;
+}
+
+.application-review-workspace > .ant-card > .ant-card-body {
+  padding: 9px 10px;
+}
+
+@media (max-width: 900px) {
+  .application-wizard-form .application-general-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .application-wizard-form .application-general-grid .span-2 {
+    grid-column: 1 / -1;
+  }
+
+  .application-contact-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .application-review-context {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .application-review-context > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--cmp-border-default);
+  }
+
+  .application-review-context > div:nth-child(4) {
+    border-top: 1px solid var(--cmp-border-default);
+  }
+}
+
+@media (max-width: 720px) {
+  .application-review-context {
+    grid-template-columns: 1fr;
+  }
+
+  .application-review-context > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--cmp-border-default);
+  }
+
+  .application-review-collapse .application-review-row {
+    align-items: start;
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .application-review-collapse .application-review-row > .ant-form-item {
+    grid-column: 2;
+  }
+}
