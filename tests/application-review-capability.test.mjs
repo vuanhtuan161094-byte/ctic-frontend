@@ -153,3 +153,18 @@ test("IAF MD11 reduction is system-calculated rather than a manual adjustment", 
   assert.match(source, /integration_reduction_percent: Number\(response\.data\.ims_reduction_percent/);
   assert.doesNotMatch(source, /label: "Giảm do tích hợp IAF MD11"/);
 });
+
+test("application entry uses compact progressive disclosure without changing workflow authority", async () => {
+  const source = await readFile(reviewScreenUrl, "utf8");
+  assert.match(source, /application-entry-stack/);
+  assert.match(source, /ApplicationEntrySection/);
+  assert.match(source, /sectionKey="general"/);
+  assert.match(source, /sectionKey="certification"/);
+  assert.match(source, /sectionKey="personnel"/);
+  assert.match(source, /sectionKey="documents"/);
+  assert.match(source, /applicationEntrySectionForField/);
+  assert.match(source, /width=\{isApplicationWorkspace \? 1040 : 1180\}/);
+  assert.match(source, /applicationDialogMode !== "create"/);
+  assert.match(source, /Lưu & lập xem xét/);
+  assert.match(source, /saveApplicationDraft/);
+});
