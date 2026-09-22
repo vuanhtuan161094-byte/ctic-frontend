@@ -810,3 +810,161 @@
     min-width: 240px !important;
   }
 }
+
+
+/* Configuration route spacing + numbering workspace polish */
+.capability-workspace {
+  padding: var(--cmp-space-2) var(--cmp-space-3) var(--cmp-space-3);
+}
+
+.capability-matrix-scroll {
+  margin-top: var(--cmp-space-1);
+}
+
+.capability-matrix th,
+.capability-matrix td {
+  padding-block: 9px;
+}
+
+.capability-matrix__iaf {
+  padding-inline-start: var(--cmp-space-3) !important;
+}
+
+.numbering-workspace {
+  display: grid;
+  gap: var(--cmp-space-3);
+  min-width: 0;
+}
+
+.numbering-workspace__header {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cmp-space-4);
+  justify-content: space-between;
+}
+
+.numbering-workspace__header > div {
+  display: grid;
+  gap: var(--cmp-space-1);
+  max-width: 880px;
+  min-width: 0;
+}
+
+.numbering-workspace__header h4 {
+  margin: 0;
+}
+
+.numbering-overview {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+}
+
+.numbering-overview > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px var(--cmp-space-3);
+}
+
+.numbering-overview > div + div {
+  border-left: 1px solid var(--cmp-border-default);
+}
+
+.numbering-overview strong {
+  color: var(--cmp-text-primary);
+  font-size: var(--cmp-font-size-xl);
+  line-height: 1.2;
+}
+
+.numbering-readiness-alert {
+  border-radius: var(--cmp-radius-md);
+}
+
+.numbering-scope {
+  border-block: 1px solid var(--cmp-border-default);
+}
+
+.numbering-scope .ant-collapse-item > .ant-collapse-header {
+  padding: 8px 2px !important;
+}
+
+.numbering-scope .ant-collapse-content-box {
+  padding: 4px 2px var(--cmp-space-3) !important;
+}
+
+.numbering-scope__content {
+  display: grid;
+  gap: var(--cmp-space-4);
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr);
+}
+
+.numbering-scope__content > div {
+  display: grid;
+  gap: var(--cmp-space-2);
+  min-width: 0;
+}
+
+.numbering-scope__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cmp-space-1);
+}
+
+.numbering-scope__tags .ant-tag {
+  margin: 0;
+}
+
+.numbering-scope__notes {
+  display: grid;
+  gap: var(--cmp-space-1);
+}
+
+.numbering-tabs .ant-tabs-nav {
+  margin-bottom: var(--cmp-space-2);
+}
+
+.numbering-table-shell {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  overflow: hidden;
+}
+
+.numbering-table-shell .ant-table-wrapper,
+.numbering-table-shell .ant-table,
+.numbering-table-shell .ant-table-container {
+  border-radius: 0;
+}
+
+.numbering-table-shell .ant-table-thead > tr > th {
+  background: var(--cmp-surface-subtle);
+}
+
+.numbering-table-shell .ant-empty {
+  margin-block: var(--cmp-space-8);
+}
+
+@media (max-width: 700px) {
+  .capability-workspace {
+    padding: var(--cmp-space-2);
+  }
+
+  .numbering-workspace__header > .ant-btn {
+    width: 100%;
+  }
+
+  .numbering-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .numbering-overview > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--cmp-border-default);
+  }
+
+  .numbering-scope__content {
+    grid-template-columns: 1fr;
+  }
+}

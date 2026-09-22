@@ -1720,7 +1720,7 @@ input { font: inherit; }
   min-width: 0;
 }
 
-.configuration-route-page__content .ant-card-body {
+.configuration-route-page__content > .ant-card-body {
   padding: 0;
 }
 

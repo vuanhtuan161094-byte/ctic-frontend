@@ -58,6 +58,7 @@ import {
 } from "../lib/numbering-configuration";
 import { IndustryTaxonomyPanel } from "./IndustryTaxonomyPanel";
 import { ImportJobDetails } from "./ImportJobDetails";
+import "./configuration-workspaces.css";
 
 const { Paragraph, Text, Title } = Typography;
 const base = "/master-data-configuration";
@@ -815,10 +816,13 @@ export function MasterDataConfigurationPanel({
   };
 
   const numberingTable = (rows: Numbering[], emptyText: string) => (
-    <Table
-      rowKey="id"
-      size="small"
-      pagination={false}
+    <div className="numbering-table-shell">
+      <Table
+        className="numbering-rules-table"
+        rowKey="id"
+        size="small"
+        pagination={false}
+        scroll={{ x: 900 }}
       locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} /> }}
       dataSource={rows}
       columns={[
@@ -843,7 +847,8 @@ export function MasterDataConfigurationPanel({
           ) : null,
         },
       ]}
-    />
+      />
+    </div>
   );
 
   const downloadImportTemplate = () => {
@@ -1225,16 +1230,77 @@ export function MasterDataConfigurationPanel({
       key: "numbering",
       label: "Quy tắc đánh số",
       children: (
-        <>
-          <Space direction="vertical" size={4} style={{ width: "100%", marginBottom: 12 }}>
-            <Title level={4} style={{ margin: 0 }}>Quy tắc cấp số tự động</Title>
-            <Text type="secondary">Tiền tố hiển thị và năm nghiệp vụ tạo thành dãy đếm. Giữ nguyên tiền tố sẽ tiếp tục dãy; đổi tiền tố sẽ bắt đầu một dãy mới. Số đã cấp không thay đổi.</Text>
-            <Text type="secondary">
-              {(numberingCapabilities.data?.non_configurable_entities ?? []).map((item) => `${item.label}: ${item.reason}`).join(" · ")}
-            </Text>
-          </Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setNumberingOpen(true)} style={{ marginBottom: 12 }} disabled={!numberingOptions.length}>Thêm quy tắc đánh số</Button>
+        <section className="numbering-workspace" aria-label="Quy tắc đánh số">
+          <div className="numbering-workspace__header">
+            <div>
+              <Title level={4}>Quy tắc cấp số tự động</Title>
+              <Text type="secondary">Mỗi loại hồ sơ có thể dùng một dãy số riêng theo tiền tố + năm nghiệp vụ + số thứ tự. Thay đổi quy tắc chỉ áp dụng cho số phát sinh mới.</Text>
+            </div>
+            <Button icon={<PlusOutlined />} type="primary" onClick={() => setNumberingOpen(true)} disabled={!numberingOptions.length}>
+              Thêm quy tắc
+            </Button>
+          </div>
+
+          <div className="numbering-overview" aria-label="Tổng quan quy tắc đánh số">
+            <div>
+              <Text type="secondary">Đang dùng</Text>
+              <strong>{numberingGroups.current.length}</strong>
+            </div>
+            <div>
+              <Text type="secondary">Đã lên lịch</Text>
+              <strong>{numberingGroups.scheduled.length}</strong>
+            </div>
+            <div>
+              <Text type="secondary">Cần thiết lập</Text>
+              <strong>{readiness.data?.numbering.missing_entity_types?.length ?? 0}</strong>
+            </div>
+          </div>
+
+          {(readiness.data?.numbering.reasons ?? []).length ? (
+            <Alert
+              className="numbering-readiness-alert"
+              type={(readiness.data?.numbering.reasons ?? []).some((item) => item.blocking) ? "warning" : "info"}
+              showIcon
+              title="Một số loại hồ sơ chưa có quy tắc đánh số"
+              description={(readiness.data?.numbering.reasons ?? [])
+                .map((item) => item.label)
+                .join(" · ")}
+            />
+          ) : null}
+
+          <Collapse
+            className="numbering-scope"
+            ghost
+            size="small"
+            items={[{
+              key: "scope",
+              label: "Phạm vi áp dụng & cơ chế cấp số hiện tại",
+              children: (
+                <div className="numbering-scope__content">
+                  <div>
+                    <Text strong>Cấu hình tại màn này</Text>
+                    <div className="numbering-scope__tags">
+                      {(numberingCapabilities.data?.configurable_entities ?? []).map((item) => (
+                        <Tag key={item.entity_type}>{item.label}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Text strong>Workflow đang quản lý riêng</Text>
+                    <div className="numbering-scope__notes">
+                      {(numberingCapabilities.data?.non_configurable_entities ?? []).map((item) => (
+                        <div key={item.entity_type}><Text type="secondary">{item.label}: {item.reason}</Text></div>
+                      ))}
+                      <div><Text type="secondary">Quyết định chỉ định đoàn, Quyết định chứng nhận và Thông báo kết quả hiện nhập số tại chính workflow phát hành tương ứng.</Text></div>
+                    </div>
+                  </div>
+                </div>
+              ),
+            }]}
+          />
+
           <Tabs
+            className="numbering-tabs"
             size="small"
             items={[
               { key: "current", label: `Đang dùng (${numberingGroups.current.length})`, children: numberingTable(numberingGroups.current, "Chưa có quy tắc đang dùng") },
@@ -1242,7 +1308,7 @@ export function MasterDataConfigurationPanel({
               { key: "history", label: `Lịch sử (${numberingGroups.historical.length})`, children: numberingTable(numberingGroups.historical, "Chưa có lịch sử thay đổi") },
             ]}
           />
-        </>
+        </section>
       ),
     },
     {
