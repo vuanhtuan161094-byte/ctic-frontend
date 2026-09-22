@@ -93,139 +93,176 @@ async function quality(page, testInfo, name) {
   await runAxeBaseline(page, testInfo);
 }
 
-for (const route of ['classifications', 'mappings']) {
-  test(`${route}: lookup, coverage, reference and catalog stay usable`, async ({ page }, testInfo) => {
-    const runtime = watchRuntimeIssues(page);
-    const fixture = await installApi(page);
-    await page.goto(`/admin/configuration/${route}`);
-    await expect(page.getByRole('heading', { name: route === 'classifications' ? 'Danh mục phân loại' : 'Quy đổi phân loại', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Tra IAF$/ })).toBeInViewport();
-    const help = page.getByRole('button', { name: /Hướng dẫn & phiên bản tham chiếu$/ });
-    await expect(help).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByText('Không có mục cấu hình bắt buộc nào còn thiếu.')).toBeVisible();
-    await expect(page.getByLabel('Tổng quan dữ liệu phân loại').getByText('Lĩnh vực IAF')).toBeVisible();
-    await quality(page, testInfo, `${route}-default`);
-    if (testInfo.project.name === 'mobile-390x844' && route === 'classifications') {
-      const table = page.getByRole('table', { name: 'Dữ liệu phân loại, dùng phím mũi tên để cuộn' });
-      const scroller = table.locator('xpath=..');
-      await table.focus();
-      await table.press('ArrowRight');
-      await expect.poll(() => scroller.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
-      await table.press('ArrowLeft');
-    }
-    await page.getByRole('button', { name: /Tra IAF$/ }).click();
-    await expect(page.getByText('Kết quả:')).toBeVisible();
-    expect(fixture.resolves.at(-1)).toEqual({ classification_type: 'NACE', revision: 'NACE_REV_2', code: '26.5', management_system: 'QMS' });
-    await expect(page.getByLabel('Tra nhanh bất kỳ mã ISIC / NACE').getByText('IAF 19', { exact: true })).toBeVisible();
-    await page.getByRole('tab', { name: 'Nhiều hoạt động ISIC', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Hoạt động ISIC', exact: true }).click();
-    await page.locator('.ant-select-dropdown:visible').getByText('2220 · Sản xuất sản phẩm nhựa', { exact: true }).click();
-    await page.locator('.ant-select-dropdown:visible').getByText('2651 · Sản xuất thiết bị đo lường', { exact: true }).click();
-    await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: /Tra NACE & IAF$/ }).click();
-    await expect(page.getByLabel('Tra thử nhiều hoạt động ISIC').getByText('IAF 14', { exact: true })).toBeVisible();
-    await expect(page.getByLabel('Tra thử nhiều hoạt động ISIC').getByText('IAF 19', { exact: true })).toBeVisible();
-    expect(fixture.resolves.slice(-2).map(item => item.code)).toEqual(['2220', '2651']);
-    await expectNoHorizontalOverflow(page);
-    await page.getByRole('tab', { name: 'Độ phủ ISIC → IAF', exact: true }).click();
-    await selectOption(page, 'Hệ thống quản lý độ phủ', 'ISO 14001 / EMS');
-    await expect(page.getByText('Lỗi chưa ánh xạ · EMS', { exact: true })).toBeVisible();
-    await expect(page.getByText('Không có mã ISIC chứng nhận bị thiếu IAF')).toBeVisible();
-    await help.focus(); await page.keyboard.press('Enter');
-    await expect(help).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByText('Ví dụ: ISIC 2220 → NACE 22.21 / 22.22 / 22.23 / 22.29 → IAF 14.')).toBeVisible();
-    await expect(page.getByText('Phiên bản tham chiếu cho chứng nhận', { exact: true })).toBeVisible();
-    if (route === 'classifications') {
-      await page.getByRole('tab', { name: 'Danh mục NACE (2)', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Tìm trong danh mục', exact: true }).fill('26.5');
-      await expect(page.getByRole('cell', { name: '26.5 Nhóm' })).toBeVisible();
-      await page.getByRole('tab', { name: 'Lĩnh vực IAF (6)', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Tìm trong danh mục', exact: true }).fill('Cao su');
-      await expect(page.getByRole('cell', { name: 'Cao su và sản phẩm nhựa', exact: true })).toBeVisible();
-      await page.getByRole('tab', { name: 'Nguồn & phiên bản', exact: true }).click();
-      await expect(page.getByRole('link', { name: 'Mở nguồn' })).toBeVisible();
-    } else {
-      await page.getByRole('tab', { name: 'Quy đổi NACE → IAF', exact: true }).click();
-      await page.getByRole('textbox', { name: 'Tìm NACE hoặc IAF', exact: true }).fill('26.5');
-      await expect(page.getByRole('cell', { name: 'IAF 19 Thiết bị điện và quang học' })).toBeVisible();
-    }
-    await expectNoHorizontalOverflow(page);
-    expect(fixture.writes).toEqual([]);
-    runtime.assertClean();
-  });
-}
+test('taxonomy unified workspace keeps lookup, catalog, mapping and sources usable', async ({ page }, testInfo) => {
+  const runtime = watchRuntimeIssues(page);
+  const fixture = await installApi(page);
+  await page.goto('/admin/configuration/classifications');
 
-test('taxonomy blocking issue remains prominent', async ({ page }, testInfo) => {
-  await installApi(page, { blocked: true });
+  await expect(page.getByRole('heading', { name: 'Phân loại ngành', exact: true })).toBeVisible();
+  for (const tab of ['Tra cứu', 'Danh mục', 'Ánh xạ & kiểm soát', 'Nguồn tham chiếu']) {
+    await expect(page.getByRole('tab', { name: tab, exact: true })).toBeVisible();
+  }
+  await expect(page.getByText('Chuỗi phân loại dùng trong CMP', { exact: true })).toBeVisible();
+  await expect(page.getByText('Dữ liệu sẵn sàng', { exact: true })).toBeVisible();
+  await quality(page, testInfo, 'taxonomy-unified-default');
+
+  await page.getByRole('textbox', { name: 'Mã cần tra', exact: true }).fill('2220');
+  await page.getByRole('button', { name: /Tra IAF$/ }).click();
+  await expect(page.getByText('Kết quả:')).toBeVisible();
+  await expect(page.getByText(/IAF 14/).filter({ visible: true })).toBeVisible();
+  expect(fixture.resolves.at(-1)).toEqual({
+    classification_type: 'ISIC',
+    revision: 'ISIC_REV_4',
+    code: '2220',
+    management_system: 'QMS',
+  });
+
+  await page.getByRole('tab', { name: 'Nhiều hoạt động', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Hoạt động ISIC', exact: true }).click();
+  await page.locator('.ant-select-dropdown:visible').getByText('2220 · Sản xuất sản phẩm nhựa', { exact: true }).click();
+  await page.locator('.ant-select-dropdown:visible').getByText('2651 · Sản xuất thiết bị đo lường', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /Tra NACE & IAF$/ }).click();
+  await expect(page.getByText(/IAF 14/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/IAF 19/).filter({ visible: true })).toBeVisible();
+  expect(fixture.resolves.slice(-2).map(item => item.code)).toEqual(['2220', '2651']);
+
+  await page.getByRole('tab', { name: 'Ánh xạ & kiểm soát', exact: true }).click();
+  await expect(page.getByText('Đã xác định IAF', { exact: true })).toBeVisible();
+  await expect(page.getByText('Lỗi ánh xạ', { exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /2220/ })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /22\.21/ })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'NACE → IAF', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Tìm NACE hoặc IAF', exact: true }).fill('26.5');
+  await expect(page.getByText('IAF 19', { exact: true }).filter({ visible: true })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Danh mục', exact: true }).click();
+  await expect(page.getByText('419', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: '2220' })).toBeVisible();
+  await page.getByRole('tab', { name: 'IAF', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Tìm IAF', exact: true }).fill('Cao su');
+  await expect(page.getByRole('cell', { name: 'Cao su và sản phẩm nhựa', exact: true })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Nguồn tham chiếu', exact: true }).click();
+  await expect(page.getByRole('link', { name: 'Mở nguồn' }).first()).toBeVisible();
+
+  await expectNoHorizontalOverflow(page);
+  expect(fixture.writes).toEqual([]);
+  runtime.assertClean();
+});
+
+test('legacy taxonomy mapping route resolves into the unified workspace', async ({ page }) => {
+  await installApi(page);
   await page.goto('/admin/configuration/mappings');
+  await expect(page.getByRole('heading', { name: 'Phân loại ngành', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Tra cứu', exact: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Ánh xạ & kiểm soát', exact: true })).toBeVisible();
+});
+
+test('taxonomy blocking issue remains prominent without duplicate readiness chrome', async ({ page }, testInfo) => {
+  await installApi(page, { blocked: true });
+  await page.goto('/admin/configuration/classifications');
   await expect(page.getByText('Dữ liệu phân loại chưa sẵn sàng', { exact: true })).toBeInViewport();
-  await expect(page.getByText('Taxonomy vận hành chưa sẵn sàng', { exact: true })).toBeVisible();
+  await expect(page.getByText('Thiếu ánh xạ NACE cho hoạt động cần chứng nhận', { exact: true })).toBeVisible();
   await expect(page.getByText('Không có mục cấu hình bắt buộc nào còn thiếu.')).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await captureVisualBaseline(page, testInfo, 'taxonomy-blocked');
 });
 
-test('competence summary, edition grouping and filters use the existing records', async ({ page }, testInfo) => {
-  const runtime = watchRuntimeIssues(page); await installApi(page);
+test('competence matrix, summary and filters use the existing records', async ({ page }, testInfo) => {
+  const runtime = watchRuntimeIssues(page);
+  await installApi(page);
   await page.goto('/admin/configuration/capabilities');
-  const summary = page.getByLabel('Tổng quan năng lực');
-  for (const [label, value] of [['Đang hiệu lực', '4'], ['Tiêu chuẩn / chương trình', '3'], ['IAF khác nhau', '4/ 6'], ['Hết hạn trong 30 ngày', '1'], ['Đã hết hạn', '1'], ['Ngừng năng lực', '1']]) {
-    const stat = summary.locator('.ant-statistic').filter({ has: page.locator('.ant-statistic-title').getByText(label, { exact: true }) });
-    await expect(stat.locator('.ant-statistic-content')).toHaveText(value);
-  }
-  await expect(page.locator('.capability-group-heading')).toHaveCount(3);
-  await expect(page.locator('.capability-group-heading').getByText('ISO 14001:2015', { exact: true })).toHaveCount(1);
-  await expect(page.getByRole('button', { name: /Hướng dẫn & thống kê chi tiết$/ })).toHaveAttribute('aria-expanded', 'false');
-  await quality(page, testInfo, 'capabilities-grouped');
+
+  const overview = page.getByLabel('Tổng quan năng lực');
+  await expect(overview.getByText('Năng lực hiệu lực', { exact: true })).toBeVisible();
+  await expect(overview.getByText('4', { exact: true }).first()).toBeVisible();
+  await expect(overview.getByText('Phiên bản tiêu chuẩn', { exact: true })).toBeVisible();
+  await expect(overview.getByText('3', { exact: true }).first()).toBeVisible();
+  await expect(overview.getByText('IAF đang bao phủ', { exact: true })).toBeVisible();
+  await expect(overview.getByText('4 / 6', { exact: true })).toBeVisible();
+  await expect(overview.getByText('Cần rà soát', { exact: true })).toBeVisible();
+  await expect(overview.getByText('2', { exact: true }).first()).toBeVisible();
+  await expect(overview.getByText('1 sắp hết · 1 hết hạn · 1 ngừng', { exact: true })).toBeVisible();
+
+  const matrix = page.getByRole('region', { name: 'Ma trận năng lực theo IAF và tiêu chuẩn' });
+  await expect(matrix).toBeVisible();
+  await expect(matrix.getByText('ISO 14001:2015', { exact: true })).toBeVisible();
+  await expect(matrix.getByText('ISO 9001:2015', { exact: true })).toBeVisible();
+  await expect(matrix.getByRole('button', { name: /Sắp hết · ISO 14001:2015 · IAF 14/ })).toBeVisible();
+  await expect(matrix.getByRole('button', { name: /Hết hạn · ISO 14001:2015 · IAF 15/ })).toBeVisible();
+  await expect(matrix.getByRole('button', { name: /Ngừng · ISO 14001:2015 · IAF 16/ })).toBeVisible();
+  await quality(page, testInfo, 'capabilities-matrix');
+
   await selectOption(page, 'Lọc theo tiêu chuẩn', 'ISO 14001:2015');
-  await expect(page.locator('.capability-group-heading')).toHaveCount(1);
-  await expect(page.getByText('Năng lực theo tiêu chuẩn · 4 kết quả', { exact: true })).toBeVisible();
+  await expect(page.getByText('4 cấu hình · 4 lĩnh vực IAF', { exact: true })).toBeVisible();
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('Cao su');
-  await expect(page.getByText('Năng lực theo tiêu chuẩn · 1 kết quả', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 cấu hình · 1 lĩnh vực IAF', { exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Bộ lọc nâng cao', exact: true }).click();
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('');
-  await page.getByRole('button', { name: /Bộ lọc$/ }).click();
   await selectOption(page, 'Lọc theo hiệu lực', 'Hết hạn trong 30 ngày');
-  await expect(page.getByText('Năng lực theo tiêu chuẩn · 1 kết quả', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 cấu hình · 1 lĩnh vực IAF', { exact: true })).toBeVisible();
   await selectOption(page, 'Lọc theo hiệu lực', 'Đã hết hạn');
-  await expect(page.getByText('Năng lực theo tiêu chuẩn · 1 kết quả', { exact: true })).toBeVisible();
-  await selectOption(page, 'Lọc theo hiệu lực', 'Tất cả thời hạn');
-  await selectOption(page, 'Lọc theo trạng thái', 'Ngừng năng lực');
-  await expect(page.getByText('Năng lực theo tiêu chuẩn · 1 kết quả', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 cấu hình · 1 lĩnh vực IAF', { exact: true })).toBeVisible();
+
   await expectNoHorizontalOverflow(page);
   runtime.assertClean();
 });
 
-test('competence add and edit keep exact edition, IAF and validity payloads', async ({ page }, testInfo) => {
-  const runtime = watchRuntimeIssues(page); const fixture = await installApi(page);
+test('competence add and matrix edit keep exact edition, IAF and validity payloads', async ({ page }, testInfo) => {
+  const runtime = watchRuntimeIssues(page);
+  const fixture = await installApi(page);
   await page.goto('/admin/configuration/capabilities');
+
   await page.getByRole('button', { name: /Thêm năng lực$/ }).click();
   const create = page.getByRole('dialog', { name: 'Thêm năng lực tổ chức' });
   await expect(create.locator('#effective_from')).toHaveValue('20/09/2026');
+
   const standardInput = create.getByRole('combobox', { name: 'Chương trình / tiêu chuẩn / phiên bản' });
   await standardInput.fill('ISO 9001');
   await expect(page.locator('.ant-select-dropdown:visible').getByText('QMS · ISO 9001:2015 — Hệ thống quản lý chất lượng', { exact: true })).toBeVisible();
   await standardInput.press('Enter');
-  await expect(create.getByText('QMS · ISO 9001:2015', { exact: true })).toBeVisible();
+
   const iafInput = create.getByRole('combobox', { name: 'Lĩnh vực IAF được cấp năng lực' });
   await iafInput.fill('Hóa chất');
   await expect(page.locator('.ant-select-dropdown:visible').getByText('IAF 12 · Hóa chất, sản phẩm hóa chất và sợi', { exact: true })).toBeVisible();
   await iafInput.press('Enter');
   await expect(create.getByRole('button', { name: 'Lưu 1 lĩnh vực IAF', exact: true })).toBeVisible();
-  await create.getByText('Thêm năng lực tổ chức', { exact: true }).click();
   await quality(page, testInfo, 'capability-add');
   await create.getByRole('button', { name: 'Lưu 1 lĩnh vực IAF', exact: true }).click();
   await expect(create).not.toBeVisible();
-  expect(fixture.writes[0]).toEqual({ method: 'POST', body: { standard_edition_id: 'edition-qms', iaf_scope_ids: ['iaf-12'], status: 'ACTIVE', effective_from: '2026-09-20' } });
+
+  expect(fixture.writes[0]).toEqual({
+    method: 'POST',
+    body: {
+      standard_edition_id: 'edition-qms',
+      iaf_scope_ids: ['iaf-12'],
+      status: 'ACTIVE',
+      effective_from: '2026-09-20',
+    },
+  });
+
   await selectOption(page, 'Lọc theo tiêu chuẩn', 'ISO 9001:2015');
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('Hóa chất');
-  await page.getByRole('button', { name: /Sửa$/ }).filter({ visible: true }).click();
+  await page.getByRole('button', { name: /Có · ISO 9001:2015 · IAF 12/ }).click();
+
   const edit = page.getByRole('dialog', { name: 'Cập nhật năng lực', exact: true });
   await expect(edit.getByRole('textbox', { name: /Có hiệu lực từ$/ })).toHaveValue('20/09/2026');
   await edit.getByRole('textbox', { name: 'Tham chiếu / ghi chú' }).fill('Kiểm tra giao diện có kiểm soát');
   await quality(page, testInfo, 'capability-edit');
   await edit.getByRole('button', { name: 'Lưu thay đổi', exact: true }).click();
   await expect(edit).not.toBeVisible();
-  expect(fixture.writes[1]).toEqual({ method: 'PATCH', path: '/certification-body-capabilities/new-iaf-12', body: { status: 'ACTIVE', effective_from: '2026-09-20', notes: 'Kiểm tra giao diện có kiểm soát' } });
-  await expect(page.getByText('Kiểm tra giao diện có kiểm soát', { exact: true }).filter({ visible: true })).toBeVisible();
+
+  expect(fixture.writes[1]).toEqual({
+    method: 'PATCH',
+    path: '/certification-body-capabilities/new-iaf-12',
+    body: {
+      status: 'ACTIVE',
+      effective_from: '2026-09-20',
+      notes: 'Kiểm tra giao diện có kiểm soát',
+    },
+  });
   runtime.assertClean();
 });
