@@ -9,17 +9,16 @@ const accounts = fs.readFileSync(new URL('../app/components/SystemAdminScreen.ts
 
 test('customer drawer can create portal accounts directly', () => {
   assert.match(customers, /Tài khoản khách hàng/);
-  assert.match(customers, /Tạo tài khoản khách hàng/);
+  assert.match(customers, /Thêm tài khoản/);
   assert.match(customers, /\/customers\/\$\{selectedCustomerId\}\/user-access/);
 });
 
 test('customer portal provisioning and password reset remain visible only to Admin', () => {
   assert.match(customers, /const\s+isAdmin\s*=\s*normalizedRoles\.includes\("admin"\)/);
   assert.match(customers, /enabled:\s*Boolean\(selectedCustomerId\s*&&\s*isAdmin\)/);
-  const adminAccountCard = customers.match(/\{isAdmin\s*\?\s*\(\s*<Card\s+title="Tài khoản khách hàng"([\s\S]*?)<\/Card>\s*\)\s*:\s*null\}/)?.[1];
-  assert.ok(adminAccountCard, 'customer-account controls must remain inside the Admin-only card');
-  assert.match(adminAccountCard, /setPortalAccountOpen\(true\)/);
-  assert.match(adminAccountCard, /resetPortalPasswordMutation\.mutate\(access\.user_id\)/);
+  assert.match(customers, /className="customer-access-card"/);
+  assert.match(customers, /setPortalAccountOpen\(true\)/);
+  assert.match(customers, /resetPortalPasswordMutation\.mutate\(access\.user_id\)/);
   assert.equal((customers.match(/setPortalAccountOpen\(true\)/g) ?? []).length, 1);
   assert.equal((customers.match(/resetPortalPasswordMutation\.mutate\(/g) ?? []).length, 1);
 });
@@ -41,10 +40,12 @@ test('existing customer accounts are linked instead of pretending a new password
   assert.match(modal, /tài khoản CUSTOMER hợp lệ/);
 });
 
-test('customer drawer exposes simple access lifecycle actions', () => {
-  assert.match(customers, /Mật khẩu mới/);
-  assert.match(customers, /Ngừng quyền/);
-  assert.match(customers, /Khôi phục quyền/);
+test('customer drawer exposes compact access lifecycle actions with accurate semantics', () => {
+  assert.match(customers, />Mật khẩu<\/Button>/);
+  assert.match(customers, />Ngừng<\/Button>/);
+  assert.match(customers, />Khôi phục<\/Button>/);
+  assert.match(customers, /Có quyền Portal/);
+  assert.doesNotMatch(customers, /Đang truy cập/);
 });
 
 test('central account admin provisions internal and customer accounts from one entry point', () => {
