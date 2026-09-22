@@ -23,7 +23,6 @@ import {
   Modal,
   Select,
   Space,
-  Statistic,
   Tabs,
   Tag,
   Tooltip,
@@ -856,11 +855,11 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
         </Space>}
       />
 
-      <section className="system-admin-kpi-grid">
-        <Card><Statistic prefix={<TeamOutlined />} title="Tổng tài khoản" value={summary.total} /></Card>
-        <Card><Statistic prefix={<SafetyCertificateOutlined />} title="Đang hoạt động" value={summary.active} /></Card>
-        <Card><Statistic prefix={<LockOutlined />} title="Đã khóa" value={summary.locked} /></Card>
-        <Card><Statistic prefix={<UserOutlined />} title="Ngừng hoạt động" value={summary.inactive} /></Card>
+      <section className="system-admin-summary" aria-label="Tổng quan tài khoản">
+        <div><TeamOutlined /><span>Tổng tài khoản</span><strong>{summary.total}</strong></div>
+        <div><SafetyCertificateOutlined /><span>Đang hoạt động</span><strong>{summary.active}</strong></div>
+        <div><LockOutlined /><span>Đã khóa</span><strong>{summary.locked}</strong></div>
+        <div><UserOutlined /><span>Ngừng hoạt động</span><strong>{summary.inactive}</strong></div>
       </section>
 
       {!routeMode ? <SystemGovernancePanel /> : null}
