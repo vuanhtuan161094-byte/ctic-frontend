@@ -1,12 +1,40 @@
 # UX-V1 — Configuration Visual Direction Gate
 
-Status: **CURRENT UI + SURGICAL POLISH — Fix 2 PASS / LOCKED**
-Date: **2026-09-21**
+Status: **CURRENT UI + SURGICAL POLISH — CONFIGURATION UX PASS / LOCKED**
+Date: **2026-09-22**
 Branch: `feature/ux-fix-batch01`  
 Entering frontend canonical: `dac0bc3e6d50a36dee7fa3fa34dae6d3085c50b1` (UX-I3 PASS / LOCKED)  
 Accepted Fix 1 checkpoint: `bb67e7a45fee088025c5428ae23225d185349e48`
 
 ## Current canonical decision — supersedes the historical proposal below
+
+### Configuration surface closure — 2026-09-22
+
+Status: **PRODUCT / UX PASS / LOCKED**.
+
+Implementation checkpoint before this documentation commit: `96c7884a256450b5f57fb148734c4a63324bddd0`.
+
+Canonical configuration surfaces now are:
+
+- **Chương trình & tiêu chuẩn** — compact program/edition hierarchy; certification-rule editor keeps core lifecycle fields visible and secondary rule scope progressively disclosed.
+- **Phạm vi năng lực** — matrix-first view by standard edition × IAF, with compact summary, filters and detail drill-down; existing add/edit authority and effective-date payloads are preserved.
+- **Quy tắc đánh số** — current runtime scope is presented compactly and transparently. A future Identifier & Numbering Authority / Numbering V2 is intentionally deferred and is not part of this closure.
+- **Tổ chức & nhận diện** — business-facing organization/contact/runtime fields only; internal compatibility metadata is not exposed as operator configuration.
+- **Phân loại ngành** — catalog and mapping are unified into one workspace with four focused views: Tra cứu, Danh mục, Ánh xạ & kiểm soát, Nguồn tham chiếu. Legacy `/admin/configuration/mappings` resolves to the unified workspace.
+- **Nhập dữ liệu** — remains the deliberate bulk-data path with validate/preview before commit; mapping publication remains separately governed.
+
+Taxonomy hardening at closure:
+- approved ISIC→NACE mappings are requested with an explicit `status=APPROVED` parameter;
+- loading/refetch state is distinguished from a genuinely empty result, avoiding the misleading “996 nhưng Trống” presentation;
+- wording uses business language: `Dữ liệu sẵn sàng`, `Đã xác định IAF`, `Lỗi ánh xạ`;
+- the inner mapping tab no longer repeats the summary count as if it were a guaranteed currently-rendered row count.
+
+Navigation is intentionally compact: one **Phân loại ngành** destination plus **Nhập dữ liệu** under Dữ liệu phân loại. No additional configuration feature was introduced by this closure.
+
+No backend, database, migration, authority, permission or certification business-rule changes are authorized by this UX closure.
+
+Regression specifications were refreshed to match the current unified taxonomy and capability-matrix surfaces. They were **not re-executed in the GitHub connector environment**, so this closure records product/source-review acceptance rather than a newly claimed automated-test run.
+
 
 The full Configuration-screen redesign has been rejected. The **current production UI is the canonical visual baseline**. The official UX-V1 strategy is **CURRENT UI + SURGICAL POLISH**, not a system-wide redesign. Previous redesign mockups and the historical proposal below are not canonical implementation targets and do not authorize changes to the existing business structure.
 
