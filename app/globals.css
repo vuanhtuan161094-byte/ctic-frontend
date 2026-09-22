@@ -5943,3 +5943,24 @@ input { font: inherit; }
     border-bottom: 0 !important;
   }
 }
+
+
+/* Account table column balance */
+.system-role-tag {
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-admin-table-card .ant-table-cell-fix-right {
+  background: var(--cmp-surface-raised);
+}
+
+.system-admin-table-card .ant-table-thead .ant-table-cell-fix-right {
+  background: var(--cmp-surface-subtle);
+}
+
+.system-admin-table-card .ant-table-tbody > tr:hover > .ant-table-cell-fix-right {
+  background: #fafcff;
+}
