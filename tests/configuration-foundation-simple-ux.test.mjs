@@ -8,7 +8,7 @@ const routes = fs.readFileSync(new URL('../app/components/ConfigurationRouteScre
 test('program and standard setup is one focused business surface', () => {
   assert.match(routes, /CertificationProgramsPanel/);
   assert.match(routes, /label: "Chương trình & tiêu chuẩn"/);
-  assert.match(routes, /section === "standards" \? "schemes" : section/);
+  assert.match(routes, /if \(section === "standards"\) return "schemes"/);
 });
 
 test('the route does not duplicate the sidebar with a second configuration navigation', () => {
