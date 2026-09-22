@@ -1562,6 +1562,40 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     retry: false,
   });
   const capabilityEvaluation = capabilityEvaluationQuery.data ?? null;
+  const capabilitySummaryRows = useMemo(() => {
+    if (!capabilityEvaluation) return [];
+    const grouped = new Map<string, {
+      program_code: string;
+      program_name: string;
+      iaf_codes: string[];
+      capable: number;
+      total: number;
+      result: "CAPABLE" | "REVIEW_REQUIRED" | "NOT_CAPABLE";
+      issues: string[];
+    }>();
+
+    for (const item of capabilityEvaluation.items) {
+      const key = `${item.program_code}:${item.program_name}`;
+      const current = grouped.get(key) ?? {
+        program_code: item.program_code,
+        program_name: item.program_name,
+        iaf_codes: [],
+        capable: 0,
+        total: 0,
+        result: "CAPABLE" as const,
+        issues: [],
+      };
+      current.total += 1;
+      if (item.iaf_code && !current.iaf_codes.includes(item.iaf_code)) current.iaf_codes.push(item.iaf_code);
+      if (item.result === "CAPABLE") current.capable += 1;
+      if (item.result === "NOT_CAPABLE") current.result = "NOT_CAPABLE";
+      else if (item.result === "REVIEW_REQUIRED" && current.result !== "NOT_CAPABLE") current.result = "REVIEW_REQUIRED";
+      if (item.result !== "CAPABLE" && item.reason && !current.issues.includes(item.reason)) current.issues.push(item.reason);
+      grouped.set(key, current);
+    }
+
+    return Array.from(grouped.values());
+  }, [capabilityEvaluation]);
   const canReviewWorkflow = Boolean(
     latestWorkflowReview?.id &&
     reviewWorkflowStatus === "SUBMITTED" &&
@@ -4576,47 +4610,52 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         </div>
 
                         <div className="span-2">
-                          <Card size="small" title="Đối chiếu năng lực tổ chức chứng nhận">
+                          <Card
+                            className="cb-capability-compact"
+                            size="small"
+                            title="Năng lực tổ chức chứng nhận"
+                            extra={capabilityEvaluation ? (
+                              <Tag color={capabilityEvaluation.overall_result === "CAPABLE" ? "green" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "red" : "orange"}>
+                                {capabilityEvaluation.overall_result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "KHÔNG ĐỦ" : "CẦN XEM XÉT"}
+                              </Tag>
+                            ) : null}
+                          >
                             {!activeCapabilityReviewId ? (
-                              <Alert
-                                message="Đối chiếu năng lực tổ chức trước khi gửi reviewer"
-                                description={
-                                  <Space direction="vertical" size={8}>
-                                    <Text>Năng lực được đánh giá theo Chương trình/Tiêu chuẩn + mã IAF của tổ chức chứng nhận; không phụ thuộc chuyên gia dự kiến.</Text>
-                                    <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()} type="primary">
-                                      Đối chiếu năng lực tổ chức
-                                    </Button>
-                                  </Space>
-                                }
-                                showIcon
-                                type="info"
-                              />
+                              <div className="cb-capability-empty">
+                                <Text type="secondary">Đối chiếu theo tiêu chuẩn + IAF trước khi gửi reviewer.</Text>
+                                <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()} size="small" type="primary">
+                                  Đối chiếu
+                                </Button>
+                              </div>
                             ) : capabilityEvaluationQuery.isLoading ? (
-                              <Skeleton active paragraph={{ rows: 2 }} />
+                              <Skeleton active paragraph={{ rows: 1 }} />
                             ) : capabilityEvaluation ? (
-                              <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                                <div className="cb-capability-grid">
-                                  {capabilityEvaluation.items.map((item, index) => (
-                                    <div className="cb-capability-item" key={`${item.program_code}-${item.iaf_code ?? "unresolved"}-${index}`}>
-                                      <div><Text strong>{item.program_name}</Text> · IAF {item.iaf_code ?? "—"}</div>
-                                      <Tag color={item.result === "CAPABLE" ? "green" : item.result === "NOT_CAPABLE" ? "red" : "orange"}>
-                                        {item.result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : item.result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}
+                              <>
+                                <div className="cb-capability-rows">
+                                  {capabilitySummaryRows.map((row) => (
+                                    <div className="cb-capability-row" key={`${row.program_code}:${row.program_name}`}>
+                                      <strong>{row.program_name}</strong>
+                                      <span className="cb-capability-row__iaf">
+                                        {row.iaf_codes.length ? row.iaf_codes.map((code) => `IAF ${code}`).join(" · ") : "IAF —"}
+                                      </span>
+                                      <Tag color={row.result === "CAPABLE" ? "green" : row.result === "NOT_CAPABLE" ? "red" : "orange"}>
+                                        {row.result === "CAPABLE" ? `${row.capable}/${row.total} đủ` : row.result === "NOT_CAPABLE" ? "Không đủ" : "Cần xem xét"}
                                       </Tag>
-                                      <Text type="secondary">{item.reason}</Text>
+                                      {row.issues.length ? <Text className="cb-capability-row__issue" type="secondary">{row.issues.join(" · ")}</Text> : null}
                                     </div>
                                   ))}
                                 </div>
-                                <Alert
-                                  message={`Kết luận năng lực tổ chức: ${capabilityEvaluation.overall_result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}`}
-                                  showIcon
-                                  type={capabilityEvaluation.overall_result === "CAPABLE" ? "success" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "error" : "warning"}
-                                />
-                                {canEditReviewDraft ? (
-                                  <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()}>
-                                    Kiểm tra lại năng lực tổ chức
-                                  </Button>
-                                ) : null}
-                              </Space>
+                                <div className="cb-capability-footer">
+                                  <Text type="secondary">
+                                    {capabilityEvaluation.items.filter((item) => item.result === "CAPABLE").length}/{capabilityEvaluation.items.length} phạm vi đáp ứng
+                                  </Text>
+                                  {canEditReviewDraft ? (
+                                    <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()} size="small" type="link">
+                                      Kiểm tra lại
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </>
                             ) : (
                               <Alert message="Chưa thể đối chiếu năng lực tổ chức" showIcon type="warning" />
                             )}
