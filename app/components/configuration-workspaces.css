@@ -1468,3 +1468,77 @@
     flex-wrap: wrap;
   }
 }
+
+
+/* Route-owned configuration density */
+.configuration-route-page__content .certification-programs-workspace {
+  margin-top: 0;
+}
+
+.configuration-route-page__content .capability-workspace,
+.configuration-route-page__content .organization-workspace,
+.configuration-route-page__content .taxonomy-workspace {
+  padding: 0;
+}
+
+.configuration-route-page__content .taxonomy-workspace,
+.configuration-route-page__content .capability-workspace,
+.configuration-route-page__content .organization-form,
+.configuration-route-page__content .numbering-workspace {
+  gap: var(--cmp-space-3);
+}
+
+.configuration-route-page__content .taxonomy-model,
+.configuration-route-page__content .organization-form__section,
+.configuration-route-page__content .numbering-overview,
+.configuration-route-page__content .capability-overview,
+.configuration-route-page__content .capability-matrix-scroll {
+  border-color: var(--cmp-border-default);
+}
+
+.configuration-route-page__content .taxonomy-model,
+.configuration-route-page__content .organization-form__section {
+  padding: var(--cmp-space-3);
+}
+
+.configuration-route-page__content .taxonomy-primary-tabs > .ant-tabs-nav,
+.configuration-route-page__content .taxonomy-catalog-tabs > .ant-tabs-nav,
+.configuration-route-page__content .taxonomy-mapping-tabs > .ant-tabs-nav,
+.configuration-route-page__content .numbering-tabs > .ant-tabs-nav {
+  border-bottom: 1px solid var(--cmp-border-default);
+  margin-bottom: var(--cmp-space-3);
+}
+
+.configuration-route-page__content .taxonomy-primary-tabs > .ant-tabs-nav::before,
+.configuration-route-page__content .taxonomy-catalog-tabs > .ant-tabs-nav::before,
+.configuration-route-page__content .taxonomy-mapping-tabs > .ant-tabs-nav::before,
+.configuration-route-page__content .numbering-tabs > .ant-tabs-nav::before {
+  border-bottom: 0;
+}
+
+.configuration-route-page__content .configuration-task-controls,
+.configuration-route-page__content .capability-filters,
+.configuration-route-page__content .taxonomy-catalog-toolbar {
+  background: var(--cmp-surface-subtle);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  padding: var(--cmp-space-2);
+}
+
+.configuration-route-page__content .taxonomy-catalog-search {
+  margin-bottom: var(--cmp-space-2);
+}
+
+.configuration-route-page__content .certification-program-card,
+.configuration-route-page__content .numbering-table-shell,
+.configuration-route-page__content .capability-matrix-scroll {
+  box-shadow: none;
+}
+
+@media (max-width: 700px) {
+  .configuration-route-page__content .capability-workspace,
+  .configuration-route-page__content .organization-workspace,
+  .configuration-route-page__content .taxonomy-workspace {
+    padding: 0;
+  }
+}
