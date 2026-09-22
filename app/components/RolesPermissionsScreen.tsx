@@ -5,7 +5,7 @@ import type { TableColumnsType } from "antd";
 import { Card, Tag, Typography } from "antd";
 
 import { api, getErrorMessage } from "../lib/api";
-import { DataTable, ErrorState, LoadingSkeleton, PageHeader, ReadOnlyState, SectionHeader } from "./design-system";
+import { DataTable, ErrorState, LoadingSkeleton, PageHeader } from "./design-system";
 
 interface RoleDefinition {
   id: string;
@@ -74,9 +74,12 @@ export function RolesPermissionsScreen() {
         description="Vai trò là định nghĩa cấp quyền; quyền hiệu lực của từng tài khoản còn bao gồm điều chỉnh riêng do backend tính toán."
         metadata={<span>{rows.length} vai trò · {catalog.data?.length ?? 0} quyền trong danh mục</span>}
       />
-      <SectionHeader title="Định nghĩa vai trò" description="Quyền được nhóm theo ngữ cảnh nghiệp vụ để tránh một ma trận quyền khó đọc." />
-      <ReadOnlyState reason="Màn hình này mô tả định nghĩa hiện hành. Hệ thống không mở trình tạo vai trò/quyền tùy ý; thay đổi tài khoản vẫn đi qua các API ADMIN được bảo vệ." />
-      <Card bordered={false}>
+      <Card
+        className="roles-permissions-surface"
+        size="small"
+        title="Định nghĩa vai trò"
+        extra={<Typography.Text type="secondary">Chỉ đọc · quyền được nhóm theo nghiệp vụ</Typography.Text>}
+      >
         <DataTable<RoleDefinition>
           columns={columns}
           dataSource={rows}
