@@ -4,13 +4,21 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../app/components/CertificationBodyCapabilitiesPanel.tsx', import.meta.url), 'utf8');
 
-test('capability screen hides help and filters behind collapsible sections', () => {
-  assert.match(source, /Hướng dẫn & thống kê chi tiết/);
-  assert.match(source, /label: "Bộ lọc"/);
+test('capability screen keeps secondary filters and help collapsible', () => {
+  assert.match(source, /label: "Bộ lọc nâng cao"/);
+  assert.match(source, /label: "Cách đọc ma trận năng lực"/);
   assert.match(source, /<Collapse/);
 });
 
-test('create capability keeps only core selection visible and keeps required effective fields mounted', () => {
+test('capability overview is compact rather than six independent statistic cards', () => {
+  for (const label of ['Năng lực hiệu lực', 'Phiên bản tiêu chuẩn', 'IAF đang bao phủ', 'Cần rà soát']) {
+    assert.match(source, new RegExp(label));
+  }
+  assert.match(source, /capability-overview/);
+  assert.doesNotMatch(source, /<Statistic/);
+});
+
+test('create capability keeps core selection visible and required effective fields mounted', () => {
   assert.match(source, /label: "Hiệu lực & ghi chú"/);
   assert.match(source, /forceRender: true/);
   assert.match(source, /Chương trình \/ tiêu chuẩn \/ phiên bản/);
@@ -32,6 +40,6 @@ test('edit capability also hydrates date fields after modal mount', () => {
 
 test('standard display avoids blindly appending edition twice', () => {
   assert.match(source, /function formatStandardCode/);
-  assert.match(source, /normalized\.endsWith\(`:\$\{normalizedEdition\}`\)/);
+  assert.match(source, /normalized\.endsWith\(\x60:\$\{normalizedEdition\}\x60\)/);
   assert.doesNotMatch(source, /selectedStandard\.standard_code\}:\$\{selectedStandard\.edition\}/);
 });
