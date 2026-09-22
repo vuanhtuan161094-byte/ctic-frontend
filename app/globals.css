@@ -7327,3 +7327,62 @@ input { font: inherit; }
     grid-column: 2;
   }
 }
+
+
+/* Application review workflow status */
+.application-workflow-collapse {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.application-workflow-collapse > .ant-collapse-item {
+  border-bottom: 0;
+}
+
+.application-workflow-collapse .ant-collapse-header {
+  align-items: center !important;
+  min-height: 36px;
+  padding: 7px 10px !important;
+}
+
+.application-workflow-collapse .ant-collapse-content {
+  border-top: 1px solid var(--cmp-border-default);
+}
+
+.application-workflow-collapse .ant-collapse-content-box {
+  padding: 8px 10px !important;
+}
+
+.application-workflow-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.application-workflow-label > span {
+  color: var(--cmp-text-secondary);
+  font-size: 11.5px;
+  font-weight: var(--cmp-font-weight-medium);
+}
+
+.application-workflow-label .ant-tag {
+  margin: 0;
+}
+
+.application-workflow-collapse .ant-descriptions-item {
+  padding-bottom: 2px;
+}
+
+.application-workflow-collapse .ant-descriptions-item-label,
+.application-workflow-collapse .ant-descriptions-item-content {
+  font-size: 10.5px;
+  padding-bottom: 4px;
+}
+
+.application-workflow-comment {
+  margin-top: 6px;
+}
