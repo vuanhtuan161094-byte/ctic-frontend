@@ -163,8 +163,23 @@ test("application entry uses compact progressive disclosure without changing wor
   assert.match(source, /sectionKey="personnel"/);
   assert.match(source, /sectionKey="documents"/);
   assert.match(source, /applicationEntrySectionForField/);
-  assert.match(source, /width=\{isApplicationWorkspace \? 1040 : 1180\}/);
+  assert.match(source, /width=\{isApplicationWorkspace \? \(actualCreationStep === 0 \? 980 : 1080\) : 1180\}/);
   assert.match(source, /applicationDialogMode !== "create"/);
   assert.match(source, /Lưu & lập xem xét/);
   assert.match(source, /saveApplicationDraft/);
+});
+
+
+test("focused review sections keep source data secondary and validation-revealable", async () => {
+  const source = await readFile(reviewScreenUrl, "utf8");
+  assert.match(source, /application-review-workspace/);
+  assert.match(source, /application-review-context/);
+  assert.match(source, /application-source-collapse/);
+  assert.doesNotMatch(source, /defaultActiveKey=\{\["application-summary"\]\}/);
+  assert.match(source, /sectionKey="criteria"/);
+  assert.match(source, /sectionKey="scope"/);
+  assert.match(source, /sectionKey="manday"/);
+  assert.match(source, /sectionKey="conclusion"/);
+  assert.match(source, /applicationReviewSectionForField/);
+  assert.match(source, /application-workflow-collapse/);
 });
