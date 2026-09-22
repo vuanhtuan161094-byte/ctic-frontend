@@ -1236,6 +1236,56 @@ function applicationEntrySectionForField(field: string) {
   return "general";
 }
 
+
+function ApplicationReviewSection({
+  sectionKey,
+  title,
+  activeSection,
+  onActiveSection,
+  children,
+}: {
+  sectionKey: string;
+  title: string;
+  activeSection: string | null;
+  onActiveSection: (section: string | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Collapse
+      className="application-review-collapse"
+      activeKey={activeSection === sectionKey ? [sectionKey] : []}
+      onChange={(keys) => onActiveSection(keys.length ? sectionKey : null)}
+      items={[{
+        key: sectionKey,
+        label: title,
+        forceRender: true,
+        children,
+      }]}
+    />
+  );
+}
+
+function applicationReviewSectionForField(field: string) {
+  if (["review_items"].includes(field)) return "criteria";
+
+  if (["audit_field", "iaf_code", "isic_code", "industry_scopes"].includes(field)) {
+    return "scope";
+  }
+
+  if ([
+    "proposed_auditor_id", "proposed_auditor_ids", "ims_integration_criteria",
+    "ims_integration_percent", "combined_audit_capability_percent", "risk_level",
+    "ems_complexity", "ohsms_complexity", "manday_method", "base_mandays",
+    "manday_adjustments", "increase_percent", "reduction_percent",
+    "integration_reduction_percent", "final_mandays", "stage1_mandays",
+    "stage2_mandays", "surveillance_mandays", "recertification_mandays",
+    "stage1_proposed_date", "stage2_proposed_date", "surveillance1_date",
+    "surveillance2_date", "recertification_date",
+  ].includes(field)) return "manday";
+
+  return "conclusion";
+}
+
 export function CertificationProjectsScreen({ onOpenProject, mode = "projects", initialReviewId = null }: CertificationProjectsScreenProps) {
   const isApplicationWorkspace = mode === "applications";
   const currentWizardSteps = isApplicationWorkspace ? applicationWizardSteps : projectWizardSteps;
@@ -1248,6 +1298,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const [applicationYearFilter, setApplicationYearFilter] = useState("all");
   const [creationOpen, setCreationOpen] = useState(false);
   const [applicationEntrySection, setApplicationEntrySection] = useState<string | null>("general");
+  const [applicationReviewSection, setApplicationReviewSection] = useState<string | null>("criteria");
   const [applicationDialogMode, setApplicationDialogMode] = useState<"create" | "view" | "edit" | "review" | "status">("create");
   const [creationStep, setCreationStep] = useState(0);
   const [creationSubmitting, setCreationSubmitting] = useState(false);
@@ -2110,6 +2161,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const openApplicationReview = useCallback((application: ProjectApplication) => {
     setApplicationDialogMode("review");
+    setApplicationReviewSection("criteria");
     setCreationStep(1);
     setCreatedProjectId(null);
     setSavedApplication(application);
@@ -2150,6 +2202,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const openApplicationStatus = (application: ProjectApplication) => {
     setApplicationDialogMode("status");
+    setApplicationReviewSection("criteria");
     setCreationStep(1);
     setCreatedProjectId(null);
     setSavedApplication(application);
@@ -2172,6 +2225,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const openCreationWizard = () => {
     setApplicationDialogMode("create");
     setApplicationEntrySection("general");
+    setApplicationReviewSection("criteria");
     const today = dayjs();
     setCreationStep(0);
     setCreatedProjectId(null);
@@ -2325,6 +2379,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setCreationStep(firstIssue.step);
       if (firstIssue.step === 0) {
         setApplicationEntrySection(applicationEntrySectionForField(String(firstIssue.name[0] ?? "")));
+      } else if (firstIssue.step === 1) {
+        setApplicationReviewSection(applicationReviewSectionForField(String(firstIssue.name[0] ?? "")));
       }
       window.setTimeout(() => {
         wizardForm.scrollToField(firstIssue.name, { block: "center" });
@@ -2369,6 +2425,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreationStep(issue.step);
     if (issue.step === 0) {
       setApplicationEntrySection(applicationEntrySectionForField(String(issue.name[0] ?? "")));
+    } else if (issue.step === 1) {
+      setApplicationReviewSection(applicationReviewSectionForField(String(issue.name[0] ?? "")));
     }
     window.setTimeout(() => {
       wizardForm.scrollToField(issue.name, { block: "center" });
@@ -3834,11 +3892,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                   <div className="application-entry-stack">
                     <ApplicationEntrySection
                       sectionKey="general"
-                      title="1. Thông tin chung / General information"
+                      title="1. Thông tin chung"
                       activeSection={applicationEntrySection}
                       onActiveSection={setApplicationEntrySection}
                     >
-                      <div className="project-creation-grid wide">
+                      <div className="project-creation-grid application-general-grid">
                         <Form.Item
                           className="span-2"
                           label="Khách hàng"
@@ -3901,28 +3959,33 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         </Form.Item>
                       </div>
 
-                      <Divider titlePlacement="start" plain>Đại diện của tổ chức</Divider>
-                      <div className="project-creation-grid wide">
-                        <Form.Item label="Họ và tên" name="representative_name" rules={[{ required: true, message: "Nhập người đại diện" }]}><Input /></Form.Item>
-                        <Form.Item label="Chức vụ" name="representative_position"><Input /></Form.Item>
-                        <Form.Item label="Điện thoại" name="representative_phone"><Input /></Form.Item>
-                        <Form.Item label="Fax" name="representative_fax"><Input /></Form.Item>
-                        <Form.Item className="span-2" label="Email" name="representative_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
-                      </div>
-
-                      <Divider titlePlacement="start" plain>Người liên hệ</Divider>
-                      <div className="project-creation-grid wide">
-                        <Form.Item label="Họ và tên" name="contact_name" rules={[{ required: true, message: "Nhập người liên hệ" }]}><Input /></Form.Item>
-                        <Form.Item label="Chức vụ" name="contact_position"><Input /></Form.Item>
-                        <Form.Item label="Điện thoại" name="contact_phone"><Input /></Form.Item>
-                        <Form.Item label="Fax" name="contact_fax"><Input /></Form.Item>
-                        <Form.Item className="span-2" label="Email" name="contact_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
+                      <div className="application-contact-pair">
+                        <section>
+                          <div className="application-contact-pair__title">Đại diện tổ chức</div>
+                          <div className="project-creation-grid compact">
+                            <Form.Item label="Họ và tên" name="representative_name" rules={[{ required: true, message: "Nhập người đại diện" }]}><Input /></Form.Item>
+                            <Form.Item label="Chức vụ" name="representative_position"><Input /></Form.Item>
+                            <Form.Item label="Điện thoại" name="representative_phone"><Input /></Form.Item>
+                            <Form.Item label="Fax" name="representative_fax"><Input /></Form.Item>
+                            <Form.Item className="span-2" label="Email" name="representative_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
+                          </div>
+                        </section>
+                        <section>
+                          <div className="application-contact-pair__title">Người liên hệ</div>
+                          <div className="project-creation-grid compact">
+                            <Form.Item label="Họ và tên" name="contact_name" rules={[{ required: true, message: "Nhập người liên hệ" }]}><Input /></Form.Item>
+                            <Form.Item label="Chức vụ" name="contact_position"><Input /></Form.Item>
+                            <Form.Item label="Điện thoại" name="contact_phone"><Input /></Form.Item>
+                            <Form.Item label="Fax" name="contact_fax"><Input /></Form.Item>
+                            <Form.Item className="span-2" label="Email" name="contact_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
+                          </div>
+                        </section>
                       </div>
                     </ApplicationEntrySection>
 
                     <ApplicationEntrySection
                       sectionKey="certification"
-                      title="2. Thông tin chứng nhận / Certification information"
+                      title="2. Chứng nhận"
                       activeSection={applicationEntrySection}
                       onActiveSection={setApplicationEntrySection}
                     >
@@ -4006,7 +4069,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
                     <ApplicationEntrySection
                       sectionKey="personnel"
-                      title="3. Nhân sự và địa điểm chứng nhận"
+                      title="3. Nhân sự & địa điểm"
                       activeSection={applicationEntrySection}
                       onActiveSection={setApplicationEntrySection}
                     >
@@ -4050,7 +4113,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
                     <ApplicationEntrySection
                       sectionKey="documents"
-                      title="4. Thông tin khác và hồ sơ kèm theo"
+                      title="4. Hồ sơ & thông tin khác"
                       activeSection={applicationEntrySection}
                       onActiveSection={setApplicationEntrySection}
                     >
@@ -4138,13 +4201,25 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
             {actualCreationStep === 1 && (
               <div className="project-creation-step">
-                <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                  <Alert
-                    description={`${savedApplication?.application_code ?? selectedApplication?.application_code ?? "Đơn đăng ký"} · ${savedApplication?.customers?.company_name ?? selectedApplication?.customers?.company_name ?? "Chưa xác định khách hàng"}`}
-                    message="Đơn đang được lập và kiểm tra bởi điều phối viên và đánh giá viên"
-                    showIcon
-                    type="success"
-                  />
+                <div className="application-review-workspace">
+                  <div className="application-review-context">
+                    <div>
+                      <span>Đơn đăng ký</span>
+                      <strong>{savedApplication?.application_code ?? selectedApplication?.application_code ?? "—"}</strong>
+                    </div>
+                    <div>
+                      <span>Khách hàng</span>
+                      <strong>{savedApplication?.customers?.company_name ?? selectedApplication?.customers?.company_name ?? "Chưa xác định"}</strong>
+                    </div>
+                    <div>
+                      <span>Tiêu chuẩn</span>
+                      <strong>{reviewApplication?.standard_name ?? calculationStandardNames.join(" + ") ?? "—"}</strong>
+                    </div>
+                    <div>
+                      <span>Nhân sự hiệu dụng</span>
+                      <strong>{effectivePersonnelForCalculation}</strong>
+                    </div>
+                  </div>
                   {latestWorkflowReview?.id && (
                     <Card size="small" title="Quy trình Application Review">
                       {latestInvalidationAction && (
@@ -4231,18 +4306,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                       )}
                     </Card>
                   )}
-                    <Alert
-                      description="Ngày công hiển thị là đề xuất theo bảng IAF và chính sách cấu hình của tổ chức chứng nhận. Người xem xét phải xác nhận trước khi chấp nhận."
-                      message="Xem xét đăng ký chứng nhận"
-                      showIcon
-                      type="info"
-                    />
-
                     <Collapse
-                      defaultActiveKey={["application-summary"]}
+                      className="application-source-collapse"
                       items={[{
                         key: "application-summary",
-                        label: `Thông tin đơn đăng ký ${reviewApplication?.application_code ?? ""}`,
+                        label: `Xem thông tin gốc của đơn ${reviewApplication?.application_code ?? ""}`,
                         children: (
                           <Space direction="vertical" size={12} style={{ width: "100%" }}>
                             <Card size="small" title="1. Tổ chức và đầu mối liên hệ">
@@ -4407,7 +4475,12 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                       }]}
                     />
 
-                    <Card size="small" title="Nội dung xem xét">
+                    <ApplicationReviewSection
+                      sectionKey="criteria"
+                      title="1. Nội dung xem xét"
+                      activeSection={applicationReviewSection}
+                      onActiveSection={setApplicationReviewSection}
+                    >
                       <Form.List name="review_items">
                         {(fields) => (
                           <div className="application-review-list">
@@ -4439,9 +4512,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           </div>
                         )}
                       </Form.List>
-                    </Card>
+                    </ApplicationReviewSection>
 
-                    <Card size="small" title="Lĩnh vực, mã ngành và năng lực tổ chức chứng nhận">
+                    <ApplicationReviewSection
+                      sectionKey="scope"
+                      title="2. Mã ngành & năng lực"
+                      activeSection={applicationReviewSection}
+                      onActiveSection={setApplicationReviewSection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item className="span-2" label="Lĩnh vực đánh giá" name="audit_field" rules={[{ required: true, message: "Nhập lĩnh vực đánh giá" }]}>
                           <TextArea autoSize={{ minRows: 2, maxRows: 4 }} />
@@ -4550,9 +4628,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           </Card>
                         </div>
                       </div>
-                    </Card>
+                    </ApplicationReviewSection>
 
-                    <Card size="small" title="Tính ngày công đánh giá (MD)">
+                    <ApplicationReviewSection
+                      sectionKey="manday"
+                      title="3. Ngày công & kế hoạch"
+                      activeSection={applicationReviewSection}
+                      onActiveSection={setApplicationReviewSection}
+                    >
                       <div className="manday-standard-basis">
                         <Text strong>Cơ sở tính theo tiêu chuẩn:</Text>
                         <Space wrap>
@@ -5025,9 +5108,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         <Form.Item label="Giám sát lần 2" name="surveillance2_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                         <Form.Item label="Tái chứng nhận" name="recertification_date"><DatePicker className="notranslate" popupClassName="notranslate" picker="month" format="MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                       </div>
-                    </Card>
+                    </ApplicationReviewSection>
 
-                    <Card size="small" title="Kết luận xem xét">
+                    <ApplicationReviewSection
+                      sectionKey="conclusion"
+                      title="4. Kết luận & reviewer"
+                      activeSection={applicationReviewSection}
+                      onActiveSection={setApplicationReviewSection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item label="Kết quả" name="review_result" rules={[{ required: true }]}>
                           <Select options={[
@@ -5037,7 +5125,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           ]} />
                         </Form.Item>
                         <Form.Item label="Mã khách hàng" name="client_code"><Input readOnly /></Form.Item>
-                        <Form.Item className="span-2" label="Kết luận" name="conclusion" rules={[{ required: true, message: "Nhập kết luận" }]}><TextArea autoSize={{ minRows: 3, maxRows: 6 }} /></Form.Item>
+                        <Form.Item className="span-2" label="Kết luận" name="conclusion" rules={[{ required: true, message: "Nhập kết luận" }]}><TextArea autoSize={{ minRows: 2, maxRows: 4 }} /></Form.Item>
                         <Form.Item
                           label="Reviewer"
                           name="reviewer_id"
@@ -5062,8 +5150,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         </div>
                         <Form.Item className="span-2" label="Nhận xét bổ sung" name="review_comment"><TextArea autoSize={{ minRows: 2, maxRows: 5 }} /></Form.Item>
                       </div>
-                    </Card>
-                </Space>
+                    </ApplicationReviewSection>
+                </div>
               </div>
             )}
 
