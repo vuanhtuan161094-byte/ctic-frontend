@@ -1258,7 +1258,6 @@ function ApplicationReviewSection({
       items={[{
         key: sectionKey,
         label: title,
-        forceRender: true,
         children,
       }]}
     />
@@ -1556,7 +1555,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         `/application-reviews/${activeCapabilityReviewId}/capability-evaluation`,
       )
     ).data,
-    enabled: Boolean(activeCapabilityReviewId),
+    enabled: Boolean(activeCapabilityReviewId && creationOpen && actualCreationStep === 1),
+    staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
   const capabilityEvaluation = capabilityEvaluationQuery.data ?? null;
   const canReviewWorkflow = Boolean(
@@ -2814,13 +2817,20 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         "/application-reviews",
         buildReviewPayload(application.id, values, "SAVE_DRAFT"),
       );
-      setDraftReviewId(response.data.id);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
-        queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
-        queryClient.invalidateQueries({ queryKey: ["application-review-capability", response.data.id] }),
-      ]);
-      message.success("Đã lưu nháp và đối chiếu năng lực tổ chức chứng nhận.");
+      const reviewId = response.data.id;
+      await queryClient.fetchQuery({
+        queryKey: ["application-review-capability", reviewId],
+        queryFn: async () => (
+          await api.get<CertificationBodyCapabilityEvaluation>(
+            `/application-reviews/${reviewId}/capability-evaluation`,
+          )
+        ).data,
+        staleTime: 5 * 60_000,
+      });
+      setDraftReviewId(reviewId);
+      void queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
+      void queryClient.invalidateQueries({ queryKey: ["application-reviews"] });
+      message.success("Đã đối chiếu năng lực tổ chức chứng nhận.");
     } catch (error) {
       handleCreationFailure(error);
     } finally {
@@ -2931,41 +2941,43 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
     setIndustryResolveLoading(true);
     try {
-      const settled = await Promise.allSettled(
-        requestEntries.map(async ({ isic, managementSystem }) => {
-          const response = await api.get<IndustryResolveResponse>(
-            `/industry-classifications/resolve?classification_type=ISIC&revision=${encodeURIComponent(isic.revision)}&code=${encodeURIComponent(isic.code)}&management_system=${managementSystem}`,
-          );
-          const firstNace = response.data.nace_candidates.find((candidate) => candidate.iaf_candidates.length > 0)
-            ?? response.data.nace_candidates[0];
-
-          return {
-            key: `${isic.id}:${managementSystem}`,
-            response: response.data,
-            selected_nace_mapping_id: firstNace?.mapping_id,
-            selected_iaf_mapping_id: firstNace?.iaf_candidates[0]?.mapping_id,
-            scope_description: reviewApplication?.certification_scope ?? wizardForm.getFieldValue("audit_field") ?? "",
-          } satisfies IndustryResolutionRow;
-        }),
+      const batchResponse = await api.post<{ items: IndustryResolveResponse[] }>(
+        "/industry-classifications/resolve-batch",
+        {
+          items: requestEntries.map(({ isic, managementSystem }) => ({
+            classification_type: "ISIC",
+            revision: isic.revision,
+            code: isic.code,
+            management_system: managementSystem,
+          })),
+        },
       );
 
-      const rows = settled.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      );
-      const failedCount = settled.length - rows.length;
+      if (batchResponse.data.items.length !== requestEntries.length) {
+        throw new Error("Kết quả tra cứu mã ngành không đầy đủ.");
+      }
+
+      const rows = batchResponse.data.items.map((response, index) => {
+        const { isic, managementSystem } = requestEntries[index];
+        const firstNace = response.nace_candidates.find((candidate) => candidate.iaf_candidates.length > 0)
+          ?? response.nace_candidates[0];
+
+        return {
+          key: `${isic.id}:${managementSystem}`,
+          response,
+          selected_nace_mapping_id: firstNace?.mapping_id,
+          selected_iaf_mapping_id: firstNace?.iaf_candidates[0]?.mapping_id,
+          scope_description: reviewApplication?.certification_scope ?? wizardForm.getFieldValue("audit_field") ?? "",
+        } satisfies IndustryResolutionRow;
+      });
 
       setIndustryResolutionRows(rows);
-
-      if (!rows.length) {
-        message.error("Không tra cứu được mã NACE/IAF. Kiểm tra backend, quyền truy cập và dữ liệu ánh xạ đã phê duyệt.");
-        return;
-      }
 
       const noMapping = rows.filter(
         (row) => !row.response.nace_candidates.some((candidate) => candidate.iaf_candidates.length > 0),
       );
-      if (failedCount || noMapping.length) {
-        message.warning(`${failedCount + noMapping.length} mã/hệ thống chưa tra được ánh xạ NACE–IAF đã phê duyệt.`);
+      if (noMapping.length) {
+        message.warning(`${noMapping.length} mã/hệ thống chưa có ánh xạ NACE–IAF đã phê duyệt.`);
       } else {
         message.success(`Đã tra cứu ${rows.length} kết quả NACE/IAF.`);
       }
