@@ -66,13 +66,8 @@ const destinations: ConfigurationDestination[] = [
   },
   {
     key: "classifications",
-    label: "Danh mục phân loại",
-    description: "Tra cứu ISIC, NACE và lĩnh vực IAF.",
-  },
-  {
-    key: "mappings",
-    label: "Quy đổi phân loại",
-    description: "Kiểm soát chuỗi quy đổi ISIC → NACE → IAF.",
+    label: "Phân loại ngành",
+    description: "Tra cứu danh mục và kiểm soát chuỗi ISIC → NACE → IAF trong một không gian làm việc.",
   },
   {
     key: "import",
@@ -87,8 +82,8 @@ const pageIdentity: Record<ConfigurationRouteSection, string> = {
   capabilities: "Năng lực tổ chức chứng nhận",
   numbering: "Quy tắc đánh số",
   branding: "Tổ chức & nhận diện",
-  classifications: "Dữ liệu phân loại",
-  mappings: "Quy đổi phân loại",
+  classifications: "Phân loại ngành",
+  mappings: "Phân loại ngành",
   import: "Nhập dữ liệu cấu hình",
 };
 
@@ -99,7 +94,9 @@ const panelSection: Partial<Record<ConfigurationRouteSection, MasterDataConfigur
 };
 
 function normalizeSection(section: ConfigurationRouteSection): ConfigurationRouteSection {
-  return section === "standards" ? "schemes" : section;
+  if (section === "standards") return "schemes";
+  if (section === "mappings") return "classifications";
+  return section;
 }
 
 function readinessBlockers(section: ConfigurationRouteSection, readiness?: ConfigurationReadiness): StructuredBlocker[] {
@@ -134,8 +131,7 @@ function readinessBlockers(section: ConfigurationRouteSection, readiness?: Confi
 function ConfigurationContent({ section }: { section: ConfigurationRouteSection }) {
   if (section === "schemes" || section === "standards") return <CertificationProgramsPanel />;
   if (section === "capabilities") return <CertificationBodyCapabilitiesPanel />;
-  if (section === "classifications") return <IndustryTaxonomyPanel mode="classifications" />;
-  if (section === "mappings") return <IndustryTaxonomyPanel mode="mappings" />;
+  if (section === "classifications" || section === "mappings") return <IndustryTaxonomyPanel mode="all" />;
   const activeSection = panelSection[section];
   return activeSection ? <MasterDataConfigurationPanel activeSection={activeSection} routeMode /> : null;
 }
@@ -156,7 +152,7 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
     && blockers.length === 0;
   const numberingOwnsReadiness = activeSection === "numbering";
   const organizationOwnsReadiness = activeSection === "branding";
-  const taxonomyOwnsReadiness = activeSection === "classifications" || activeSection === "mappings";
+  const taxonomyOwnsReadiness = activeSection === "classifications";
 
   return (
     <div className="configuration-route-page">
