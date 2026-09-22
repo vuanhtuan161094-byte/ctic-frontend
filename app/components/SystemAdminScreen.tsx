@@ -34,6 +34,7 @@ import dayjs from "dayjs";
 import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
 import { DataTable, PageHeader, SearchToolbar } from "./design-system";
 import { SystemGovernancePanel } from "./SystemGovernancePanel";
 
@@ -440,6 +441,15 @@ function UserStatusTag({ status }: { status: string }) {
   );
 }
 
+function isCustomerAccount(user: SystemUser) {
+  return user.roles.some((role) => normalizeRole(role.role_name) === "customer");
+}
+
+function UserAudienceTag({ user }: { user: SystemUser }) {
+  const customer = isCustomerAccount(user);
+  return <Tag color={customer ? "blue" : "default"}>{customer ? "Khách hàng" : "Nội bộ"}</Tag>;
+}
+
 export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onOpenUser }: SystemAdminScreenProps) {
   const queryClient = useQueryClient();
   const [messageApi, contextHolder] = message.useMessage();
@@ -457,7 +467,9 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [audienceFilter, setAudienceFilter] = useState("all");
+  const [createChoiceOpen, setCreateChoiceOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
   const [permissionEditorOpen, setPermissionEditorOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
@@ -697,7 +709,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       const matchesRole =
         roleFilter === "all" ||
         user.roles.some((role) => normalizeRole(role.role_name) === normalizeRole(roleFilter));
-      const customerAudience = user.roles.some((role) => normalizeRole(role.role_name) === "customer");
+      const customerAudience = isCustomerAccount(user);
       const matchesAudience = audienceFilter === "all"
         || (audienceFilter === "customer" ? customerAudience : !customerAudience);
 
@@ -721,7 +733,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
     assignable: role.assignable === true,
   }));
   const roleOptions = availableRoles
-    .filter((role) => role.assignable === true)
+    .filter((role) => role.assignable === true && normalizeRole(role.role_name) !== "customer")
     .map((role) => ({
       value: role.role_name,
       label: `${getRoleLabel(role.role_name)} · ${role.permissions.length} quyền`,
@@ -751,6 +763,12 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       dataIndex: "email",
       key: "email",
       width: 260,
+    },
+    {
+      title: "Nhóm",
+      key: "audience",
+      width: 125,
+      render: (_, record) => <UserAudienceTag user={record} />,
     },
     {
       title: "Vai trò",
@@ -819,7 +837,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       <PageHeader
         identity="TÀI KHOẢN & TRUY CẬP"
         title="Tài khoản người dùng"
-        description="Quản lý tài khoản nội bộ và khách hàng, trạng thái, vai trò và quyền truy cập được backend kiểm soát."
+        description="Quản lý tập trung tài khoản nội bộ và khách hàng. Hai nhóm dùng quy trình cấp quyền riêng nhưng cùng được theo dõi tại đây."
         secondaryActions={<Space>
           <Button
             icon={<ReloadOutlined />}
@@ -831,7 +849,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
           >
             Làm mới
           </Button>
-          <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} type="primary">
+          <Button icon={<PlusOutlined />} onClick={() => setCreateChoiceOpen(true)} type="primary">
             Thêm tài khoản
           </Button>
         </Space>}
@@ -898,12 +916,59 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             fields: [
               { key: "identity", label: "Tài khoản", value: `@${user.username} · ${user.email}` },
               { key: "roles", label: "Vai trò", value: user.roles.map((role) => getRoleLabel(role.role_name)).join(" · ") || "Chưa gán vai trò" },
-              { key: "audience", label: "Nhóm", value: user.roles.some((role) => normalizeRole(role.role_name) === "customer") ? "Khách hàng" : "Nội bộ" },
+              { key: "audience", label: "Nhóm", value: isCustomerAccount(user) ? "Khách hàng" : "Nội bộ" },
             ],
             actions: <Space><Button size="small" onClick={() => openUser(user.id)}>Mở tài khoản</Button>{routeMode ? <Button size="small" onClick={() => openUserEditor(user.id)}>Chỉnh sửa</Button> : null}</Space>,
           }))}
         />
       </Card>
+
+      <Modal
+        destroyOnHidden
+        footer={null}
+        onCancel={() => setCreateChoiceOpen(false)}
+        open={createChoiceOpen}
+        title="Thêm tài khoản"
+        width={680}
+      >
+        <div className="system-account-create-options">
+          <button
+            className="system-account-create-option"
+            onClick={() => {
+              setCreateChoiceOpen(false);
+              setCreateOpen(true);
+            }}
+            type="button"
+          >
+            <span className="system-account-create-option__icon"><UserOutlined /></span>
+            <span>
+              <strong>Tài khoản nội bộ</strong>
+              <small>Dành cho nhân viên, chuyên gia và người dùng nghiệp vụ của tổ chức chứng nhận.</small>
+            </span>
+          </button>
+          <button
+            className="system-account-create-option"
+            onClick={() => {
+              setCreateChoiceOpen(false);
+              setCustomerCreateOpen(true);
+            }}
+            type="button"
+          >
+            <span className="system-account-create-option__icon"><TeamOutlined /></span>
+            <span>
+              <strong>Tài khoản khách hàng</strong>
+              <small>Chọn tổ chức khách hàng và cấp quyền Portal theo đúng phạm vi dữ liệu của tổ chức đó.</small>
+            </span>
+          </button>
+        </div>
+        <Alert
+          className="system-account-create-note"
+          showIcon
+          type="info"
+          message="Hai loại tài khoản dùng hai cơ chế cấp quyền riêng"
+          description="Tài khoản nội bộ nhận vai trò nghiệp vụ. Tài khoản khách hàng luôn nhận vai trò CUSTOMER và phải liên kết với một tổ chức khách hàng."
+        />
+      </Modal>
 
       <Modal
         destroyOnHidden
@@ -952,7 +1017,8 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             </Form.Item>
           </div>
           <Alert
-            message="Chỉ các vai trò nội bộ đang được hệ thống hỗ trợ mới có thể gán cho tài khoản mới. Vai trò cũ vẫn được giữ trong bộ lọc và lịch sử nhưng không thể gán mới."
+            message="Tài khoản nội bộ chỉ nhận các vai trò nghiệp vụ nội bộ."
+            description="Tài khoản khách hàng được tạo bằng flow riêng để luôn liên kết đúng với tổ chức khách hàng và quyền Portal."
             showIcon
             type="info"
           />
@@ -984,11 +1050,22 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
           <div className="system-admin-modal-actions">
             <Button onClick={() => setCreateOpen(false)}>Hủy</Button>
             <Button htmlType="submit" loading={createMutation.isPending} type="primary">
-              Tạo tài khoản
+              Tạo tài khoản nội bộ
             </Button>
           </div>
         </Form>
       </Modal>
+
+      <CustomerPortalAccountModal
+        open={customerCreateOpen}
+        onClose={() => setCustomerCreateOpen(false)}
+        onSuccess={async () => {
+          await invalidateUsers();
+          setAudienceFilter("customer");
+          setRoleFilter("all");
+          setStatusFilter("all");
+        }}
+      />
 
       <Drawer
         destroyOnClose
