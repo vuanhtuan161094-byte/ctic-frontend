@@ -198,7 +198,7 @@ const configurationSectionByView: Partial<Record<ActiveView, ConfigurationRouteS
   "configuration-numbering": "numbering",
   "configuration-branding": "branding",
   "configuration-classifications": "classifications",
-  "configuration-mappings": "mappings",
+  "configuration-mappings": "classifications",
   "configuration-import": "import",
 };
 
@@ -209,7 +209,7 @@ const configurationViewBySection: Record<ConfigurationRouteSection, ActiveView> 
   numbering: "configuration-numbering",
   branding: "configuration-branding",
   classifications: "configuration-classifications",
-  mappings: "configuration-mappings",
+  mappings: "configuration-classifications",
   import: "configuration-import",
 };
 
@@ -956,8 +956,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             key: "configuration-classification-group",
             label: "Dữ liệu phân loại",
             children: [
-              { key: "configuration-classifications", label: "Danh mục phân loại" },
-              { key: "configuration-mappings", label: "Quy đổi phân loại" },
+              { key: "configuration-classifications", label: "Phân loại ngành" },
               { key: "configuration-import", label: "Nhập dữ liệu" },
             ],
           },
@@ -1023,8 +1022,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     "configuration-capabilities": "Phạm vi năng lực",
     "configuration-numbering": "Quy tắc đánh số",
     "configuration-branding": "Tổ chức & nhận diện",
-    "configuration-classifications": "Danh mục phân loại",
-    "configuration-mappings": "Quy đổi phân loại",
+    "configuration-classifications": "Phân loại ngành",
+    "configuration-mappings": "Phân loại ngành",
     "configuration-import": "Nhập dữ liệu cấu hình",
     "customer-results": "Kết quả",
     "customer-change-requests": "Yêu cầu thay đổi khách hàng",
