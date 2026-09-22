@@ -1542,3 +1542,253 @@
     padding: 0;
   }
 }
+
+
+/* Program cards — progressive disclosure */
+.certification-programs-list {
+  display: grid;
+  gap: var(--cmp-space-2);
+}
+
+.certification-program-card {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  box-shadow: 0 2px 8px rgba(29, 62, 104, .035);
+  overflow: hidden;
+  transition: border-color .14s ease, box-shadow .14s ease;
+}
+
+.certification-program-card:hover {
+  border-color: var(--cmp-border-strong);
+}
+
+.certification-program-card--expanded {
+  border-color: var(--cmp-border-strong);
+  box-shadow: var(--cmp-shadow-low);
+}
+
+.certification-program-card > .ant-card-body {
+  padding: 0;
+}
+
+.certification-program-summary {
+  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 70px;
+}
+
+.certification-program-summary__main {
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 5px;
+  justify-content: start;
+  min-width: 0;
+  padding: 11px var(--cmp-space-3);
+  text-align: left;
+}
+
+.certification-program-summary__main:hover,
+.certification-program-summary__main:focus-visible {
+  background: var(--cmp-surface-subtle);
+  outline: 0;
+}
+
+.certification-program-summary__main:focus-visible {
+  box-shadow: inset 3px 0 var(--cmp-brand-primary);
+}
+
+.certification-program-summary__title,
+.certification-program-summary__meta,
+.certification-program-summary__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cmp-space-2);
+  min-width: 0;
+}
+
+.certification-program-summary__title .ant-tag,
+.certification-program-summary__meta .ant-tag,
+.certification-program-summary__actions .ant-tag {
+  margin-inline-end: 0;
+}
+
+.certification-program-summary__title > .ant-typography {
+  color: var(--cmp-text-primary);
+  font-size: var(--cmp-font-size-md);
+}
+
+.certification-program-summary__meta {
+  color: var(--cmp-text-secondary);
+  font-size: var(--cmp-font-size-xs);
+}
+
+.certification-program-summary__meta > .ant-typography:first-child {
+  color: var(--cmp-text-primary);
+  font-size: var(--cmp-font-size-sm);
+}
+
+.certification-program-summary__actions {
+  align-self: stretch;
+  border-left: 1px solid var(--cmp-border-default);
+  justify-content: flex-end;
+  min-width: 230px;
+  padding: 10px var(--cmp-space-3);
+}
+
+.certification-program-summary__details.ant-btn {
+  color: var(--cmp-brand-primary);
+  font-weight: var(--cmp-font-weight-semibold);
+}
+
+.certification-program-details {
+  background: #fbfcfe;
+  border-top: 1px solid var(--cmp-border-strong);
+}
+
+.certification-program-details__issues {
+  background: var(--cmp-state-attention-bg);
+  border-bottom: 1px solid var(--cmp-state-attention-border);
+}
+
+.certification-program-details__issue {
+  align-items: center;
+  display: flex;
+  gap: var(--cmp-space-3);
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 6px var(--cmp-space-3);
+}
+
+.certification-program-details__issue + .certification-program-details__issue {
+  border-top: 1px solid color-mix(in srgb, var(--cmp-state-attention-border) 70%, transparent);
+}
+
+.certification-program-details__section {
+  display: grid;
+  gap: var(--cmp-space-2);
+  padding: 11px var(--cmp-space-3);
+}
+
+.certification-program-details__section + .certification-program-details__section {
+  border-top: 1px solid var(--cmp-border-default);
+}
+
+.certification-program-details__heading {
+  align-items: center;
+  display: flex;
+  gap: var(--cmp-space-3);
+  justify-content: space-between;
+}
+
+.certification-program-details__heading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.certification-program-details__heading > div > .ant-typography:last-child:not(:first-child) {
+  font-size: var(--cmp-font-size-xs);
+}
+
+.certification-program-details .certification-standard-families {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  overflow: hidden;
+}
+
+.certification-program-details .certification-standard-family {
+  padding: 7px var(--cmp-space-2);
+}
+
+.certification-program-details .certification-standard-family + .certification-standard-family {
+  margin-top: 0;
+}
+
+.certification-program-details .certification-standard-family__header {
+  min-height: 32px;
+  padding: 0 var(--cmp-space-1) 4px;
+}
+
+.certification-program-details .certification-standard-row {
+  border-top: 1px solid var(--cmp-border-default);
+  border-radius: 0;
+  grid-template-columns: minmax(180px, .8fr) minmax(280px, 1.4fr) 36px;
+  min-height: 38px;
+  padding: 4px var(--cmp-space-1);
+}
+
+.certification-program-details .certification-standard-row:hover {
+  background: var(--cmp-surface-subtle);
+}
+
+.certification-program-details .certification-program-card__empty {
+  border: 1px dashed var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  padding: var(--cmp-space-2);
+}
+
+@media (max-width: 900px) {
+  .certification-program-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .certification-program-summary__actions {
+    border-left: 0;
+    border-top: 1px solid var(--cmp-border-default);
+    justify-content: flex-start;
+    min-width: 0;
+    padding: 7px var(--cmp-space-3);
+  }
+
+  .certification-program-details .certification-standard-row {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .certification-program-details .certification-standard-row__status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .certification-program-details .certification-standard-row > .ant-dropdown-trigger {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 620px) {
+  .certification-program-summary__main {
+    padding: var(--cmp-space-2);
+  }
+
+  .certification-program-summary__actions {
+    gap: var(--cmp-space-1);
+    padding: var(--cmp-space-2);
+  }
+
+  .certification-program-summary__actions > .ant-tag {
+    margin-right: auto;
+  }
+
+  .certification-program-details__section,
+  .certification-program-details__issue {
+    padding-inline: var(--cmp-space-2);
+  }
+
+  .certification-program-details__heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .certification-program-details__heading > .ant-btn {
+    width: 100%;
+  }
+}
