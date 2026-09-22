@@ -271,6 +271,46 @@ const runtimeFieldLabels: Record<string, string> = {
   required_decision_types: "Danh mục loại quyết định",
 };
 
+const organizationReasonLabels: Record<string, string> = {
+  legal_name: "Tên pháp lý",
+  display_name: "Tên hiển thị",
+  short_name: "Tên viết tắt",
+  portal_title: "Tiêu đề cổng khách hàng",
+  timezone: "Múi giờ",
+  locale: "Ngôn ngữ giao diện",
+  default_language: "Ngôn ngữ mặc định",
+  certificate_reminder_days: "Mốc nhắc chứng chỉ",
+};
+
+const organizationTimezoneOptions = [
+  { value: "Asia/Ho_Chi_Minh", label: "Việt Nam · Asia/Ho_Chi_Minh" },
+  { value: "Asia/Bangkok", label: "Bangkok · Asia/Bangkok" },
+  { value: "Asia/Singapore", label: "Singapore · Asia/Singapore" },
+  { value: "Asia/Tokyo", label: "Tokyo · Asia/Tokyo" },
+  { value: "Europe/London", label: "London · Europe/London" },
+  { value: "America/New_York", label: "New York · America/New_York" },
+  { value: "America/Los_Angeles", label: "Los Angeles · America/Los_Angeles" },
+  { value: "UTC", label: "UTC" },
+];
+
+function normalizeOrganizationProfileForForm(profile?: OrganizationProfile | null): Partial<OrganizationProfile> {
+  const rawTimezone = String(profile?.timezone ?? "").trim();
+  const timezone = !rawTimezone || ["Việt Nam", "Vietnam", "GMT+7", "+07:00"].includes(rawTimezone)
+    ? "Asia/Ho_Chi_Minh"
+    : rawTimezone;
+  const reminder = Number(profile?.certificate_reminder_days);
+  return {
+    ...(profile ?? {}),
+    timezone,
+    locale: "vi-VN",
+    default_language: "vi",
+    date_format: ["DD/MM/YYYY", "YYYY-MM-DD", "MM/DD/YYYY"].includes(String(profile?.date_format ?? ""))
+      ? profile?.date_format
+      : "DD/MM/YYYY",
+    certificate_reminder_days: Number.isInteger(reminder) && reminder >= 0 && reminder <= 3650 ? reminder : 90,
+  };
+}
+
 function toList(value: string[] | string | null | undefined) {
   if (Array.isArray(value)) return value;
   return String(value ?? "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -435,8 +475,9 @@ export function MasterDataConfigurationPanel({
   const importDefinitions = useQuery({ queryKey: ["import-definitions"], queryFn: async () => (await api.get<ImportDefinition[]>(`${base}/imports/definitions`)).data });
 
   useEffect(() => {
-    if (profile.data) profileForm.setFieldsValue(profile.data);
-  }, [profile.data, profileForm]);
+    if (!profile.isFetched) return;
+    profileForm.setFieldsValue(normalizeOrganizationProfileForForm(profile.data));
+  }, [profile.data, profile.isFetched, profileForm]);
 
   const invalidate = async () => Promise.all([
     queryClient.invalidateQueries({ queryKey: ["master-schemes"] }),
@@ -571,7 +612,12 @@ export function MasterDataConfigurationPanel({
     setNumberingAction(null);
     numberingActionForm.resetFields();
   });
-  const saveProfile = useAdminMutation<OrganizationProfile>((values) => api.patch(`${base}/organization-profile`, values));
+  const saveProfile = useAdminMutation<OrganizationProfile>((values) => api.patch(`${base}/organization-profile`, {
+    ...values,
+    locale: "vi-VN",
+    default_language: "vi",
+    date_format: values.date_format || "DD/MM/YYYY",
+  }));
   const [selectedImportJob, setSelectedImportJob] = useState<string | null>(null);
   const validateImport = useAdminMutation<void>(async () => {
     const file = importFiles[0]?.originFileObj;
@@ -1315,51 +1361,81 @@ export function MasterDataConfigurationPanel({
       key: "organization",
       label: "Tổ chức & thương hiệu",
       children: (
-        <>
-          <Intro
-            title="Thông tin này dùng ở đâu?"
-            what="Đây là hồ sơ nhận diện của chính tổ chức chứng nhận đang vận hành hệ thống, không phải thông tin khách hàng."
-            example="Tên pháp lý trong mẫu hỗ trợ trường tổ chức; tên hiển thị trên giao diện; tiêu đề cổng khách hàng và thông tin liên hệ."
-            effect="Múi giờ áp dụng cho ngày/năm cấp số tương lai và kỳ báo cáo thương mại; không sửa số đã cấp, tài liệu đã sinh hoặc lịch tác vụ cố định."
-          />
-          <Form form={profileForm} layout="vertical" onFinish={(values) => saveProfile.mutate(values)}>
-            {!readiness.data?.organization.ready ? <Alert type="warning" message="Hồ sơ tổ chức cần bổ sung" description={(readiness.data?.organization.reasons ?? []).map(reason => <div key={reason.code}>{reason.field}: {reason.message}</div>)} /> : null}
-            <Alert
-              showIcon
-              type="info"
-              style={{ marginBottom: 12 }}
-              message="Ví dụ một hồ sơ tổ chức đã điền"
-              description="Tên pháp lý: CÔNG TY TNHH ABC CERTIFICATION VIỆT NAM · Tên hiển thị: ABC Certification Việt Nam · Tên viết tắt: ABC Cert · Portal: Cổng thông tin khách hàng ABC Certification · Email: certification@abc.vn · Website: https://abc.vn. Đây chỉ là ví dụ định dạng, hãy thay bằng thông tin thật của đơn vị."
-            />
-            <Card size="small" title="1. Thông tin tổ chức" style={{ marginBottom: 12 }}>
-              <div className="system-admin-form-grid">
-                <Form.Item name="legal_name" label="Tên pháp lý" extra="Điền đúng tên trên đăng ký pháp lý. Ví dụ: CÔNG TY TNHH ABC CERTIFICATION VIỆT NAM." rules={[{ required: true }]}><Input placeholder="Ví dụ: CÔNG TY TNHH ABC CERTIFICATION VIỆT NAM" /></Form.Item>
-                <Form.Item name="display_name" label="Tên hiển thị" extra="Tên ngắn gọn dùng trên giao diện/tài liệu. Ví dụ: ABC Certification Việt Nam." rules={[{ required: true }]}><Input placeholder="Ví dụ: ABC Certification Việt Nam" /></Form.Item>
-                <Form.Item name="short_name" label="Tên viết tắt" extra="Tên rất ngắn để dùng ở tiêu đề hoặc mã nhận diện. Ví dụ: ABC Cert." rules={[{ required: true }]}><Input placeholder="Ví dụ: ABC Cert" /></Form.Item>
-                <Form.Item name="portal_title" label="Tiêu đề cổng khách hàng" extra="Dòng tiêu đề khách hàng nhìn thấy khi vào portal. Ví dụ: Cổng thông tin khách hàng ABC Certification." rules={[{ required: true }]}><Input placeholder="Ví dụ: Cổng thông tin khách hàng ABC Certification" /></Form.Item>
-                <Form.Item name="email" label="Thư điện tử" extra="Ví dụ: certification@abc.vn."><Input placeholder="Ví dụ: certification@abc.vn" /></Form.Item>
-                <Form.Item name="phone" label="Điện thoại" extra="Ví dụ: +84 24 1234 5678."><Input placeholder="Ví dụ: +84 24 1234 5678" /></Form.Item>
-                <Form.Item name="website" label="Trang web" extra="Nhập đầy đủ https://. Ví dụ: https://abc.vn."><Input placeholder="Ví dụ: https://abc.vn" /></Form.Item>
+        <section className="organization-workspace" aria-label="Tổ chức và nhận diện">
+          <Form className="organization-form" form={profileForm} layout="vertical" onFinish={(values) => saveProfile.mutate(values)}>
+            {!readiness.data?.organization.ready ? (
+              <div className="organization-status organization-status--attention" role="status">
+                <div className="organization-status__copy">
+                  <Text strong>Cần hoàn tất hồ sơ tổ chức</Text>
+                  <Text type="secondary">{(readiness.data?.organization.reasons ?? []).length} mục cần xử lý trước khi cấu hình này sẵn sàng.</Text>
+                </div>
+                <div className="organization-status__issues">
+                  {(readiness.data?.organization.reasons ?? []).map((reason) => (
+                    <Tag key={reason.code} color="orange">{organizationReasonLabels[reason.field] ?? reason.field}</Tag>
+                  ))}
+                </div>
               </div>
-              <Form.Item name="address" label="Địa chỉ" extra="Ví dụ: Tầng 5, Tòa nhà ABC, 123 Nguyễn Trãi, Hà Nội, Việt Nam."><Input.TextArea rows={2} placeholder="Ví dụ: Tầng 5, Tòa nhà ABC, 123 Nguyễn Trãi, Hà Nội, Việt Nam" /></Form.Item>
-            </Card>
-            <Collapse
-              style={{ marginBottom: 12 }}
-              items={[{
-                key: "advanced",
-                label: "2. Thiết lập vận hành và dữ liệu tương thích",
-                children: (
-                  <div className="system-admin-form-grid">
-                    <Form.Item name="timezone" label="Múi giờ" extra="Ví dụ Việt Nam: Asia/Ho_Chi_Minh." rules={[{ required: true }]}><Input placeholder="Asia/Ho_Chi_Minh" /></Form.Item>
-                    <Form.Item name="certificate_reminder_days" label="Mốc nhắc hết hạn chứng chỉ (ngày)" extra="Ví dụ: 90 nghĩa là mốc nhắc dự phòng 90 ngày trước khi chứng chỉ hết hạn. Dự án mới ưu tiên Cửa sổ tái chứng nhận và Mốc nhắc vận hành trong quy tắc chương trình; giá trị ở đây dùng cho hồ sơ cũ/chưa có bản chốt cấu hình." rules={[{ required: true }]}><InputNumber min={0} placeholder="Ví dụ: 90" style={{ width: "100%" }} /></Form.Item>
-                    <Alert type="info" message="Dữ liệu tương thích — chưa áp dụng bởi runtime" description={<><div>V1 sử dụng tiếng Việt; chưa có tùy chọn ngôn ngữ/định dạng ngày toàn hệ thống. Logo và chân trang cũ được giữ nguyên; chưa hỗ trợ tải biểu trưng tổ chức được quản lý an toàn. Retention chưa có cơ chế thực thi.</div>{(readiness.data?.organization.field_manifest ?? []).filter(field => field.status === "COMPATIBILITY_ONLY").map(field => <div key={field.field}>{field.field}: {field.effect}</div>)}</>} />
-                  </div>
-                ),
-              }]}
-            />
-            <Button htmlType="submit" type="primary" loading={saveProfile.isPending}>Lưu thông tin tổ chức</Button>
+            ) : (
+              <div className="organization-status organization-status--ready" role="status">
+                <Text strong>Hồ sơ tổ chức đã sẵn sàng</Text>
+                <Text type="secondary">Thông tin nhận diện và thiết lập vận hành bắt buộc đã đầy đủ.</Text>
+              </div>
+            )}
+
+            <div className="organization-form__section">
+              <div className="organization-form__section-heading">
+                <div>
+                  <Text strong>Thông tin tổ chức</Text>
+                  <Text type="secondary">Thông tin pháp lý và tên hiển thị được dùng xuyên suốt CMP.</Text>
+                </div>
+              </div>
+              <div className="organization-form__grid">
+                <Form.Item name="legal_name" label="Tên pháp lý" rules={[{ required: true, message: "Nhập tên pháp lý" }]}><Input placeholder="CÔNG TY TNHH ABC CERTIFICATION VIỆT NAM" /></Form.Item>
+                <Form.Item name="display_name" label="Tên hiển thị" rules={[{ required: true, message: "Nhập tên hiển thị" }]}><Input placeholder="ABC Certification Việt Nam" /></Form.Item>
+                <Form.Item name="short_name" label="Tên viết tắt" rules={[{ required: true, message: "Nhập tên viết tắt" }]}><Input placeholder="ABC Cert" /></Form.Item>
+                <Form.Item name="portal_title" label="Tiêu đề cổng khách hàng" rules={[{ required: true, message: "Nhập tiêu đề cổng khách hàng" }]}><Input placeholder="Cổng thông tin khách hàng ABC Certification" /></Form.Item>
+              </div>
+
+              <div className="organization-form__subheading">
+                <Text strong>Liên hệ</Text>
+                <Text type="secondary">Thông tin liên hệ chính thức của tổ chức chứng nhận.</Text>
+              </div>
+              <div className="organization-form__grid">
+                <Form.Item name="email" label="Thư điện tử" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input placeholder="certification@abc.vn" /></Form.Item>
+                <Form.Item name="phone" label="Điện thoại"><Input placeholder="+84 24 1234 5678" /></Form.Item>
+                <Form.Item name="website" label="Trang web"><Input placeholder="https://abc.vn" /></Form.Item>
+                <Form.Item name="address" label="Địa chỉ" className="organization-form__address"><Input placeholder="Địa chỉ trụ sở của tổ chức chứng nhận" /></Form.Item>
+              </div>
+            </div>
+
+            <div className="organization-form__section">
+              <div className="organization-form__section-heading">
+                <div>
+                  <Text strong>Thiết lập vận hành</Text>
+                  <Text type="secondary">Các thiết lập có tác động trực tiếp đến mốc thời gian trong CMP.</Text>
+                </div>
+              </div>
+              <div className="organization-form__grid organization-form__grid--operations">
+                <Form.Item name="timezone" label="Múi giờ nghiệp vụ" extra="Việt Nam dùng Asia/Ho_Chi_Minh." rules={[{ required: true, message: "Chọn múi giờ" }]}>
+                  <Select showSearch optionFilterProp="label" options={organizationTimezoneOptions} placeholder="Chọn múi giờ" />
+                </Form.Item>
+                <Form.Item name="certificate_reminder_days" label="Mốc nhắc hết hạn chứng chỉ" extra="Baseline cho hồ sơ cũ/chưa có bản chốt quy tắc chương trình." rules={[{ required: true, message: "Nhập số ngày" }]}>
+                  <InputNumber min={0} max={3650} precision={0} addonAfter="ngày" style={{ width: "100%" }} />
+                </Form.Item>
+              </div>
+              <Collapse className="organization-compatibility" ghost size="small" items={[{
+                key: "compatibility",
+                label: "Thông tin tương thích hệ thống",
+                children: <Text type="secondary">CMP V1 hiện cố định giao diện tiếng Việt, locale vi-VN và định dạng ngày DD/MM/YYYY. Logo, chân trang và thời hạn lưu tệp cũ được giữ để tương thích dữ liệu nhưng chưa phải thiết lập runtime.</Text>,
+              }]} />
+            </div>
+
+            <div className="organization-form__actions">
+              <Button htmlType="submit" type="primary" loading={saveProfile.isPending}>Lưu thông tin tổ chức</Button>
+              {!readiness.data?.organization.ready ? <Text type="secondary">Lưu sẽ chuẩn hóa cấu hình V1 hiện tại.</Text> : null}
+            </div>
           </Form>
-        </>
+        </section>
       ),
     },
     {
