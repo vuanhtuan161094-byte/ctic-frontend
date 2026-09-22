@@ -1479,7 +1479,7 @@ export function MasterDataConfigurationPanel({
   ];
 
   return (
-    <Card className="system-admin-table-card">
+    <Card className={routeMode ? "master-data-route-panel" : "system-admin-table-card"}>
       {contextHolder}
       <ImportJobDetails id={selectedImportJob} onClose={() => setSelectedImportJob(null)} />
       {!routeMode ? <div className="page-heading page-heading-v2">
