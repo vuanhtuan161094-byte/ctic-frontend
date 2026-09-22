@@ -324,7 +324,7 @@ export function parseCanonicalLocation(
     "/admin/configuration/numbering": "configuration-numbering",
     "/admin/configuration/branding": "configuration-branding",
     "/admin/configuration/classifications": "configuration-classifications",
-    "/admin/configuration/mappings": "configuration-mappings",
+    "/admin/configuration/mappings": "configuration-classifications",
     "/admin/configuration/import": "configuration-import",
   };
   const configurationRoute = Object.entries(configurationRoutes).find(([route]) => path === route || path.startsWith(`${route}/`));
@@ -451,7 +451,7 @@ export function canonicalPathForNavigation(
     "configuration-numbering": "/admin/configuration/numbering",
     "configuration-branding": "/admin/configuration/branding",
     "configuration-classifications": "/admin/configuration/classifications",
-    "configuration-mappings": "/admin/configuration/mappings",
+    "configuration-mappings": "/admin/configuration/classifications",
     "configuration-import": "/admin/configuration/import",
     "customer-change-requests": "/governance?type=organization-change",
     "governance-cases": "/governance",
