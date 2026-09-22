@@ -36,7 +36,6 @@ import {
   Select,
   Skeleton,
   Space,
-  Statistic,
   Steps,
   Table,
   Tag,
@@ -45,7 +44,7 @@ import {
   message,
 } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { api, getErrorMessage, SESSION_STORAGE_KEY, type AuthSession } from "../lib/api";
 import { downloadDocumentFile, isBrowserPreviewableDocument, openDocumentFile } from "../lib/document-file-client";
@@ -1188,6 +1187,55 @@ function ProjectStatusTag({ status }: { status: string }) {
   );
 }
 
+
+function ApplicationEntrySection({
+  sectionKey,
+  title,
+  activeSection,
+  onActiveSection,
+  children,
+}: {
+  sectionKey: string;
+  title: string;
+  activeSection: string | null;
+  onActiveSection: (section: string | null) => void;
+  children: ReactNode;
+}) {
+  return (
+    <Collapse
+      className="application-entry-collapse"
+      activeKey={activeSection === sectionKey ? [sectionKey] : []}
+      onChange={(keys) => onActiveSection(keys.length ? sectionKey : null)}
+      items={[{
+        key: sectionKey,
+        label: title,
+        forceRender: true,
+        children,
+      }]}
+    />
+  );
+}
+
+function applicationEntrySectionForField(field: string) {
+  if ([
+    "certification_type", "other_certification_type", "standard_names", "excluded_clauses",
+    "certification_scope", "external_provider_used", "outsourced_processes",
+    "stage1_requested_date", "stage2_requested_date",
+  ].includes(field)) return "certification";
+
+  if ([
+    "total_employee_count", "employee_count", "shift1_count", "shift2_count", "shift3_count", "sites",
+  ].includes(field)) return "personnel";
+
+  if ([
+    "other_management_systems", "management_system_details", "associated_documents",
+    "consultant_organization", "consultant_name", "certificate_languages", "other_requests",
+    "declaration_accepted",
+  ].includes(field)) return "documents";
+
+  return "general";
+}
+
 export function CertificationProjectsScreen({ onOpenProject, mode = "projects", initialReviewId = null }: CertificationProjectsScreenProps) {
   const isApplicationWorkspace = mode === "applications";
   const currentWizardSteps = isApplicationWorkspace ? applicationWizardSteps : projectWizardSteps;
@@ -1199,6 +1247,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const [applicationMonthFilter, setApplicationMonthFilter] = useState("all");
   const [applicationYearFilter, setApplicationYearFilter] = useState("all");
   const [creationOpen, setCreationOpen] = useState(false);
+  const [applicationEntrySection, setApplicationEntrySection] = useState<string | null>("general");
   const [applicationDialogMode, setApplicationDialogMode] = useState<"create" | "view" | "edit" | "review" | "status">("create");
   const [creationStep, setCreationStep] = useState(0);
   const [creationSubmitting, setCreationSubmitting] = useState(false);
@@ -2044,6 +2093,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const openApplicationEdit = (application: ProjectApplication) => {
     setApplicationDialogMode("edit");
+    setApplicationEntrySection("general");
     setCreationStep(0);
     setCreatedProjectId(null);
     setSavedApplication(application);
@@ -2121,6 +2171,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const openCreationWizard = () => {
     setApplicationDialogMode("create");
+    setApplicationEntrySection("general");
     const today = dayjs();
     setCreationStep(0);
     setCreatedProjectId(null);
@@ -2272,6 +2323,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setValidationIssues(issues);
       setCreationError(`Còn ${issues.length} nội dung bắt buộc hoặc chưa hợp lệ.`);
       setCreationStep(firstIssue.step);
+      if (firstIssue.step === 0) {
+        setApplicationEntrySection(applicationEntrySectionForField(String(firstIssue.name[0] ?? "")));
+      }
       window.setTimeout(() => {
         wizardForm.scrollToField(firstIssue.name, { block: "center" });
       }, 80);
@@ -2291,6 +2345,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setValidationIssues([issue]);
       setCreationError("Dữ liệu địa điểm chứng nhận chưa hoàn chỉnh.");
       setCreationStep(0);
+      setApplicationEntrySection("personnel");
       window.setTimeout(() => wizardForm.scrollToField(issue.name, { block: "center" }), 80);
       return;
     }
@@ -3434,25 +3489,25 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
               : "Quản lý các hồ sơ đã được khởi tạo từ đơn đăng ký được chấp nhận."}
           </Text>
         </div>
-        <Button icon={<PlusOutlined />} onClick={openCreationWizard} size="large" type="primary">
+        <Button icon={<PlusOutlined />} onClick={openCreationWizard} type="primary">
           {isApplicationWorkspace ? "Tạo đơn đăng ký" : "Khởi tạo từ đơn đã duyệt"}
         </Button>
       </div>
 
-      <section className="project-summary-grid" aria-label={isApplicationWorkspace ? "Tổng hợp đơn đăng ký" : "Tổng hợp hồ sơ chứng nhận"}>
+      <section className="project-summary-strip" aria-label={isApplicationWorkspace ? "Tổng hợp đơn đăng ký" : "Tổng hợp hồ sơ chứng nhận"}>
         {isApplicationWorkspace ? (
           <>
-            <Card><Statistic prefix={<FileSearchOutlined />} title="Tổng đơn" value={applications.length} /></Card>
-            <Card><Statistic prefix={<ClockCircleOutlined />} title="Chờ xem xét" value={pendingApplications} /></Card>
-            <Card><Statistic prefix={<WarningOutlined />} title="Chờ bổ sung" value={moreInfoApplications} /></Card>
-            <Card><Statistic prefix={<CheckCircleOutlined />} title="Đã chấp nhận" value={acceptedApplicationCount} /></Card>
+            <div><FileSearchOutlined /><span>Tổng đơn</span><strong>{applications.length}</strong></div>
+            <div><ClockCircleOutlined /><span>Chờ xem xét</span><strong>{pendingApplications}</strong></div>
+            <div><WarningOutlined /><span>Chờ bổ sung</span><strong>{moreInfoApplications}</strong></div>
+            <div><CheckCircleOutlined /><span>Đã chấp nhận</span><strong>{acceptedApplicationCount}</strong></div>
           </>
         ) : (
           <>
-            <Card><Statistic prefix={<FolderOpenOutlined />} title="Tổng hồ sơ" value={projects.length} /></Card>
-            <Card><Statistic prefix={<ClockCircleOutlined />} title="Đang thực hiện" value={activeProjects} /></Card>
-            <Card><Statistic prefix={<WarningOutlined />} title="Cần xử lý" value={attentionProjects} /></Card>
-            <Card><Statistic prefix={<CheckCircleOutlined />} title="Đã cấp chứng chỉ" value={issuedProjects} /></Card>
+            <div><FolderOpenOutlined /><span>Tổng hồ sơ</span><strong>{projects.length}</strong></div>
+            <div><ClockCircleOutlined /><span>Đang thực hiện</span><strong>{activeProjects}</strong></div>
+            <div><WarningOutlined /><span>Cần xử lý</span><strong>{attentionProjects}</strong></div>
+            <div><CheckCircleOutlined /><span>Đã cấp chứng chỉ</span><strong>{issuedProjects}</strong></div>
           </>
         )}
       </section>
@@ -3540,6 +3595,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       </Card>
 
       <Modal
+        className={isApplicationWorkspace ? "application-wizard-modal" : "project-wizard-modal"}
         cancelText="Đóng"
         destroyOnHidden
         footer={createdProjectId ? (
@@ -3648,9 +3704,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         maskClosable={false}
         onCancel={closeCreationWizard}
         open={creationOpen}
-        styles={{ body: { maxHeight: "74vh", overflowY: "auto", paddingRight: 8 } }}
+        styles={{ body: { maxHeight: "78vh", overflowY: "auto" } }}
         title={isApplicationWorkspace ? "Đơn đăng ký chứng nhận" : "Khởi tạo hồ sơ chứng nhận"}
-        width={1280}
+        width={isApplicationWorkspace ? 1040 : 1180}
       >
         {createdProjectId ? (
           <Result
@@ -3664,6 +3720,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
           <Alert description={getErrorMessage(creationQueryError)} message="Không tải được dữ liệu tạo hồ sơ" showIcon type="error" />
         ) : (
           <Form<ProjectCreationValues>
+            className={isApplicationWorkspace ? "application-wizard-form" : "project-wizard-form"}
             disabled={isApplicationWorkspace && (applicationDialogMode === "view" || applicationDialogMode === "status" || (applicationDialogMode === "review" && ["SUBMITTED", "APPROVED"].includes(reviewWorkflowStatus)))}
             form={wizardForm}
             layout="vertical"
@@ -3771,8 +3828,13 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                     )}
                   </>
                 ) : (
-                  <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                    <Card size="small" title="1. Thông tin chung / General information">
+                  <div className="application-entry-stack">
+                    <ApplicationEntrySection
+                      sectionKey="general"
+                      title="1. Thông tin chung / General information"
+                      activeSection={applicationEntrySection}
+                      onActiveSection={setApplicationEntrySection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item
                           className="span-2"
@@ -3811,13 +3873,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                             showSearch
                           />
                         </Form.Item>
-                        <Form.Item
-                          extra={applicationDialogMode === "create" ? "Mã được backend tự cấp khi lưu để tránh trùng khi nhiều người thao tác đồng thời." : undefined}
-                          label="Mã đơn đăng ký"
-                          name="application_code"
-                        >
-                          <Input disabled maxLength={50} placeholder="Hệ thống tự cấp: APP-YYYY-NNNN" />
-                        </Form.Item>
+                        {applicationDialogMode !== "create" ? (
+                          <Form.Item label="Mã đơn đăng ký" name="application_code">
+                            <Input disabled maxLength={50} />
+                          </Form.Item>
+                        ) : null}
                         <Form.Item label="Ngày đăng ký" name="application_date" rules={[{ required: true, message: "Chọn ngày đăng ký" }]}>
                           <DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} />
                         </Form.Item>
@@ -3855,9 +3915,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         <Form.Item label="Fax" name="contact_fax"><Input /></Form.Item>
                         <Form.Item className="span-2" label="Email" name="contact_email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input /></Form.Item>
                       </div>
-                    </Card>
+                    </ApplicationEntrySection>
 
-                    <Card size="small" title="2. Thông tin chứng nhận / Certification information">
+                    <ApplicationEntrySection
+                      sectionKey="certification"
+                      title="2. Thông tin chứng nhận / Certification information"
+                      activeSection={applicationEntrySection}
+                      onActiveSection={setApplicationEntrySection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item label="Loại hình chứng nhận" name="certification_type" rules={[{ required: true, message: "Chọn loại chứng nhận" }]}>
                           <Select options={[
@@ -3934,9 +3999,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         <Form.Item label="Đánh giá giai đoạn 1 đề nghị" name="stage1_requested_date"><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                         <Form.Item label="Đánh giá giai đoạn 2 đề nghị" name="stage2_requested_date"><DatePicker className="notranslate" popupClassName="notranslate" format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
                       </div>
-                    </Card>
+                    </ApplicationEntrySection>
 
-                    <Card size="small" title="3. Nhân sự và địa điểm chứng nhận">
+                    <ApplicationEntrySection
+                      sectionKey="personnel"
+                      title="3. Nhân sự và địa điểm chứng nhận"
+                      activeSection={applicationEntrySection}
+                      onActiveSection={setApplicationEntrySection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item label="Tổng số nhân sự" name="total_employee_count" rules={[{ required: true, message: "Nhập tổng số nhân sự" }]}>
                           <InputNumber min={0} precision={0} style={{ width: "100%" }} />
@@ -3973,9 +4043,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           </Space>
                         )}
                       </Form.List>
-                    </Card>
+                    </ApplicationEntrySection>
 
-                    <Card size="small" title="4. Thông tin khác và hồ sơ kèm theo">
+                    <ApplicationEntrySection
+                      sectionKey="documents"
+                      title="4. Thông tin khác và hồ sơ kèm theo"
+                      activeSection={applicationEntrySection}
+                      onActiveSection={setApplicationEntrySection}
+                    >
                       <div className="project-creation-grid wide">
                         <Form.Item label="Đã áp dụng hệ thống quản lý khác?" name="other_management_systems">
                           <Radio.Group><Radio value> Có</Radio><Radio value={false}> Không</Radio></Radio.Group>
@@ -4052,8 +4127,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           </Checkbox>
                         </Form.Item>
                       </div>
-                    </Card>
-                  </Space>
+                    </ApplicationEntrySection>
+                  </div>
                 )}
               </div>
             )}
