@@ -4221,90 +4221,73 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                     </div>
                   </div>
                   {latestWorkflowReview?.id && (
-                    <Card size="small" title="Quy trình Application Review">
-                      {latestInvalidationAction && (
-                        <Alert
-                          description={latestInvalidationAction.comment || "Dữ liệu trọng yếu của đơn đã thay đổi sau phê duyệt. Cần thực hiện lại Application Review trước khi lập hợp đồng."}
-                          message="Bản xem xét cần thực hiện lại"
-                          showIcon
-                          style={{ marginBottom: 12 }}
-                          type="warning"
-                        />
-                      )}
-                      <Descriptions bordered column={{ xs: 1, md: 2 }} size="small">
-                        <Descriptions.Item label="Trạng thái">
-                          <Tag color={
-                            reviewWorkflowStatus === "APPROVED" ? "green" :
-                            reviewWorkflowStatus === "RETURNED" ? "orange" :
-                            reviewWorkflowStatus === "SUBMITTED" ? "purple" : "gold"
-                          }>
-                            {{
-                              DRAFT: "Bản nháp",
-                              SUBMITTED: "Đã gửi reviewer",
-                              RETURNED: latestInvalidationAction ? "Cần xem xét lại" : "Reviewer trả lại",
-                              APPROVED: "Đã phê duyệt",
-                            }[reviewWorkflowStatus] ?? reviewWorkflowStatus}
-                          </Tag>
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Người lập">
-                          {latestWorkflowReview.prepared_by?.full_name || latestWorkflowReview.prepared_by?.username || "—"}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Reviewer">
-                          {latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "—"}
-                        </Descriptions.Item>
-                        <Descriptions.Item label="Ý kiến reviewer">
-                          {latestWorkflowReview.approver_comment || "—"}
-                        </Descriptions.Item>
-                      </Descriptions>
-                      {reviewWorkflowStatus === "SUBMITTED" && !canReviewWorkflow && (
-                        <Alert
-                          description="Tài khoản hiện tại là người lập/theo dõi nên chỉ xem trạng thái. Reviewer được chỉ định cần đăng nhập bằng tài khoản của họ để thực hiện Phê duyệt hoặc Trả lại."
-                          message={`Đang chờ reviewer: ${latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "Chưa xác định"}`}
-                          showIcon
-                          style={{ marginTop: 12 }}
-                          type="info"
-                        />
-                      )}
-                      <Card size="small" style={{ marginTop: 12 }} title="Năng lực tổ chức chứng nhận">
-                        {capabilityEvaluationQuery.isLoading ? (
-                          <Text type="secondary">Đang đánh giá Program + IAF…</Text>
-                        ) : capabilityEvaluation ? (
-                          <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                            {capabilityEvaluation.items.map((item, index) => (
-                              <div key={`${item.program_code}-${item.iaf_code ?? "unresolved"}-${index}`}>
-                                <Space wrap>
-                                  <Text strong>{item.program_name} / IAF {item.iaf_code ?? "—"}</Text>
-                                  <Tag color={item.result === "CAPABLE" ? "green" : item.result === "NOT_CAPABLE" ? "red" : "orange"}>
-                                    {item.result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : item.result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}
-                                  </Tag>
-                                </Space>
-                                <div><Text type="secondary">{item.reason}</Text></div>
-                              </div>
-                            ))}
-                            <Alert
-                              message={`Kết luận tổng thể: ${capabilityEvaluation.overall_result === "CAPABLE" ? "ĐỦ NĂNG LỰC" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "KHÔNG ĐỦ NĂNG LỰC" : "CẦN XEM XÉT"}`}
-                              showIcon
-                              type={capabilityEvaluation.overall_result === "CAPABLE" ? "success" : capabilityEvaluation.overall_result === "NOT_CAPABLE" ? "error" : "warning"}
-                            />
-                          </Space>
-                        ) : (
-                          <Alert message="Chưa thể đánh giá năng lực" description={capabilityEvaluationQuery.isError ? getErrorMessage(capabilityEvaluationQuery.error) : "Chưa có bản xem xét"} showIcon type="warning" />
-                        )}
-                      </Card>
-                      {canReviewWorkflow && (
-                        <ConfigProvider componentDisabled={false}>
-                          <div style={{ marginTop: 12 }}>
-                            <TextArea
-                              maxLength={4000}
-                              onChange={(event) => setWorkflowComment(event.target.value)}
-                              placeholder="Nhận xét của reviewer; bắt buộc khi trả lại"
-                              rows={3}
-                              value={workflowComment}
-                            />
+                    <Collapse
+                      className="application-workflow-collapse"
+                      items={[{
+                        key: "workflow-status",
+                        label: (
+                          <div className="application-workflow-label">
+                            <span>Quy trình xem xét</span>
+                            <Tag color={
+                              reviewWorkflowStatus === "APPROVED" ? "green" :
+                              reviewWorkflowStatus === "RETURNED" ? "orange" :
+                              reviewWorkflowStatus === "SUBMITTED" ? "purple" : "gold"
+                            }>
+                              {{
+                                DRAFT: "Bản nháp",
+                                SUBMITTED: "Đã gửi reviewer",
+                                RETURNED: latestInvalidationAction ? "Cần xem xét lại" : "Reviewer trả lại",
+                                APPROVED: "Đã phê duyệt",
+                              }[reviewWorkflowStatus] ?? reviewWorkflowStatus}
+                            </Tag>
                           </div>
-                        </ConfigProvider>
-                      )}
-                    </Card>
+                        ),
+                        children: (
+                          <>
+                            {latestInvalidationAction && (
+                              <Alert
+                                description={latestInvalidationAction.comment || "Dữ liệu trọng yếu của đơn đã thay đổi sau phê duyệt. Cần thực hiện lại Application Review trước khi lập hợp đồng."}
+                                message="Bản xem xét cần thực hiện lại"
+                                showIcon
+                                style={{ marginBottom: 8 }}
+                                type="warning"
+                              />
+                            )}
+                            <Descriptions column={{ xs: 1, md: 3 }} size="small">
+                              <Descriptions.Item label="Người lập">
+                                {latestWorkflowReview.prepared_by?.full_name || latestWorkflowReview.prepared_by?.username || "—"}
+                              </Descriptions.Item>
+                              <Descriptions.Item label="Reviewer">
+                                {latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "—"}
+                              </Descriptions.Item>
+                              <Descriptions.Item label="Ý kiến reviewer">
+                                {latestWorkflowReview.approver_comment || "—"}
+                              </Descriptions.Item>
+                            </Descriptions>
+                            {reviewWorkflowStatus === "SUBMITTED" && !canReviewWorkflow && (
+                              <Alert
+                                message={`Đang chờ reviewer: ${latestWorkflowReview.users?.full_name || latestWorkflowReview.users?.username || latestWorkflowReview.approved_by_name || "Chưa xác định"}`}
+                                showIcon
+                                style={{ marginTop: 6 }}
+                                type="info"
+                              />
+                            )}
+                            {canReviewWorkflow && (
+                              <ConfigProvider componentDisabled={false}>
+                                <TextArea
+                                  className="application-workflow-comment"
+                                  maxLength={4000}
+                                  onChange={(event) => setWorkflowComment(event.target.value)}
+                                  placeholder="Nhận xét reviewer; bắt buộc khi trả lại"
+                                  rows={2}
+                                  value={workflowComment}
+                                />
+                              </ConfigProvider>
+                            )}
+                          </>
+                        ),
+                      }]}
+                    />
                   )}
                     <Collapse
                       className="application-source-collapse"
