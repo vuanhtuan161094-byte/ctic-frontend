@@ -157,7 +157,7 @@ const roleLabels: Record<string, string> = {
   technical_expert: "Chuyên gia kỹ thuật",
   technical_reviewer: "Thẩm xét viên kỹ thuật",
   decision_maker: "Người ra quyết định",
-  customer: "Người dùng khách hàng",
+  customer: "Khách hàng",
 };
 
 const permissionResourceLabels: Record<string, string> = {
@@ -743,7 +743,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
     {
       title: "Tài khoản",
       key: "account",
-      width: 300,
+      width: 280,
       render: (_, record) => (
         <button
           className="system-user-name-button"
@@ -762,20 +762,21 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       title: "Thư điện tử",
       dataIndex: "email",
       key: "email",
-      width: 260,
+      width: 240,
     },
     {
       title: "Nhóm",
       key: "audience",
-      width: 125,
+      width: 115,
       render: (_, record) => <UserAudienceTag user={record} />,
     },
     {
       title: "Vai trò",
       key: "roles",
+      width: 210,
       render: (_, record) => {
         const roleNames = record.roles.map((role) => getRoleLabel(role.role_name));
-        const visibleRoles = roleNames.slice(0, 3);
+        const visibleRoles = roleNames.slice(0, 1);
         const hiddenCount = Math.max(0, roleNames.length - visibleRoles.length);
 
         if (roleNames.length === 0) {
@@ -784,9 +785,9 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
 
         return (
           <Tooltip title={roleNames.join(" · ")}>
-            <Space size={[4, 4]} wrap>
+            <Space size={4} wrap={false}>
               {visibleRoles.map((roleName) => (
-                <Tag key={roleName}>{roleName}</Tag>
+                <Tag className="system-role-tag" key={roleName}>{roleName}</Tag>
               ))}
               {hiddenCount > 0 ? <Tag>+{hiddenCount}</Tag> : null}
             </Space>
@@ -798,26 +799,29 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 150,
+      width: 140,
       render: (status: string) => <UserStatusTag status={status} />,
     },
     {
       title: "Ngày tạo",
       dataIndex: "created_at",
       key: "created_at",
-      width: 130,
+      width: 120,
       render: (value: string) => dayjs(value).format("DD/MM/YYYY"),
     },
     {
-      title: "",
+      title: "Thao tác",
       key: "action",
-      width: routeMode ? 160 : 80,
+      width: 105,
       fixed: "right",
       render: (_, record) => (
-        <Space size={6}>
-          <Button onClick={() => openUser(record.id)} size="small">Mở</Button>
-          {routeMode ? <Button onClick={() => openUserEditor(record.id)} size="small" type="link">Chỉnh sửa</Button> : null}
-        </Space>
+        <Button
+          onClick={() => routeMode ? openUserEditor(record.id) : openUser(record.id)}
+          size="small"
+          type="link"
+        >
+          {routeMode ? "Quản lý" : "Mở"}
+        </Button>
       ),
     },
   ];
