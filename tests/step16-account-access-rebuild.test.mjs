@@ -37,6 +37,18 @@ test("account list supports useful filters, pagination and responsive cards", ()
   assert.match(accounts, /pagination=\{\{ pageSize: 10/);
 });
 
+test("admin uses one account list with separate safe creation flows", () => {
+  assert.match(accounts, /title="Thêm tài khoản"/);
+  assert.match(accounts, /Tài khoản nội bộ/);
+  assert.match(accounts, /Tài khoản khách hàng/);
+  assert.match(accounts, /CustomerPortalAccountModal/);
+  assert.match(accounts, /customerCreateOpen/);
+  assert.match(accounts, /internalRoleOptions/);
+  assert.match(accounts, /normalizeRole\(option\.value\) !== "customer"/);
+  assert.match(accounts, /Vai trò CUSTOMER được quản lý bởi flow tài khoản khách hàng/);
+  assert.match(accounts, /title: "Nhóm"/);
+});
+
 test("account details are route-level and split into coherent areas", () => {
   for (const label of ["Tổng quan", "Vai trò & quyền hiệu lực", "Phiên & bảo mật", "Hoạt động"]) assert.ok(detail.includes(label), `missing ${label}`);
   assert.match(detail, /PageHeader/);
