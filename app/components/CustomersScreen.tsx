@@ -437,9 +437,9 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         <div>
           <span className="eyebrow">DỮ LIỆU KHÁCH HÀNG</span>
           <Title level={2}>Khách hàng</Title>
-          <Text type="secondary">Quản lý thông tin pháp lý, liên hệ và toàn bộ hồ sơ chứng nhận của từng tổ chức.</Text>
+          <Text type="secondary">Thông tin pháp lý, liên hệ và hồ sơ chứng nhận theo từng tổ chức.</Text>
         </div>
-        {canManage ? <Button icon={<PlusOutlined />} onClick={openCreate} size="large" type="primary">Thêm khách hàng</Button> : null}
+        {canManage ? <Button icon={<PlusOutlined />} onClick={openCreate} type="primary">Thêm khách hàng</Button> : null}
       </div>
 
       <section className="customer-summary-strip" aria-label="Tổng hợp khách hàng">
@@ -485,11 +485,11 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         onClose={() => setSelectedCustomerId(null)}
         open={Boolean(selectedCustomer)}
         title={<div><Text type="secondary">Hồ sơ khách hàng</Text><strong>{selectedCustomer?.customer_code}</strong></div>}
-        width={760}
+        width={620}
       >
         {selectedCustomer ? (
           <div className="customer-detail-content">
-            <Card className="customer-identity-card">
+            <Card className="customer-identity-card" size="small">
               <div className="customer-detail-heading">
                 <div className="customer-avatar"><BankOutlined /></div>
                 <div><Title level={3}>{selectedCustomer.company_name}</Title><CustomerStatusTag status={selectedCustomer.status} /></div>
@@ -508,7 +508,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                   {canManage ? <Button icon={<EditOutlined />} onClick={() => openEdit(selectedCustomer)}>Chỉnh sửa</Button> : null}
                 </Space>
               </div>
-              <Descriptions column={{ xs: 1, sm: 2 }}>
+              <Descriptions column={{ xs: 1, sm: 2 }} size="small">
                 <Descriptions.Item label="Mã khách hàng">{selectedCustomer.customer_code}</Descriptions.Item>
                 <Descriptions.Item label="Quốc gia">{selectedCustomer.country_name?.trim() || normalizeCountryCode(selectedCustomer.country_code)}</Descriptions.Item>
                 <Descriptions.Item label={taxIdentifierLabel(selectedCustomer.country_code)}>{selectedCustomer.tax_code || "Chưa cập nhật"}</Descriptions.Item>
@@ -520,6 +520,8 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
 
             {isAdmin ? (
               <Card
+                className="customer-access-card"
+                size="small"
                 title="Tài khoản khách hàng"
                 extra={
                   <Button
@@ -533,16 +535,15 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 }
               >
                 <Alert
+                  className="customer-access-note"
                   showIcon
                   type="info"
-                  message="Mỗi người liên hệ có thể có một tài khoản Portal riêng"
-                  description="Tài khoản được tạo tại đây chỉ có vai trò Khách hàng và chỉ truy cập dữ liệu của tổ chức này."
-                  style={{ marginBottom: 12 }}
+                  message="Mỗi người liên hệ có thể có một tài khoản Portal riêng và chỉ truy cập dữ liệu của tổ chức này."
                 />
                 <List
                   loading={customerAccessQuery.isLoading}
                   dataSource={customerAccess}
-                  locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tài khoản khách hàng" /> }}
+                  locale={{ emptyText: <div className="customer-empty-inline"><TeamOutlined /><Text type="secondary">Chưa có tài khoản khách hàng</Text></div> }}
                   renderItem={(access) => {
                     const active = normalize(access.status) === "active";
                     const accountActive = normalize(access.user.status || "active") === "active";
@@ -598,10 +599,10 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
               </Card>
             ) : null}
 
-            <Card title="Hồ sơ chứng nhận" extra={<Tag>{selectedProjects.length} hồ sơ</Tag>}>
+            <Card className="customer-projects-card" size="small" title="Hồ sơ chứng nhận" extra={<Tag>{selectedProjects.length} hồ sơ</Tag>}>
               <List
                 dataSource={selectedProjects}
-                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Khách hàng chưa có hồ sơ chứng nhận" /> }}
+                locale={{ emptyText: <div className="customer-empty-inline"><FolderOpenOutlined /><Text type="secondary">Chưa có hồ sơ chứng nhận</Text></div> }}
                 renderItem={(project) => (
                   <List.Item actions={[<Button key="open" onClick={() => onOpenProject(project.id)} size="small">Mở hồ sơ</Button>]}>
                     <List.Item.Meta
@@ -616,7 +617,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
             </Card>
 
             {isAdmin ? (
-              <Card className="customer-danger-zone" title="Trạng thái hoạt động">
+              <Card className="customer-danger-zone" size="small" title="Trạng thái hoạt động">
                 {normalize(selectedCustomer.status || "active") === "active" ? (
                   <div><Text>Ngừng hoạt động chỉ khóa việc sử dụng khách hàng cho nghiệp vụ mới, không xóa hồ sơ đã có.</Text>
                     <Popconfirm
