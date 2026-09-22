@@ -4639,19 +4639,108 @@ input { font: inherit; }
   min-width: 0;
 }
 
-.cb-capability-grid {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+.cb-capability-compact .ant-card-head {
+  min-height: 34px;
+  padding-inline: 10px;
 }
 
-.cb-capability-item {
-  background: #fafcff;
-  border: 1px solid #e7edf5;
-  border-radius: 8px;
+.cb-capability-compact .ant-card-head-title {
+  font-size: 12px;
+  padding-block: 6px;
+}
+
+.cb-capability-compact .ant-card-extra {
+  padding-block: 5px;
+}
+
+.cb-capability-compact .ant-card-body {
+  padding: 6px 10px 8px;
+}
+
+.cb-capability-empty {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 34px;
+}
+
+.cb-capability-empty .ant-typography {
+  font-size: 11px;
+}
+
+.cb-capability-rows {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.cb-capability-row {
+  align-items: center;
   display: grid;
-  gap: 5px;
-  padding: 9px 11px;
+  gap: 8px;
+  grid-template-columns: minmax(170px, 1.25fr) minmax(150px, 1fr) 92px;
+  min-height: 36px;
+  padding: 6px 8px;
+}
+
+.cb-capability-row + .cb-capability-row {
+  border-top: 1px solid var(--cmp-border-default);
+}
+
+.cb-capability-row > strong {
+  font-size: 11.5px;
+  min-width: 0;
+}
+
+.cb-capability-row__iaf {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  min-width: 0;
+}
+
+.cb-capability-row .ant-tag {
+  justify-self: end;
+  margin: 0;
+}
+
+.cb-capability-row__issue {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  line-height: 1.3;
+  margin-top: -2px;
+}
+
+.cb-capability-footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 28px;
+  padding-top: 4px;
+}
+
+.cb-capability-footer .ant-typography {
+  font-size: 10.5px;
+}
+
+.cb-capability-footer .ant-btn {
+  height: 24px;
+  padding-inline: 6px;
+}
+
+@media (max-width: 760px) {
+  .cb-capability-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .cb-capability-row__iaf {
+    grid-column: 1;
+  }
+
+  .cb-capability-row .ant-tag {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
 }
 
 .industry-resolution-select .ant-select-selection-item {
