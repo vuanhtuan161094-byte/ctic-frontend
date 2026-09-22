@@ -6625,3 +6625,347 @@ input { font: inherit; }
     grid-column: auto;
   }
 }
+
+
+/* CMP enterprise density baseline + application workspace */
+/* Shared working-page header: less ceremonial whitespace, same hierarchy. */
+.application-content .module-page-heading,
+.application-content .page-heading,
+.application-content .page-heading-v2 {
+  align-items: center;
+  border-bottom: 1px solid var(--cmp-border-default);
+  gap: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+
+.application-content .module-page-heading > div:first-child,
+.application-content .page-heading > div:first-child,
+.application-content .page-heading-v2 > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.application-content .module-page-heading .eyebrow,
+.application-content .page-heading .eyebrow,
+.application-content .page-heading-v2 .eyebrow {
+  font-size: 10.5px;
+  letter-spacing: .075em;
+  line-height: 1.2;
+}
+
+.application-content .module-page-heading h2.ant-typography,
+.application-content .page-heading h2.ant-typography,
+.application-content .page-heading-v2 h2.ant-typography {
+  font-size: 26px;
+  line-height: 1.12;
+  margin: 2px 0 0;
+}
+
+.application-content .module-page-heading .ant-typography-secondary,
+.application-content .page-heading .ant-typography-secondary,
+.application-content .page-heading-v2 .ant-typography-secondary {
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.application-content .module-page-heading > .ant-btn,
+.application-content .page-heading > .ant-btn,
+.application-content .page-heading-v2 > .ant-btn {
+  height: 34px;
+  padding-inline: 13px;
+}
+
+/* Shared project/application list surface. */
+.project-summary-strip {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  box-shadow: var(--cmp-shadow-low);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.project-summary-strip > div {
+  align-items: center;
+  display: grid;
+  gap: 1px 8px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  min-height: 50px;
+  padding: 7px 12px;
+}
+
+.project-summary-strip > div + div {
+  border-left: 1px solid var(--cmp-border-default);
+}
+
+.project-summary-strip .anticon {
+  color: var(--cmp-brand-primary);
+  font-size: 15px;
+}
+
+.project-summary-strip span {
+  color: var(--cmp-text-secondary);
+  font-size: 11.5px;
+  line-height: 1.25;
+}
+
+.project-summary-strip strong {
+  color: var(--cmp-text-primary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.projects-list-card {
+  border: 1px solid var(--cmp-border-default) !important;
+  border-radius: var(--cmp-radius-md) !important;
+  box-shadow: var(--cmp-shadow-low);
+  overflow: hidden;
+}
+
+.projects-list-card .ant-card-body {
+  padding: 12px;
+}
+
+.project-list-toolbar {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.project-list-toolbar .ant-input-affix-wrapper,
+.project-list-toolbar .ant-select-selector {
+  min-height: 34px !important;
+}
+
+.projects-list-card .ant-table-container {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  overflow: hidden;
+}
+
+.projects-list-card .ant-table-thead > tr > th {
+  border-bottom: 1px solid var(--cmp-border-strong);
+  padding-block: 8px;
+}
+
+.projects-list-card .ant-table-tbody > tr > td {
+  border-bottom-color: var(--cmp-border-default);
+  padding-block: 9px;
+}
+
+.projects-list-card .ant-pagination {
+  margin: 10px 0 0 !important;
+}
+
+/* Application entry modal: focused, not a full-screen document editor. */
+.application-wizard-modal .ant-modal-content {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 11px;
+  box-shadow: 0 18px 54px rgba(22, 48, 83, .18);
+  overflow: hidden;
+  padding: 14px 16px 12px;
+}
+
+.application-wizard-modal .ant-modal-header {
+  border-bottom: 1px solid var(--cmp-border-default);
+  margin-bottom: 8px;
+  padding-bottom: 9px;
+}
+
+.application-wizard-modal .ant-modal-title {
+  font-size: 16px;
+  font-weight: var(--cmp-font-weight-semibold);
+}
+
+.application-wizard-modal .ant-modal-body {
+  padding-inline-end: 3px;
+}
+
+.application-wizard-modal .ant-modal-footer {
+  border-top: 1px solid var(--cmp-border-default);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.application-wizard-modal .project-creation-steps {
+  margin: 0 0 4px;
+}
+
+.application-wizard-modal .project-creation-steps .ant-steps-item-title {
+  font-size: 12px;
+}
+
+.application-wizard-modal .project-creation-steps .ant-steps-item-icon {
+  height: 24px;
+  line-height: 22px;
+  margin-top: 1px;
+  width: 24px;
+}
+
+.application-wizard-modal .project-creation-steps + .ant-divider {
+  margin: 6px 0 10px;
+}
+
+.application-wizard-form .project-creation-step {
+  min-height: 0;
+}
+
+.application-entry-stack {
+  display: grid;
+  gap: 7px;
+}
+
+.application-entry-collapse {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.application-entry-collapse > .ant-collapse-item {
+  border-bottom: 0;
+}
+
+.application-entry-collapse > .ant-collapse-item > .ant-collapse-header {
+  align-items: center;
+  background: var(--cmp-surface-subtle);
+  min-height: 38px;
+  padding: 8px 11px !important;
+}
+
+.application-entry-collapse .ant-collapse-header-text {
+  color: var(--cmp-text-primary);
+  font-size: 12.5px;
+  font-weight: var(--cmp-font-weight-semibold);
+}
+
+.application-entry-collapse .ant-collapse-content {
+  border-top: 1px solid var(--cmp-border-default);
+}
+
+.application-entry-collapse .ant-collapse-content-box {
+  padding: 10px 11px 2px !important;
+}
+
+.application-wizard-form .project-creation-grid {
+  gap: 0 12px;
+}
+
+.application-wizard-form .ant-form-item {
+  margin-bottom: 9px;
+}
+
+.application-wizard-form .ant-form-item-label {
+  padding-bottom: 2px;
+}
+
+.application-wizard-form .ant-form-item-label > label {
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.application-wizard-form .ant-form-item-extra,
+.application-wizard-form .ant-form-item-explain {
+  font-size: 10px;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+
+.application-wizard-form .ant-input,
+.application-wizard-form .ant-input-number,
+.application-wizard-form .ant-picker,
+.application-wizard-form .ant-select-selector {
+  min-height: 32px !important;
+}
+
+.application-wizard-form .ant-input-number-input {
+  height: 30px;
+}
+
+.application-wizard-form textarea.ant-input {
+  min-height: 48px !important;
+}
+
+.application-wizard-form .ant-divider {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  margin: 5px 0 8px;
+}
+
+.application-wizard-form .application-site-card {
+  border-radius: 8px;
+  padding: 9px 10px 0;
+}
+
+.application-wizard-form .application-site-card__heading {
+  margin-bottom: 5px;
+}
+
+.application-wizard-form .application-document-upload-grid {
+  gap: 6px;
+}
+
+.application-wizard-form .application-document-upload-row {
+  min-height: 36px;
+  padding: 5px 7px;
+}
+
+.application-wizard-form .project-creation-validation-panel {
+  margin-top: 10px;
+  padding-top: 6px;
+}
+
+/* Empty data should not create a fake half-page. */
+.projects-list-card .ant-empty {
+  margin-block: 20px;
+}
+
+.projects-list-card .ant-empty-image {
+  height: 36px;
+}
+
+.projects-list-card .ant-table-placeholder > td {
+  padding-block: 18px !important;
+}
+
+@media (max-width: 1100px) {
+  .project-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-summary-strip > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--cmp-border-default);
+  }
+
+  .project-summary-strip > div:nth-child(4) {
+    border-top: 1px solid var(--cmp-border-default);
+  }
+}
+
+@media (max-width: 760px) {
+  .application-content .module-page-heading,
+  .application-content .page-heading,
+  .application-content .page-heading-v2 {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .application-content .module-page-heading > .ant-btn,
+  .application-content .page-heading > .ant-btn,
+  .application-content .page-heading-v2 > .ant-btn {
+    width: 100%;
+  }
+
+  .application-wizard-modal .ant-modal-content {
+    padding-inline: 12px;
+  }
+
+  .application-entry-collapse .ant-collapse-content-box {
+    padding-inline: 9px !important;
+  }
+}
