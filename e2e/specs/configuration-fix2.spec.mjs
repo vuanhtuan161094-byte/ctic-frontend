@@ -57,6 +57,17 @@ async function installApi(page, options = {}) {
       Object.assign(rows.find(item => item.id === path.split('/').pop()), body);
       return json({});
     }
+    if (req.method() === 'POST' && path === '/industry-classifications/resolve-batch') {
+      const { items } = req.postDataJSON();
+      resolves.push(...items);
+      return json({ items: items.map(query => {
+        const source = isics.find(item => item.code === query.code);
+        const plastic = source.code === '2220'; const iaf = candidate(plastic ? '14' : '19');
+        return { source, management_system: query.management_system,
+          nace_candidates: [{ mapping_type: 'ONE_TO_MANY', nace: naces[plastic ? 0 : 1], iaf_candidates: [iaf] }],
+          iaf_summary: { status: 'UNIQUE', iaf_codes: [iaf.iaf_code], candidates: [iaf] } };
+      }) });
+    }
     if (req.method() !== 'GET') return json({ message: 'Unexpected mutation in controlled Fix 2 fixture' }, 405);
     if (path === '/auth/me') return json({ user: { ...session.user, permissions: ['classifications.manage', 'projects.read', 'users.read'] } });
     if (path === '/platform-branding') return json({});
@@ -128,17 +139,17 @@ test('taxonomy unified workspace keeps lookup, catalog, mapping and sources usab
   expect(fixture.resolves.slice(-2).map(item => item.code)).toEqual(['2220', '2651']);
 
   await page.getByRole('tab', { name: 'Ánh xạ & kiểm soát', exact: true }).click();
-  await expect(page.getByText('Đã xác định IAF', { exact: true })).toBeVisible();
+  await expect(page.locator('.taxonomy-control-strip').getByText('Đã xác định IAF', { exact: true })).toBeVisible();
   await expect(page.getByText('Lỗi ánh xạ', { exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: /2220/ })).toBeVisible();
   await expect(page.getByRole('cell', { name: /22\.21/ })).toBeVisible();
 
-  await page.getByRole('tab', { name: 'NACE → IAF', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Tìm NACE hoặc IAF', exact: true }).fill('26.5');
-  await expect(page.getByText('IAF 19', { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'NACE → IAF', exact: true })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Tìm chuỗi ISIC NACE IAF', exact: true }).fill('14');
+  await expect(page.getByText('IAF 14', { exact: true }).filter({ visible: true })).toBeVisible();
 
   await page.getByRole('tab', { name: 'Danh mục', exact: true }).click();
-  await expect(page.getByText('419', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.locator('.taxonomy-data-strip > div').first().locator('strong')).toHaveText(String(isics.length));
   await expect(page.getByRole('cell', { name: '2220' })).toBeVisible();
   await page.getByRole('tab', { name: 'IAF', exact: true }).click();
   await page.getByRole('textbox', { name: 'Tìm IAF', exact: true }).fill('Cao su');

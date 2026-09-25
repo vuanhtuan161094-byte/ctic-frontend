@@ -189,7 +189,7 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
   const [naceSearch, setNaceSearch] = useState("");
   const [iafSearch, setIafSearch] = useState("");
   const [mappingSearch, setMappingSearch] = useState("");
-  const [naceIafSearch, setNaceIafSearch] = useState("");
+  const [mappingStatus, setMappingStatus] = useState("ALL");
   const [naceIafSystem, setNaceIafSystem] = useState("QMS");
   const [demoSystem, setDemoSystem] = useState("QMS");
   const [demoIsicIds, setDemoIsicIds] = useState<string[]>([]);
@@ -260,10 +260,6 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     const key = iafSearch.trim().toLowerCase();
     return (iaf.data ?? []).filter((row) => !key || `${row.iaf_code} ${row.iaf_name} ${row.description ?? ""}`.toLowerCase().includes(key));
   }, [iaf.data, iafSearch]);
-  const filteredIsicNace = useMemo(() => {
-    const key = mappingSearch.trim().toLowerCase();
-    return (isicNaceMappings.data ?? []).filter((row) => !key || `${row.source_code.code} ${row.source_code.title_en} ${row.source_code.title_vi ?? ""} ${row.target_code.code} ${row.target_code.title_en} ${row.target_code.title_vi ?? ""}`.toLowerCase().includes(key));
-  }, [isicNaceMappings.data, mappingSearch]);
   const hierarchicalNaceIafRows = useMemo<NaceIafDisplayRow[]>(() => {
     return (naceIafProjection.data?.items ?? []).flatMap<NaceIafDisplayRow>((item) => {
       if (!item.iaf_candidates.length) {
@@ -289,10 +285,19 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     });
   }, [naceIafProjection.data, naceIafSystem]);
 
-  const filteredNaceIaf = useMemo(() => {
-    const key = naceIafSearch.trim().toLowerCase();
-    return hierarchicalNaceIafRows.filter((row) => !key || `${row.nace_code.code} ${row.nace_code.title_en} ${row.nace_code.title_vi ?? ""} ${row.iaf_candidate?.iaf_code ?? ""} ${row.iaf_candidate?.iaf_name ?? ""}`.toLowerCase().includes(key));
-  }, [hierarchicalNaceIafRows, naceIafSearch]);
+  const unifiedMappingRows = useMemo(() => {
+    const key = mappingSearch.trim().toLowerCase();
+    return (isicNaceMappings.data ?? []).flatMap((mapping) => {
+      const targets = hierarchicalNaceIafRows.filter((row) => row.nace_code.id === mapping.target_code.id);
+      return (targets.length ? targets : [{ id: 'none', iaf_candidate: null, outside_iaf_table: false, resolution_status: 'UNRESOLVED' }]).map((target) => ({
+        ...mapping, ...target, id: `${mapping.id}-${target.id}`, mapping_id: mapping.id,
+      }));
+    }).filter((row) => (mappingStatus === "ALL"
+      || (mappingStatus === "RESOLVED" && Boolean(row.iaf_candidate))
+      || (mappingStatus === "UNRESOLVED" && !row.iaf_candidate && !row.outside_iaf_table)
+      || (mappingStatus === "OUTSIDE" && row.outside_iaf_table))
+      && (!key || `${row.source_code.code} ${codeTitle(row.source_code)} ${row.target_code.code} ${codeTitle(row.target_code)} ${row.iaf_candidate?.iaf_code ?? ''} ${row.iaf_candidate?.iaf_name ?? ''}`.toLowerCase().includes(key)));
+  }, [isicNaceMappings.data, hierarchicalNaceIafRows, mappingSearch, mappingStatus]);
 
   const runDemo = async () => {
     if (!demoIsicIds.length) {
@@ -307,12 +312,10 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
     setDemoLoading(true);
     try {
       const selected = demoIsicIds.map((id) => isicClasses.find((row) => row.id === id)).filter(Boolean) as IndustryCode[];
-      const results = await Promise.all(selected.map(async (row) => (
-        await api.get<ResolveResult>("/industry-classifications/resolve", {
-          params: { classification_type: "ISIC", revision: operationalRevision, code: row.code, management_system: demoSystem },
-        })
-      ).data));
-      setDemoResults(results);
+      const response = await api.post<{ items: ResolveResult[] }>("/industry-classifications/resolve-batch", {
+        items: selected.map((row) => ({ classification_type: "ISIC", revision: operationalRevision, code: row.code, management_system: demoSystem })),
+      });
+      setDemoResults(response.data.items);
     } catch (error) {
       messageApi.error(getErrorMessage(error));
     } finally {
@@ -707,64 +710,31 @@ export function IndustryTaxonomyPanel({ mode = "all" }: IndustryTaxonomyPanelPro
                   Mục tiêu kiểm soát: <b>Lỗi ánh xạ = 0</b>. Trường hợp ngoài bảng IAF được ghi nhận riêng, không tự gán lĩnh vực.
                 </Text>
 
-                <Tabs
-                  className="taxonomy-mapping-tabs"
+                <div className="taxonomy-catalog-toolbar">
+                  <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm chuỗi ISIC NACE IAF" placeholder="Tìm ISIC, NACE, IAF hoặc tên..." value={mappingSearch} onChange={(event) => setMappingSearch(event.target.value)} className="taxonomy-catalog-search" />
+                  <Select value={naceIafSystem} onChange={setNaceIafSystem} options={Object.entries(managementSystemLabels).map(([value, label]) => ({ value, label }))} aria-label="Hệ thống quản lý ánh xạ" />
+                  <Select value={mappingStatus} onChange={setMappingStatus} aria-label="Trạng thái ánh xạ" options={[
+                    { value: "ALL", label: "Tất cả trạng thái" }, { value: "RESOLVED", label: "Đã xác định IAF" },
+                    { value: "UNRESOLVED", label: "Chưa phân giải" }, { value: "OUTSIDE", label: "Ngoài bảng IAF" },
+                  ]} />
+                </div>
+                <Table
+                  aria-label="Chuỗi ánh xạ ISIC NACE IAF"
+                  components={{ table: ClassificationTable }}
+                  scroll={{ x: 760 }}
                   size="small"
-                  items={[
-                    {
-                      key: "isic-nace",
-                      label: "ISIC → NACE",
-                      children: (
-                        <>
-                          <Input allowClear prefix={<SearchOutlined />} aria-label="Tìm ánh xạ ISIC NACE" placeholder="Tìm ISIC, NACE hoặc hoạt động..." value={mappingSearch} onChange={(event) => setMappingSearch(event.target.value)} className="taxonomy-catalog-search" />
-                          <Table
-                            components={{ table: ClassificationTable }}
-                            scroll={{ x: 700 }}
-                            size="small"
-                            rowKey="id"
-                            loading={isicNaceMappings.isPending || isicNaceMappings.isFetching}
-                            locale={{ emptyText: isicNaceMappings.isFetching ? "Đang tải dữ liệu..." : "Không có ánh xạ phù hợp" }}
-                            dataSource={filteredIsicNace}
-                            pagination={{ pageSize: 20, showSizeChanger: true }}
-                            columns={[
-                              { title: "ISIC", render: (_, row: IndustryMapping) => <><b>{row.source_code.code}</b><div><Text type="secondary">{codeTitle(row.source_code)}</Text></div></> },
-                              { title: "NACE", render: (_, row: IndustryMapping) => <><b>{row.target_code.code}</b><div><Text type="secondary">{codeTitle(row.target_code)}</Text></div></> },
-                              { title: "Quan hệ", dataIndex: "mapping_type", width: 180, render: (value) => <Tag>{mappingTypeLabels[value] ?? value}</Tag> },
-                              { title: "Nguồn", dataIndex: "note", width: 250, render: (value) => value || "UNSD" },
-                            ]}
-                          />
-                        </>
-                      ),
-                    },
-                    {
-                      key: "nace-iaf",
-                      label: "NACE → IAF",
-                      children: (
-                        <>
-                          <div className="taxonomy-catalog-toolbar">
-                            <Text type="secondary">IAF phụ thuộc hệ thống quản lý; mã cha có thể tổng hợp từ các lớp NACE chi tiết.</Text>
-                            <Select value={naceIafSystem} onChange={setNaceIafSystem} options={Object.entries(managementSystemLabels).map(([value, label]) => ({ value, label }))} aria-label="Hệ thống quản lý NACE IAF" />
-                          </div>
-                          <Input allowClear prefix={<SearchOutlined />} placeholder="Tìm NACE hoặc IAF..." value={naceIafSearch} onChange={(event) => setNaceIafSearch(event.target.value)} aria-label="Tìm NACE hoặc IAF" className="taxonomy-catalog-search" />
-                          <Table
-                            components={{ table: ClassificationTable }}
-                            scroll={{ x: 700 }}
-                            size="small"
-                            rowKey="id"
-                            loading={naceIafProjection.isLoading}
-                            dataSource={filteredNaceIaf}
-                            pagination={{ pageSize: 20, showSizeChanger: true }}
-                            columns={[
-                              { title: "NACE", render: (_, row: NaceIafDisplayRow) => <><b>{row.nace_code.code}</b><div><Text type="secondary">{codeTitle(row.nace_code)}</Text></div></> },
-                              { title: "IAF", render: (_, row: NaceIafDisplayRow) => row.iaf_candidate ? <><Tag color="blue">IAF {row.iaf_candidate.iaf_code}</Tag><div>{row.iaf_candidate.iaf_name}</div></> : row.outside_iaf_table ? <Tag color="orange">Ngoài bảng IAF</Tag> : <Tag color="red">Chưa phân giải</Tag> },
-                              { title: "Kết quả", width: 180, render: (_, row: NaceIafDisplayRow) => <Tag color={row.resolution_status.includes("MULTIPLE") ? "gold" : row.resolution_status === "UNRESOLVED" ? "red" : row.outside_iaf_table ? "orange" : "green"}>{row.resolution_status}</Tag> },
-                              { title: "Nguồn", width: 250, render: (_, row: NaceIafDisplayRow) => row.iaf_candidate?.source_document || (row.resolution_status.startsWith("DERIVED_") ? "Tổng hợp từ lớp NACE chi tiết" : "—") },
-                            ]}
-                          />
-                        </>
-                      ),
-                    },
+                  rowKey="id"
+                  loading={isicNaceMappings.isFetching || naceIafProjection.isFetching}
+                  dataSource={unifiedMappingRows}
+                  pagination={{ pageSize: 20, showSizeChanger: true }}
+                  columns={[
+                    { title: "ISIC", render: (_, row) => <><b>{row.source_code.code}</b><div><Text type="secondary">{codeTitle(row.source_code)}</Text></div></> },
+                    { title: "NACE", render: (_, row) => <><b>{row.target_code.code}</b><div><Text type="secondary">{codeTitle(row.target_code)}</Text></div></> },
+                    { title: "IAF", render: (_, row) => row.iaf_candidate ? <><Tag color="blue">IAF {row.iaf_candidate.iaf_code}</Tag><div>{row.iaf_candidate.iaf_name}</div></> : <Tag color="orange">{row.outside_iaf_table ? "Ngoài bảng IAF" : "Chưa phân giải"}</Tag> },
+                    { title: "Hệ thống", render: () => naceIafSystem },
+                    { title: "Trạng thái", render: (_, row) => <Tag>{row.outside_iaf_table ? "Ngoài bảng IAF" : !row.iaf_candidate ? "Chưa phân giải" : row.resolution_status.includes("MULTIPLE") ? "Cần chọn IAF" : "Đã xác định IAF"}</Tag> },
                   ]}
+                  expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>ISIC–NACE: {row.mapping_id}</Text><Text>NACE–IAF: {row.iaf_candidate?.mapping_id ?? "—"}</Text><Text>{row.note || row.iaf_candidate?.source_document || "—"}</Text></Space> }}
                 />
               </section>
             ),

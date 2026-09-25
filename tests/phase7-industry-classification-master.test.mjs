@@ -10,6 +10,19 @@ const master = fs.readFileSync(path.join(root, 'app/components/MasterDataConfigu
 const routes = fs.readFileSync(path.join(root, 'app/components/ConfigurationRouteScreen.tsx'), 'utf8');
 const shell = fs.readFileSync(path.join(root, 'app/components/DashboardShell.tsx'), 'utf8');
 
+test('mapping controls present one chain table with search and system filter', () => {
+  const mapping = panel.slice(panel.indexOf('key: "mapping"'), panel.indexOf('key: "sources"'));
+  assert.equal((mapping.match(/<Table\b/g) ?? []).length, 1);
+  assert.doesNotMatch(mapping, /<Tabs\b/);
+  for (const column of ['ISIC', 'NACE', 'IAF', 'Hệ thống', 'Trạng thái']) {
+    assert.ok(mapping.includes(`title: "${column}"`));
+  }
+  assert.match(mapping, /unifiedMappingRows/);
+  assert.match(mapping, /setMappingSearch/);
+  assert.match(mapping, /setNaceIafSystem/);
+  assert.match(mapping, /expandedRowRender/);
+});
+
 test('taxonomy is one business workspace for ISIC -> NACE -> IAF', () => {
   assert.match(panel, /Chuỗi phân loại dùng trong CMP/);
   assert.match(panel, /ISIC Rev\.4/);
@@ -41,6 +54,9 @@ test('lookup supports one code and multiple customer activities', () => {
   assert.match(panel, /mode="multiple"/);
   assert.match(panel, /Tra NACE & IAF/);
   assert.match(panel, /Hoạt động ISIC/);
+  const batch = panel.slice(panel.indexOf('const runDemo'), panel.indexOf('const runQuickLookup'));
+  assert.match(batch, /resolve-batch/);
+  assert.doesNotMatch(batch, /Promise.all|api.get/);
 });
 
 test('mapping control is source-backed and separates unresolved from outside-table cases', () => {
