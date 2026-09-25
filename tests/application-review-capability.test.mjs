@@ -14,7 +14,7 @@ test("application review renders ISIC, NACE, IAF and CB capability decisions", a
   assert.match(source, /NACE[^\n]*nace_code/);
   assert.match(source, /IAF[^\n]*iaf_code/);
   assert.match(source, /ĐỦ NĂNG LỰC/);
-  assert.match(source, /KHÔNG ĐỦ NĂNG LỰC/);
+  assert.match(source, /overall_result === "NOT_CAPABLE" \? "KHÔNG ĐỦ"/);
   assert.match(source, /CẦN XEM XÉT/);
 });
 
@@ -97,7 +97,8 @@ test("contract payload remains minimal and does not duplicate approved man-days"
 test("UAT polish keeps CB capability separate, supports application file preview and month-only planning", async () => {
   const source = await readFile(reviewScreenUrl, "utf8");
   const customers = await readFile(customersScreenUrl, "utf8");
-  assert.match(source, /Đối chiếu năng lực tổ chức chứng nhận/);
+  assert.match(source, /title="Năng lực tổ chức chứng nhận"/);
+  assert.match(source, /Đối chiếu theo tiêu chuẩn \+ IAF trước khi gửi reviewer/);
   assert.match(source, /application_supporting_/);
   assert.match(source, /Xem file/);
   assert.match(source, /picker="month"/);

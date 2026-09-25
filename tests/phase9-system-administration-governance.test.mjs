@@ -99,8 +99,9 @@ test("internal assignment controls use backend authority while account review ke
   assert.match(admin, /Tất cả vai trò[^\n]*roleFilterOptions/);
   assert.match(
     admin,
-    /Chỉ các vai trò nội bộ đang được hệ thống hỗ trợ mới có thể gán/,
+    /const roleOptions = availableRoles\s*\.filter\(\(role\) => role\.assignable === true\)/,
   );
+  assert.match(admin, /const internalRoleOptions = roleOptions\.filter\(\(option\) => normalizeRole\(option\.value\) !== "customer"\)/);
 });
 
 test("technical expert is presented as a Vietnamese internal role", () => {
@@ -150,7 +151,8 @@ test("configuration and capability panels use Vietnamese user-facing labels", ()
   assert.match(masterData, /THIẾT LẬP NGHIỆP VỤ & DỮ LIỆU NỀN/);
   assert.match(masterData, /Chương trình chứng nhận/);
   assert.match(masterData, /Trung tâm nhập dữ liệu/);
-  assert.match(capability, /Năng lực tổ chức = tiêu chuẩn\/phiên bản \+ các lĩnh vực IAF/);
+  assert.match(capability, /Tiêu chuẩn × lĩnh vực IAF/);
+  assert.match(capability, /Mỗi ô là trạng thái năng lực của một lĩnh vực IAF trên đúng phiên bản tiêu chuẩn/);
 });
 
 

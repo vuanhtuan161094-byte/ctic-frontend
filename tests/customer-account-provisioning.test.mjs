@@ -41,9 +41,9 @@ test('existing customer accounts are linked instead of pretending a new password
 });
 
 test('customer drawer exposes compact access lifecycle actions with accurate semantics', () => {
-  assert.match(customers, />Mật khẩu<\/Button>/);
-  assert.match(customers, />Ngừng<\/Button>/);
-  assert.match(customers, />Khôi phục<\/Button>/);
+  assert.match(customers, />\s*Mật khẩu\s*<\/Button>/);
+  assert.match(customers, />\s*Ngừng\s*<\/Button>/);
+  assert.match(customers, />\s*Khôi phục\s*<\/Button>/);
   assert.match(customers, /Có quyền Portal/);
   assert.doesNotMatch(customers, /Đang truy cập/);
 });
