@@ -17,6 +17,7 @@ export type ActiveView =
   | "certificates"
   | "documents"
   | "experts"
+  | "expert-self"
   | "reports"
   | "system-admin"
   | "admin-accounts"
@@ -69,7 +70,7 @@ export interface BrowserNavigationState {
 const activeViewValues: ActiveView[] = [
   "dashboard", "my-tasks", "my-calendar", "notifications", "delegations",
   "customers", "applications", "projects", "project-detail", "audit-workspace", "cap-workspace", "technical-review-workspace", "decision-workspace", "certificate-workspace", "schedule-resources",
-  "certificates", "documents", "experts", "reports", "system-admin",
+  "certificates", "documents", "experts", "expert-self", "reports", "system-admin",
   "admin-accounts", "admin-account-overview", "admin-account-access",
   "admin-account-sessions", "admin-account-activity", "admin-roles-permissions",
   "configuration-schemes", "configuration-standards", "configuration-capabilities",
@@ -295,7 +296,7 @@ export function parseCanonicalLocation(
 
   if (path.startsWith("/schedule")) return { ...base, activeView: "schedule-resources", selectedAuditPlanId: params.get("audit_plan_id") };
   if (path.startsWith("/schedule-resources")) return { ...base, activeView: "schedule-resources", selectedAuditPlanId: params.get("audit_plan_id") };
-  if (path.startsWith("/resources/experts") || path.startsWith("/experts")) return { ...base, activeView: "experts" };
+  if (path.startsWith("/resources/experts") || path.startsWith("/experts")) return { ...base, activeView: params.get("view") === "me" ? "expert-self" : "experts" };
   if (path.startsWith("/documents")) return { ...base, activeView: "documents" };
   if (path.startsWith("/governance")) return { ...base, activeView: "governance-cases" };
   if (path.startsWith("/customer-change-requests")) return { ...base, activeView: "customer-change-requests" };
@@ -437,6 +438,7 @@ export function canonicalPathForNavigation(
     certificates: navigation.selectedCertificateId ? `/certificates/${encodeURIComponent(navigation.selectedCertificateId)}` : "/certificates",
     documents: "/documents",
     experts: "/resources/experts",
+    "expert-self": "/resources/experts?view=me",
     reports: "/analytics",
     "system-admin": "/admin/accounts",
     "admin-accounts": "/admin/accounts",

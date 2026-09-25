@@ -983,6 +983,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
 
   const accountItems: MenuProps["items"] = [
     { key: "account", icon: <UserOutlined />, label: session.user.username, disabled: true },
+    ...(!customerPortalMode ? [{ key: "expert-self", icon: <UserOutlined />, label: "Năng lực của tôi", onClick: () => setActiveView("expert-self") }] : []),
     ...(!customerPortalMode ? [{ key: "delegations", icon: <TeamOutlined />, label: "Ủy quyền công việc", onClick: () => setActiveView("delegations") }] : []),
     ...(customerPortalMode ? [{ key: "portal-access", icon: <TeamOutlined />, label: "Quyền truy cập tổ chức", onClick: () => setActiveView("customer-portal-users") }] : []),
     { type: "divider" },
@@ -990,6 +991,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   ];
 
   const currentPageLabel: Partial<Record<ActiveView, string>> = {
+    "expert-self": "Năng lực của tôi",
     "my-tasks": "Công việc",
     "my-calendar": "Lịch",
     notifications: "Thông báo",
@@ -1420,8 +1422,10 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
                 setActiveView("project-detail");
               }}
             />
+          ) : activeView === "expert-self" ? (
+            <ExpertsScreen roles={session.user.roles} selfService />
           ) : activeView === "experts" ? (
-            <ExpertsScreen roles={session.user.roles} />
+            <ExpertsScreen roles={session.user.roles} currentUserId={session.user.id} />
           ) : activeView === "reports" ? (
             <ManagementCockpitScreen roles={session.user.roles} />
           ) : activeView === "admin-accounts" ? (

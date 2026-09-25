@@ -22,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
   App,
+  Alert,
   Avatar,
   Button,
   Card,
@@ -56,6 +57,8 @@ const { Text, Title } = Typography;
 
 interface ExpertsScreenProps {
   roles: string[];
+  selfService?: boolean;
+  currentUserId?: string;
 }
 
 interface ExpertOverview {
@@ -138,6 +141,7 @@ interface ExpertListItem {
 }
 
 interface ExpertCompetency {
+  action_records?: CompetencyAction[];
   id: string;
   expert_id: string;
   management_system: string;
@@ -211,6 +215,7 @@ interface CompetencyReview {
 }
 
 interface CompetencyAction {
+  actor_id?: string | null;
   id: string;
   action_type: string;
   from_status?: string | null;
@@ -622,12 +627,16 @@ const teamRoleLabels: Record<string, string> = {
 };
 
 const approvalLabels: Record<string, string> = {
-  DRAFT: "Chờ phê duyệt",
+  DRAFT: "Dự thảo",
+  PENDING_APPROVAL: "Chờ phê duyệt",
+  RETURNED: "Cần bổ sung",
   APPROVED: "Đã phê duyệt",
   SUSPENDED: "Tạm đình chỉ",
 };
 
 const approvalColors: Record<string, string> = {
+  PENDING_APPROVAL: "gold",
+  RETURNED: "orange",
   DRAFT: "gold",
   APPROVED: "green",
   SUSPENDED: "red",
@@ -760,7 +769,116 @@ function actorName(value?: { full_name?: string | null; username?: string | null
   return value?.full_name || value?.username || "—";
 }
 
-export function ExpertsScreen({ roles }: ExpertsScreenProps) {
+type OwnCompetency = ExpertCompetency & {
+  evidence_records: CompetencyEvidence[];
+  action_records: CompetencyAction[];
+};
+
+function OwnCompetenciesWorkspace() {
+  const { message } = App.useApp();
+  const client = useQueryClient();
+  const [editor, setEditor] = useState<OwnCompetency | "new" | null>(null);
+  const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
+  const [form] = Form.useForm<CompetencyFormValues>();
+  const [evidenceForm] = Form.useForm<CompetencyEvidenceFormValues>();
+  const query = useQuery({
+    queryKey: ["expert-competencies", "me"],
+    queryFn: async () => (await api.get<OwnCompetency[]>("/expert-competencies/me")).data,
+  });
+  const refresh = () => client.invalidateQueries({ queryKey: ["expert-competencies", "me"] });
+  const save = useMutation({
+    mutationFn: async (values: CompetencyFormValues) => {
+      const payload = {
+        management_system: values.management_system, standard_code: values.standard_code,
+        competency_role: values.competency_role, scope_level: values.scope_level,
+        iaf_code: values.iaf_code, nace_code: values.nace_code,
+        nace_revision: values.scope_level === "NACE" ? "NACE_REV_2" : undefined,
+        effective_date: values.effective_date.format("YYYY-MM-DD"),
+        expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
+        evidence_summary: values.evidence_summary,
+      };
+      return editor && editor !== "new"
+        ? api.patch(`/expert-competencies/me/${editor.id}`, payload)
+        : api.post("/expert-competencies/me", payload);
+    },
+    onSuccess: async () => { setEditor(null); await refresh(); message.success("Đã lưu dự thảo năng lực"); },
+    onError: (e) => message.error(getErrorMessage(e)),
+  });
+  const submit = useMutation({
+    mutationFn: (id: string) => api.post(`/expert-competencies/me/${id}/submit`),
+    onSuccess: async () => { await refresh(); message.success("Đã gửi phê duyệt"); },
+    onError: (e) => message.error(getErrorMessage(e)),
+  });
+  const evidence = useMutation({
+    mutationFn: (values: CompetencyEvidenceFormValues) => api.post(`/expert-competencies/me/${evidenceFor}/evidence`, {
+      evidence_type: values.evidence_type, title: values.title, reference_no: values.reference_no,
+      description: values.description, evidence_date: values.evidence_date?.format("YYYY-MM-DD"),
+      valid_until: values.valid_until?.format("YYYY-MM-DD"),
+    }),
+    onSuccess: async () => { setEvidenceFor(null); await refresh(); message.success("Đã bổ sung bằng chứng"); },
+    onError: (e) => message.error(getErrorMessage(e)),
+  });
+  const edit = (row?: OwnCompetency) => {
+    form.resetFields();
+    form.setFieldsValue(row ? { management_system: row.management_system, standard_code: row.standard_code,
+      competency_role: row.competency_role, scope_level: row.scope_level, iaf_code: row.iaf_code,
+      nace_code: row.nace_code ?? undefined, effective_date: dayjs(row.effective_date),
+      expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined, evidence_summary: row.evidence_summary ?? undefined } : {
+      management_system: "QMS", standard_code: "ISO 9001:2015", competency_role: "AUDITOR",
+      scope_level: "IAF", effective_date: dayjs(),
+    });
+    setEditor(row ?? "new");
+  };
+  const editable = (row: OwnCompetency) => ["DRAFT", "RETURNED"].includes(row.approval_status);
+  return <section className="experts-screen" aria-label="Năng lực của tôi">
+    <Space wrap><Title level={3}>Năng lực của tôi</Title><Button onClick={() => edit()} disabled={query.isError || query.isPending}>Thêm năng lực</Button><Button onClick={() => void query.refetch()}>Tải lại</Button></Space>
+    {query.isError ? <Alert type="error" showIcon title={getErrorMessage(query.error)} /> : null}
+    <Table<OwnCompetency> rowKey="id" dataSource={query.data ?? []} loading={query.isPending} size="small" scroll={{ x: 900 }}
+      columns={[
+        { title: "Tiêu chuẩn / hệ thống", render: (_, row) => <>{row.standard_code}<div>{row.management_system}</div></> },
+        { title: "Vai trò", dataIndex: "competency_role", render: (value) => competencyRoleOptions.find((r) => r.value === value)?.label ?? value },
+        { title: "IAF / NACE", render: (_, row) => <>{row.iaf_code}{row.nace_code ? ` / ${row.nace_code}` : ""}</> },
+        { title: "Hiệu lực", render: (_, row) => formatDateRange(row.effective_date, row.expiry_date) },
+        { title: "Trạng thái", render: (_, row) => <>{profileStatusTag(row.approval_status)}{row.approval_status === "RETURNED" ? <div><Text type="danger">{row.action_records[0]?.reason}</Text></div> : null}</> },
+        { title: "Thao tác", render: (_, row) => editable(row) ? <Space wrap>
+          <Button size="small" onClick={() => edit(row)}>Sửa</Button>
+          <Button size="small" onClick={() => { evidenceForm.resetFields(); evidenceForm.setFieldsValue({ evidence_type: "OTHER" }); setEvidenceFor(row.id); }}>Bổ sung bằng chứng</Button>
+          <Popconfirm title="Gửi năng lực này để phê duyệt?" onConfirm={() => submit.mutateAsync(row.id)}><Button size="small" loading={submit.isPending}>Gửi phê duyệt</Button></Popconfirm>
+        </Space> : null },
+      ]}
+      expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || "Chưa có tóm tắt bằng chứng"}</Text>{row.evidence_records.map((record) => <Text key={record.id}>{record.title} · {record.reference_no || record.evidence_type}</Text>)}</Space> }}
+    />
+    <Modal title={editor === "new" ? "Thêm năng lực" : "Sửa năng lực"} open={editor !== null} onCancel={() => setEditor(null)} confirmLoading={save.isPending} onOk={() => void form.validateFields().then((v) => save.mutate(v))} okText="Lưu dự thảo">
+      <Form form={form} layout="vertical">
+        <Form.Item name="management_system" label="Hệ thống" rules={[{ required: true }]}><Select options={managementSystemOptions} /></Form.Item>
+        <Form.Item name="standard_code" label="Tiêu chuẩn" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="competency_role" label="Vai trò" rules={[{ required: true }]}><Select options={competencyRoleOptions} /></Form.Item>
+        <Form.Item name="scope_level" label="Cấp phạm vi" rules={[{ required: true }]}><Select options={[{ value: "IAF", label: "IAF" }, { value: "NACE", label: "NACE" }]} /></Form.Item>
+        <Form.Item name="iaf_code" label="Mã IAF" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="nace_code" label="Mã NACE"><Input /></Form.Item>
+        <Form.Item name="effective_date" label="Hiệu lực từ" rules={[{ required: true }]}><DatePicker /></Form.Item>
+        <Form.Item name="expiry_date" label="Hiệu lực đến"><DatePicker /></Form.Item>
+        <Form.Item name="evidence_summary" label="Tóm tắt bằng chứng"><Input.TextArea rows={3} /></Form.Item>
+      </Form>
+    </Modal>
+    <Modal title="Bổ sung bằng chứng" open={evidenceFor !== null} onCancel={() => setEvidenceFor(null)} confirmLoading={evidence.isPending} onOk={() => void evidenceForm.validateFields().then((v) => evidence.mutate(v))}>
+      <Form form={evidenceForm} layout="vertical">
+        <Form.Item name="evidence_type" label="Loại bằng chứng" rules={[{ required: true }]}><Select options={competencyEvidenceTypeOptions} /></Form.Item>
+        <Form.Item name="title" label="Tên bằng chứng" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="reference_no" label="Số tham chiếu"><Input /></Form.Item>
+        <Form.Item name="evidence_date" label="Ngày bằng chứng"><DatePicker /></Form.Item>
+        <Form.Item name="valid_until" label="Có giá trị đến"><DatePicker /></Form.Item>
+        <Form.Item name="description" label="Mô tả"><Input.TextArea /></Form.Item>
+      </Form>
+    </Modal>
+  </section>;
+}
+
+export function ExpertsScreen({ roles, selfService = false, currentUserId }: ExpertsScreenProps) {
+  return selfService ? <OwnCompetenciesWorkspace /> : <ManagedExpertsScreen roles={roles} currentUserId={currentUserId} />;
+}
+
+function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -769,6 +887,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<"create" | "edit">("create");
   const [competencyModalOpen, setCompetencyModalOpen] = useState(false);
+  const [editingCompetencyId, setEditingCompetencyId] = useState<string | null>(null);
   const [selectedCompetencyId, setSelectedCompetencyId] = useState<string | null>(null);
   const [competencyEvidenceModalOpen, setCompetencyEvidenceModalOpen] = useState(false);
   const [competencyReviewModalOpen, setCompetencyReviewModalOpen] = useState(false);
@@ -796,6 +915,11 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
   const [certificateForm] = Form.useForm<CertificateFormValues>();
 
   const canManage = roles.some((role) => role.toLowerCase() === "admin");
+  const canApproveCompetency = (row: ExpertCompetency) => {
+    const submitter = row.action_records?.find((action) => action.action_type === "SUBMIT")?.actor_id;
+    return canManage && row.approval_status === "PENDING_APPROVAL"
+      && Boolean(currentUserId && submitter && submitter !== currentUserId);
+  };
 
   const overviewQuery = useQuery({
     queryKey: ["experts", "overview"],
@@ -903,8 +1027,8 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
     mutationFn: async (values: CompetencyFormValues) => {
       if (!selectedExpertId) throw new Error("Chưa chọn chuyên gia");
       return (
-        await api.post<ExpertCompetency>("/expert-competencies", {
-          expert_id: selectedExpertId,
+        await api.request<ExpertCompetency>({ method: editingCompetencyId ? "PATCH" : "POST", url: editingCompetencyId ? `/expert-competencies/${editingCompetencyId}` : "/expert-competencies", data: {
+          ...(editingCompetencyId ? {} : { expert_id: selectedExpertId }),
           management_system: values.management_system,
           standard_code: values.standard_code,
           competency_role: values.competency_role,
@@ -920,12 +1044,13 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
           evidence_summary: values.evidence_summary,
           restriction: values.restriction,
           notes: values.notes,
-        })
+        } })
       ).data;
     },
     onSuccess: async () => {
       message.success("Đã thêm chương trình và phạm vi năng lực");
       setCompetencyModalOpen(false);
+      setEditingCompetencyId(null);
       competencyForm.resetFields();
       await refreshAll();
     },
@@ -940,6 +1065,34 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
+
+  const submitCompetencyMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/expert-competencies/${id}/submit`),
+    onSuccess: async () => { message.success("Đã gửi phê duyệt"); await refreshAll(); },
+    onError: (error) => message.error(getErrorMessage(error)),
+  });
+  const returnCompetency = (id: string) => {
+    let reason = "";
+    Modal.confirm({
+      title: "Yêu cầu bổ sung năng lực",
+      content: <Input.TextArea aria-label="Lý do yêu cầu bổ sung" onChange={(event) => { reason = event.target.value; }} />,
+      onOk: async () => {
+        if (!reason.trim()) { message.error("Phải nhập lý do"); throw new Error("Thiếu lý do"); }
+        try { await api.post(`/expert-competencies/${id}/return`, { reason }); await refreshAll(); }
+        catch (error) { message.error(getErrorMessage(error)); throw error; }
+      },
+    });
+  };
+  const editCompetency = (row: ExpertCompetency) => {
+    competencyForm.resetFields();
+    competencyForm.setFieldsValue({ management_system: row.management_system, standard_code: row.standard_code,
+      competency_role: row.competency_role, competency_level: row.competency_level, scope_level: row.scope_level,
+      iaf_code: row.iaf_code, nace_code: row.nace_code ?? undefined, nace_revision: row.nace_revision ?? undefined,
+      effective_date: dayjs(row.effective_date), expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined,
+      evidence_summary: row.evidence_summary ?? undefined, approval_basis: row.approval_basis ?? undefined,
+      scope_description: row.scope_description ?? undefined, restriction: row.restriction ?? undefined });
+    setEditingCompetencyId(row.id); setCompetencyModalOpen(true);
+  };
 
   const suspendCompetencyMutation = useMutation({
     mutationFn: async (values: CompetencySuspendFormValues) => {
@@ -1319,7 +1472,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
       title: "Trạng thái",
       key: "approval_status",
       width: 145,
-      render: (_, record) => profileStatusTag(record.approval_status),
+      render: (_, record) => <>{profileStatusTag(record.approval_status)}{record.approval_status === "RETURNED" ? <div><Text type="danger">{record.action_records?.find((action) => action.action_type === "RETURN")?.reason}</Text></div> : null}</>,
     },
     {
       title: "",
@@ -1328,11 +1481,16 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
       render: (_, record) => (
         <Space>
           <Button onClick={() => setSelectedCompetencyId(record.id)} size="small">Hồ sơ</Button>
-          {canManage && normalize(record.approval_status) === "DRAFT" ? (
+          {canManage && ["DRAFT", "RETURNED"].includes(normalize(record.approval_status)) ? <Space>
+            <Button size="small" onClick={() => editCompetency(record)}>Sửa</Button>
+            <Popconfirm title="Gửi phê duyệt năng lực?" onConfirm={() => submitCompetencyMutation.mutate(record.id)}><Button size="small">Gửi phê duyệt</Button></Popconfirm>
+          </Space> : null}
+          {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? (
             <Popconfirm title="Phê duyệt phạm vi năng lực này?" onConfirm={() => approveCompetencyMutation.mutate(record.id)}>
-              <Button size="small" type="primary">Phê duyệt</Button>
+              <Button size="small" type="primary" disabled={!canApproveCompetency(record)} title="Người gửi không được tự duyệt">Phê duyệt</Button>
             </Popconfirm>
           ) : null}
+          {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? <Button size="small" onClick={() => returnCompetency(record.id)}>Yêu cầu bổ sung</Button> : null}
           {canManage && normalize(record.approval_status) === "APPROVED" ? (
             <Button
               danger
@@ -1975,7 +2133,7 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
                     >
                       Thêm bằng chứng
                     </Button>
-                    {normalize(selectedCompetency.approval_status) !== "DRAFT" ? (
+                    {["APPROVED", "SUSPENDED"].includes(normalize(selectedCompetency.approval_status)) ? (
                       <Button
                         onClick={() => {
                           competencyReviewForm.setFieldsValue({
@@ -1990,13 +2148,18 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
                         Ghi đánh giá năng lực
                       </Button>
                     ) : null}
-                    {normalize(selectedCompetency.approval_status) === "DRAFT" ? (
+                    {["DRAFT", "RETURNED"].includes(normalize(selectedCompetency.approval_status)) ? <Space>
+                      <Button onClick={() => editCompetency(selectedCompetency)}>Sửa</Button>
+                      <Popconfirm title="Gửi phê duyệt năng lực?" onConfirm={() => submitCompetencyMutation.mutate(selectedCompetency.id)}><Button>Gửi phê duyệt</Button></Popconfirm>
+                    </Space> : null}
+                    {normalize(selectedCompetency.approval_status) === "PENDING_APPROVAL" ? <Button onClick={() => returnCompetency(selectedCompetency.id)}>Yêu cầu bổ sung</Button> : null}
+                    {normalize(selectedCompetency.approval_status) === "PENDING_APPROVAL" ? (
                       <Popconfirm
                         title="Phê duyệt hồ sơ năng lực này?"
                         description="Hệ thống sẽ chặn nếu chưa có bằng chứng năng lực."
                         onConfirm={() => approveCompetencyMutation.mutate(selectedCompetency.id)}
                       >
-                        <Button type="primary">Phê duyệt</Button>
+                        <Button type="primary" disabled={!canApproveCompetency(selectedCompetency)} title="Người gửi không được tự duyệt">Phê duyệt</Button>
                       </Popconfirm>
                     ) : null}
                     {normalize(selectedCompetency.approval_status) === "APPROVED" ? (
@@ -2171,11 +2334,11 @@ export function ExpertsScreen({ roles }: ExpertsScreenProps) {
 
       <Modal
         confirmLoading={createCompetencyMutation.isPending}
-        okText="Tạo hồ sơ năng lực"
-        onCancel={() => setCompetencyModalOpen(false)}
+        okText={editingCompetencyId ? "Lưu thay đổi" : "Tạo hồ sơ năng lực"}
+        onCancel={() => { setCompetencyModalOpen(false); setEditingCompetencyId(null); }}
         onOk={() => void competencyForm.validateFields().then((values) => createCompetencyMutation.mutate(values))}
         open={competencyModalOpen}
-        title={`Thêm chương trình và lĩnh vực · ${selectedExpert?.full_name ?? ""}`}
+        title={`${editingCompetencyId ? "Sửa" : "Thêm"} chương trình và lĩnh vực · ${selectedExpert?.full_name ?? ""}`}
         width={850}
       >
         <Form form={competencyForm} layout="vertical">

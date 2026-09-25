@@ -7,6 +7,28 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
+test('competency workflow labels and self-service boundary are explicit', () => {
+  const source = read('app/components/ExpertsScreen.tsx');
+  for (const [status, label] of Object.entries({ DRAFT: 'Dự thảo', PENDING_APPROVAL: 'Chờ phê duyệt', RETURNED: 'Cần bổ sung', APPROVED: 'Đã phê duyệt', SUSPENDED: 'Tạm đình chỉ' })) {
+    assert.ok(source.includes(status + ': "' + label + '"'));
+  }
+  const own = source.slice(source.indexOf('function OwnCompetenciesWorkspace'), source.indexOf('export function ExpertsScreen'));
+  assert.match(own, /\/expert-competencies\/me/);
+  assert.doesNotMatch(own, /\/approve|\/suspend|\/reactivate|\/renew/);
+  assert.match(own, /\["DRAFT", "RETURNED"\]/);
+  assert.match(own, /action_records\[0\]\?\.reason/);
+  assert.match(source, /canManage && normalize\(record.approval_status\) === "PENDING_APPROVAL"/);
+  assert.match(source, /returnCompetency\(record.id\)/);
+});
+
+test('self-service reuses the experts route from the account menu', () => {
+  const shell = read('app/components/DashboardShell.tsx');
+  const navigation = read('app/lib/app-navigation.ts');
+  assert.match(shell, /label: "Năng lực của tôi"/);
+  assert.match(shell, /<ExpertsScreen roles=\{session.user.roles\} selfService/);
+  assert.match(navigation, /\/resources\/experts\?view=me/);
+});
+
 test('expert competency screen exposes governance detail with evidence review and decision history', () => {
   const source = read('app/components/ExpertsScreen.tsx');
   assert.match(source, /expert-competency-governance/);
