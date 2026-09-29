@@ -1,7 +1,8 @@
 "use client";
 
-import { DatePicker, Form, Input, InputNumber, Select, Typography } from "antd";
-import type { FormInstance } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
+import { Button, DatePicker, Form, Input, InputNumber, Select, Typography, Upload } from "antd";
+import type { FormInstance, UploadFile } from "antd";
 
 const { Text } = Typography;
 
@@ -94,6 +95,9 @@ export function CompetencyEvidenceFields({
 }: CompetencyEvidenceFieldsProps) {
   const evidenceType = Form.useWatch("evidence_type", form) || "OTHER";
   const config = evidenceConfig[evidenceType] ?? evidenceConfig.OTHER;
+  const fileList: UploadFile[] = file
+    ? [{ uid: "selected-evidence-file", name: file.name, status: "done", originFileObj: file as UploadFile["originFileObj"] }]
+    : [];
 
   return (
     <>
@@ -149,13 +153,23 @@ export function CompetencyEvidenceFields({
 
       {onFileChange ? (
         <Form.Item label="Tệp minh chứng">
-          <input
+          <Upload
             accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-            type="file"
-          />
+            beforeUpload={(selectedFile) => {
+              onFileChange(selectedFile);
+              return false;
+            }}
+            fileList={fileList}
+            maxCount={1}
+            onRemove={() => {
+              onFileChange(null);
+              return true;
+            }}
+          >
+            <Button icon={<UploadOutlined />}>Chọn tệp</Button>
+          </Upload>
           <div className="competency-upload-note">
-            {file ? file.name : "Có thể mở trực tiếp tệp này khi xem hồ sơ. Không cần nhập lại nội dung đã có trong tài liệu."}
+            Có thể mở trực tiếp tệp này khi xem hồ sơ. Không cần nhập lại nội dung đã có trong tài liệu.
           </div>
         </Form.Item>
       ) : null}
