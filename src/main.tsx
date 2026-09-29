@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import "antd/dist/reset.css";
 import "../app/globals.css";
+import "./expert-overlay-layering.css";
 
 import { CticApplication } from "../app/components/CticApplication";
 

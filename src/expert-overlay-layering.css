@@ -1,0 +1,10 @@
+/*
+ * Expert governance opens Ant Design Modal dialogs from inside a Drawer.
+ * Drawer and Modal share the same default popup base, so DOM/portal ordering can
+ * leave the child dialog behind its parent. Keep these dialogs one layer above
+ * the Drawer while remaining below Ant Design Select/tooltip popups.
+ */
+body:has(.experts-screen) .ant-modal-root .ant-modal-mask,
+body:has(.experts-screen) .ant-modal-root .ant-modal-wrap {
+  z-index: 1040 !important;
+}
