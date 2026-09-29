@@ -982,11 +982,6 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [certificateForm] = Form.useForm<CertificateFormValues>();
 
   const canManage = roles.some((role) => role.toLowerCase() === "admin");
-  const selectedExpert = detailQuery.data;
-  const canApproveCompetency = (row: ExpertCompetency) => {
-    return canManage && row.approval_status === "PENDING_APPROVAL"
-      && Boolean(currentUserId && selectedExpert && selectedExpert.account?.id !== currentUserId);
-  };
 
   const overviewQuery = useQuery({
     queryKey: ["experts", "overview"],
@@ -1038,6 +1033,12 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     ).data,
     enabled: recommendationModalOpen && Boolean(recommendationPlanId && recommendationRole),
   });
+
+  const selectedExpert = detailQuery.data;
+  const canApproveCompetency = (row: ExpertCompetency) => {
+    return canManage && row.approval_status === "PENDING_APPROVAL"
+      && Boolean(currentUserId && selectedExpert && selectedExpert.account?.id !== currentUserId);
+  };
 
   const refreshAll = async () => {
     await Promise.all([
