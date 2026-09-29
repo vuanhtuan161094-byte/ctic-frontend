@@ -96,7 +96,7 @@ export function CompetencyEvidenceFields({
   const evidenceType = Form.useWatch("evidence_type", form) || "OTHER";
   const config = evidenceConfig[evidenceType] ?? evidenceConfig.OTHER;
   const fileList: UploadFile[] = file
-    ? [{ uid: "selected-evidence-file", name: file.name, status: "done", originFileObj: file as UploadFile["originFileObj"] }]
+    ? [{ uid: "selected-evidence-file", name: file.name, status: "done" }]
     : [];
 
   return (
