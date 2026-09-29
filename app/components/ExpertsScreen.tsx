@@ -49,9 +49,10 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { documentRequestFromFile, openDocumentFile } from "../lib/document-file-client";
+import { CompetencyEvidenceFields } from "./CompetencyEvidenceFields";
 import ExpertDevelopmentPanel from "./ExpertDevelopmentPanel";
 import ExpertResourceGovernancePanel from "./ExpertResourceGovernancePanel";
-import { documentRequestFromFile, openDocumentFile } from "../lib/document-file-client";
 
 const { Text, Title } = Typography;
 
@@ -460,7 +461,6 @@ interface CompetencyFormValues {
   nace_revision?: string;
   nace_code?: string;
   scope_description?: string;
-  competency_level: string;
   effective_date: Dayjs;
   expiry_date?: Dayjs;
   approval_basis?: string;
@@ -769,40 +769,40 @@ type OwnCompetency = ExpertCompetency & {
 
 function CompetencyRoleField() {
   const form = Form.useFormInstance();
-  const role = Form.useWatch('competency_role', form);
-  const secondary = Boolean(role && !['AUDITOR', 'LEAD_AUDITOR'].includes(role));
+  const role = Form.useWatch("competency_role", form);
+  const secondary = Boolean(role && !["AUDITOR", "LEAD_AUDITOR"].includes(role));
   return <div><Form.Item name="competency_role" label="Vai trò" rules={[{ required: true }]}>
-    <Select options={secondary ? competencyRoleOptions.filter((option) => ['AUDITOR', 'LEAD_AUDITOR', role].includes(option.value)) : competencyRoleOptions.slice(0, 2)} />
+    <Select options={secondary ? competencyRoleOptions.filter((option) => ["AUDITOR", "LEAD_AUDITOR", role].includes(option.value)) : competencyRoleOptions.slice(0, 2)} />
   </Form.Item>
-  {role === 'LEAD_AUDITOR' ? <Text type="secondary">Bao gồm vai trò chuyên gia đánh giá trong cùng tiêu chuẩn và IAF.</Text> : null}</div>;
+  {role === "LEAD_AUDITOR" ? <Text type="secondary">Bao gồm vai trò chuyên gia đánh giá trong cùng tiêu chuẩn và IAF.</Text> : null}</div>;
 }
 
 function CompetencyIafField({ selfService = false, editing = false }: { selfService?: boolean; editing?: boolean }) {
   const form = Form.useFormInstance();
-  const legacyScope = Form.useWatch('scope_level', { form, preserve: true }) === 'NACE';
-  const query = useQuery({ queryKey: ['competency-iaf-catalog', selfService],
-    queryFn: async () => (await api.get<Array<{ iaf_code: string; iaf_name: string }>>(selfService ? '/expert-competencies/me/iaf-scopes' : '/industry-classifications/iaf-scopes?active=true')).data });
-  return <div><Form.Item name="iaf_codes" label="Phạm vi IAF" rules={[{ required: true, type: 'array', min: 1 }]}>
+  const legacyScope = Form.useWatch("scope_level", { form, preserve: true }) === "NACE";
+  const query = useQuery({ queryKey: ["competency-iaf-catalog", selfService],
+    queryFn: async () => (await api.get<Array<{ iaf_code: string; iaf_name: string }>>(selfService ? "/expert-competencies/me/iaf-scopes" : "/industry-classifications/iaf-scopes?active=true")).data });
+  return <div><Form.Item name="iaf_codes" label="Phạm vi IAF" rules={[{ required: true, type: "array", min: 1 }]}>
     <Select mode="multiple" maxCount={editing ? 1 : undefined} showSearch optionFilterProp="label" loading={query.isPending} disabled={query.isError || (editing && legacyScope)}
-      optionRender={(option) => <span style={{ whiteSpace: 'normal' }}>{option.label}</span>}
+      optionRender={(option) => <span style={{ whiteSpace: "normal" }}>{option.label}</span>}
       options={(query.data ?? []).map((row) => ({ value: row.iaf_code, label: `IAF ${row.iaf_code} — ${row.iaf_name}` }))} />
   </Form.Item>{query.isError ? <Alert type="error" title={getErrorMessage(query.error)} /> : null}</div>;
 }
 
 function OwnEvidenceFiles({ evidence, editable }: { evidence: CompetencyEvidence; editable: boolean }) {
   const { message } = App.useApp();
-  const query = useQuery({ queryKey: ['own-evidence-files', evidence.id], queryFn: async () =>
+  const query = useQuery({ queryKey: ["own-evidence-files", evidence.id], queryFn: async () =>
     (await api.get<CompetencyAttachment[]>(`/document-files/self/competency-evidence/${evidence.id}/files`)).data });
-  const upload = useMutation({ mutationFn: async (file: File) => { const data = new FormData(); data.append('file', file);
+  const upload = useMutation({ mutationFn: async (file: File) => { const data = new FormData(); data.append("file", file);
     await api.post(`/document-files/self/competency-evidence/${evidence.id}/files`, data); },
-    onSuccess: async () => { await query.refetch(); message.success('Đã tải tệp bằng chứng'); }, onError: (e) => message.error(getErrorMessage(e)) });
+    onSuccess: async () => { await query.refetch(); message.success("Đã tải tệp bằng chứng"); }, onError: (e) => message.error(getErrorMessage(e)) });
   return <div><Text strong>{evidence.title}</Text> <Text type="secondary">{evidence.reference_no}</Text>
     {query.isError ? <Alert type="error" title={getErrorMessage(query.error)} /> : null}
     {(query.data ?? []).map((file) => <Button key={file.id} size="small" onClick={() => void openDocumentFile({
       url: `/document-files/self/competency-files/${file.id}/download`, filename: file.original_name,
     }).catch((e) => message.error(getErrorMessage(e)))}>{file.original_name}</Button>)}
-    {editable && evidence.status === 'ACTIVE' ? <label>Tệp đính kèm <input type="file" aria-label={`Tệp đính kèm ${evidence.title}`} disabled={upload.isPending}
-      onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ''; }} /></label> : null}
+    {editable && evidence.status === "ACTIVE" ? <label>Tệp đính kèm <input accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" type="file" aria-label={`Tệp đính kèm ${evidence.title}`} disabled={upload.isPending}
+      onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ""; }} /></label> : null}
   </div>;
 }
 
@@ -811,6 +811,7 @@ function OwnCompetenciesWorkspace() {
   const client = useQueryClient();
   const [editor, setEditor] = useState<OwnCompetency | "new" | null>(null);
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [form] = Form.useForm<CompetencyFormValues>();
   const [evidenceForm] = Form.useForm<CompetencyEvidenceFormValues>();
   const query = useQuery({
@@ -843,12 +844,33 @@ function OwnCompetenciesWorkspace() {
     onError: (e) => message.error(getErrorMessage(e)),
   });
   const evidence = useMutation({
-    mutationFn: (values: CompetencyEvidenceFormValues) => api.post(`/expert-competencies/me/${evidenceFor}/evidence`, {
-      evidence_type: values.evidence_type, title: values.title, reference_no: values.reference_no,
-      description: values.description, evidence_date: values.evidence_date?.format("YYYY-MM-DD"),
-      valid_until: values.valid_until?.format("YYYY-MM-DD"),
-    }),
-    onSuccess: async () => { setEvidenceFor(null); await refresh(); message.success("Đã bổ sung bằng chứng"); },
+    mutationFn: async (values: CompetencyEvidenceFormValues) => {
+      if (!evidenceFor) throw new Error("Chưa chọn hồ sơ năng lực");
+      const created = (await api.post<CompetencyEvidence>(`/expert-competencies/me/${evidenceFor}/evidence`, {
+        evidence_type: values.evidence_type,
+        title: values.title,
+        reference_no: values.reference_no,
+        description: values.description,
+        evidence_date: values.evidence_date?.format("YYYY-MM-DD"),
+        valid_until: values.valid_until?.format("YYYY-MM-DD"),
+        result: values.result,
+        score: values.score,
+        mandays: values.mandays,
+      })).data;
+      if (evidenceFile) {
+        const data = new FormData();
+        data.append("file", evidenceFile);
+        await api.post(`/document-files/self/competency-evidence/${created.id}/files`, data);
+      }
+      return created;
+    },
+    onSuccess: async () => {
+      setEvidenceFor(null);
+      setEvidenceFile(null);
+      evidenceForm.resetFields();
+      await refresh();
+      message.success("Đã bổ sung bằng chứng");
+    },
     onError: (e) => message.error(getErrorMessage(e)),
   });
   const edit = (row?: OwnCompetency) => {
@@ -868,7 +890,7 @@ function OwnCompetenciesWorkspace() {
     <Space wrap><Title level={3}>Năng lực của tôi</Title><Button onClick={() => edit()} disabled={query.isError || query.isPending}>Thêm năng lực</Button><Button onClick={() => void query.refetch()}>Tải lại</Button></Space>
     {query.isError ? <Alert type="error" showIcon title={getErrorMessage(query.error)} /> : null}
     <Table<OwnCompetency> rowKey="id" dataSource={query.data ?? []} loading={query.isPending} size="small" scroll={{ x: 900 }}
-      expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || 'Chưa có tóm tắt bằng chứng'}</Text>{row.evidence_records.length ? row.evidence_records.map((item) => <OwnEvidenceFiles key={item.id} evidence={item} editable={editable(row)} />) : <Text>Chưa có bằng chứng. Chọn “Bổ sung bằng chứng”, lưu thông tin rồi đính kèm tệp.</Text>}</Space> }}
+      expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || "Chưa có tóm tắt bằng chứng"}</Text>{row.evidence_records.length ? row.evidence_records.map((item) => <OwnEvidenceFiles key={item.id} evidence={item} editable={editable(row)} />) : <Text>Chưa có bằng chứng. Chọn “Bổ sung bằng chứng” để thêm thông tin và tệp minh chứng.</Text>}</Space> }}
       columns={[
         { title: "Tiêu chuẩn / hệ thống", render: (_, row) => <>{row.standard_code}<div>{row.management_system}</div></> },
         { title: "Vai trò", dataIndex: "competency_role", render: (value) => competencyRoleOptions.find((r) => r.value === value)?.label ?? value },
@@ -877,7 +899,12 @@ function OwnCompetenciesWorkspace() {
         { title: "Trạng thái", render: (_, row) => <>{profileStatusTag(row.approval_status)}{row.approval_status === "RETURNED" ? <div><Text type="danger">{row.action_records[0]?.reason}</Text></div> : null}</> },
         { title: "Thao tác", render: (_, row) => editable(row) ? <Space wrap>
           <Button size="small" onClick={() => edit(row)}>Sửa</Button>
-          <Button size="small" onClick={() => { evidenceForm.resetFields(); evidenceForm.setFieldsValue({ evidence_type: "OTHER" }); setEvidenceFor(row.id); }}>Bổ sung bằng chứng</Button>
+          <Button size="small" onClick={() => {
+            evidenceForm.resetFields();
+            evidenceForm.setFieldsValue({ evidence_type: "OTHER", evidence_date: dayjs() });
+            setEvidenceFile(null);
+            setEvidenceFor(row.id);
+          }}>Bổ sung bằng chứng</Button>
           <Popconfirm title="Gửi năng lực này để phê duyệt?" onConfirm={() => submit.mutateAsync(row.id)}><Button size="small" loading={submit.isPending}>Gửi phê duyệt</Button></Popconfirm>
         </Space> : null },
       ]}
@@ -885,11 +912,11 @@ function OwnCompetenciesWorkspace() {
     <Modal className="competency-editor" width={680} title={editor === "new" ? "Thêm năng lực" : "Sửa năng lực"} open={editor !== null} onCancel={() => setEditor(null)} confirmLoading={save.isPending} onOk={() => void form.validateFields().then((v) => save.mutate(v))} okText="Lưu dự thảo">
       <Form form={form} layout="vertical">
         <div className="competency-form-grid">
-        <Form.Item name="management_system" label="Chương trình" rules={[{ required: true }]}><Select onChange={(value) => form.setFieldValue('standard_code', standardBySystem[value])} options={managementSystemOptions} /></Form.Item>
+        <Form.Item name="management_system" label="Chương trình" rules={[{ required: true }]}><Select onChange={(value) => form.setFieldValue("standard_code", standardBySystem[value])} options={managementSystemOptions} /></Form.Item>
         <Form.Item name="standard_code" label="Tiêu chuẩn" rules={[{ required: true }]}><Input /></Form.Item>
         <CompetencyRoleField />
-        <CompetencyIafField selfService editing={editor !== 'new'} />
-        {editor && editor !== 'new' && editor.scope_level === 'NACE' ? <Text>Phạm vi NACE cũ {editor.nace_code} được giữ nguyên.</Text> : null}
+        <CompetencyIafField selfService editing={editor !== "new"} />
+        {editor && editor !== "new" && editor.scope_level === "NACE" ? <Text>Phạm vi NACE cũ {editor.nace_code} được giữ nguyên.</Text> : null}
         <Form.Item name="effective_date" label="Hiệu lực từ" rules={[{ required: true }]}><DatePicker /></Form.Item>
         <Form.Item name="expiry_date" label="Hiệu lực đến"><DatePicker /></Form.Item>
         </div>
@@ -899,14 +926,16 @@ function OwnCompetenciesWorkspace() {
         <details><summary>Hạn chế năng lực (không bắt buộc)</summary><Form.Item name="restriction"><Input.TextArea rows={2} /></Form.Item></details>
       </Form>
     </Modal>
-    <Modal title="Bổ sung bằng chứng" open={evidenceFor !== null} onCancel={() => setEvidenceFor(null)} confirmLoading={evidence.isPending} onOk={() => void evidenceForm.validateFields().then((v) => evidence.mutate(v))}>
+    <Modal
+      title="Bổ sung bằng chứng"
+      open={evidenceFor !== null}
+      onCancel={() => { setEvidenceFor(null); setEvidenceFile(null); evidenceForm.resetFields(); }}
+      confirmLoading={evidence.isPending}
+      onOk={() => void evidenceForm.validateFields().then((v) => evidence.mutate(v))}
+      width={720}
+    >
       <Form form={evidenceForm} layout="vertical">
-        <Form.Item name="evidence_type" label="Loại bằng chứng" rules={[{ required: true }]}><Select options={competencyEvidenceTypeOptions} /></Form.Item>
-        <Form.Item name="title" label="Tên bằng chứng" rules={[{ required: true }]}><Input /></Form.Item>
-        <Form.Item name="reference_no" label="Số tham chiếu"><Input /></Form.Item>
-        <Form.Item name="evidence_date" label="Ngày bằng chứng"><DatePicker /></Form.Item>
-        <Form.Item name="valid_until" label="Có giá trị đến"><DatePicker /></Form.Item>
-        <Form.Item name="description" label="Mô tả"><Input.TextArea /></Form.Item>
+        <CompetencyEvidenceFields form={evidenceForm} file={evidenceFile} onFileChange={setEvidenceFile} />
       </Form>
     </Modal>
   </section>;
@@ -953,6 +982,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [certificateForm] = Form.useForm<CertificateFormValues>();
 
   const canManage = roles.some((role) => role.toLowerCase() === "admin");
+  const selectedExpert = detailQuery.data;
   const canApproveCompetency = (row: ExpertCompetency) => {
     return canManage && row.approval_status === "PENDING_APPROVAL"
       && Boolean(currentUserId && selectedExpert && selectedExpert.account?.id !== currentUserId);
@@ -1123,7 +1153,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const editCompetency = (row: ExpertCompetency) => {
     competencyForm.resetFields();
     competencyForm.setFieldsValue({ management_system: row.management_system, standard_code: row.standard_code,
-      competency_role: row.competency_role, competency_level: row.competency_level, scope_level: row.scope_level,
+      competency_role: row.competency_role, scope_level: row.scope_level,
       iaf_code: row.iaf_code, iaf_codes: [row.iaf_code], nace_code: row.nace_code ?? undefined, nace_revision: row.nace_revision ?? undefined,
       effective_date: dayjs(row.effective_date), expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined,
       evidence_summary: row.evidence_summary ?? undefined, approval_basis: row.approval_basis ?? undefined,
@@ -1554,29 +1584,34 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
         <div className="expert-summary-cell">
           <strong>{record.title}</strong>
           <small>{evidenceTypeLabels[normalize(record.evidence_type)] ?? record.evidence_type}</small>
-          <small>{record.reference_no ? `Mã: ${record.reference_no}` : "Không có mã tham chiếu"}</small>
+          {record.reference_no ? <small>Mã: {record.reference_no}</small> : null}
         </div>
       ),
     },
     {
-      title: "Ngày / kết quả",
+      title: "Thông tin chính",
       key: "result",
-      width: 220,
-      render: (_, record) => (
-        <div className="expert-summary-cell">
-          <span>{formatDate(record.evidence_date)}{record.valid_until ? ` · hết hạn ${formatDate(record.valid_until)}` : ""}</span>
-          <small>{record.result || "—"}{record.score !== null && record.score !== undefined ? ` · ${record.score} điểm` : ""}{record.mandays !== null && record.mandays !== undefined ? ` · ${record.mandays} MD` : ""}</small>
-        </div>
-      ),
+      width: 240,
+      render: (_, record) => {
+        const facts = [
+          record.evidence_date ? formatDate(record.evidence_date) : null,
+          record.valid_until ? `đến ${formatDate(record.valid_until)}` : null,
+          record.result || null,
+          record.score !== null && record.score !== undefined ? `${record.score} điểm` : null,
+          record.mandays !== null && record.mandays !== undefined ? `${record.mandays} MD` : null,
+        ].filter(Boolean);
+        return facts.length ? <div className="expert-summary-cell">{facts.map((fact, index) => <small key={`${fact}-${index}`}>{fact}</small>)}</div> : <Text type="secondary">Xem tệp minh chứng</Text>;
+      },
     },
     {
-      title: "Tệp đính kèm",
+      title: "Tệp minh chứng",
       key: "attachments",
-      width: 220,
+      width: 240,
       render: (_, record) => record.attachments.length ? (
         <Space direction="vertical" size={4}>
           {record.attachments.map((file) => (
             <Button
+              icon={<LinkOutlined />}
               key={file.id}
               onClick={() => {
                 void openDocumentFile({
@@ -1590,7 +1625,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
             </Button>
           ))}
         </Space>
-      ) : <Text type="secondary">Không có tệp</Text>,
+      ) : <Text type="secondary">Chưa có tệp</Text>,
     },
     {
       title: "Trạng thái",
@@ -1926,7 +1961,6 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     },
   ], []);
 
-  const selectedExpert = detailQuery.data;
   const selectedCompetency = competencyGovernanceQuery.data;
   const accountOptions = (accountOptionsQuery.data ?? []).filter(
     (account) => account.available || account.id === selectedExpert?.user_id,
@@ -2077,7 +2111,6 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                           standard_code: standardBySystem.QMS,
                           competency_role: "AUDITOR",
                           scope_level: "IAF",
-                          competency_level: "QUALIFIED",
                           effective_date: dayjs(),
                         });
                         setCompetencyModalOpen(true);
@@ -2161,6 +2194,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                     <Button
                       icon={<PlusOutlined />}
                       onClick={() => {
+                        competencyEvidenceForm.resetFields();
                         competencyEvidenceForm.setFieldsValue({
                           evidence_type: "TRAINING_CERTIFICATE",
                           evidence_date: dayjs(),
@@ -2279,13 +2313,12 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
             <Descriptions bordered column={3} size="small">
               <Descriptions.Item label="Chương trình">{selectedCompetency.management_system} · {selectedCompetency.standard_code}</Descriptions.Item>
               <Descriptions.Item label="Vai trò">{roleLabels[normalize(selectedCompetency.competency_role)] ?? selectedCompetency.competency_role}</Descriptions.Item>
-              <Descriptions.Item label="Mức năng lực">{selectedCompetency.competency_level}</Descriptions.Item>
               <Descriptions.Item label="Hiệu lực">{formatDateRange(selectedCompetency.effective_date, selectedCompetency.expiry_date)}</Descriptions.Item>
               <Descriptions.Item label="Đánh giá lại tiếp theo">{formatDate(selectedCompetency.governance.review_due_date)}</Descriptions.Item>
               <Descriptions.Item label="Ngày phê duyệt">{formatDate(selectedCompetency.approved_at)}</Descriptions.Item>
-              <Descriptions.Item label="Phạm vi" span={3}>{selectedCompetency.scope_description || "—"}</Descriptions.Item>
-              <Descriptions.Item label="Cơ sở phê duyệt" span={3}>{selectedCompetency.approval_basis || "—"}</Descriptions.Item>
-              <Descriptions.Item label="Bằng chứng legacy" span={3}>{selectedCompetency.evidence_summary || "—"}</Descriptions.Item>
+              {selectedCompetency.scope_description ? <Descriptions.Item label="Phạm vi" span={3}>{selectedCompetency.scope_description}</Descriptions.Item> : null}
+              {selectedCompetency.approval_basis ? <Descriptions.Item label="Cơ sở phê duyệt" span={3}>{selectedCompetency.approval_basis}</Descriptions.Item> : null}
+              {selectedCompetency.evidence_summary ? <Descriptions.Item label="Tóm tắt bằng chứng cũ" span={3}>{selectedCompetency.evidence_summary}</Descriptions.Item> : null}
               {selectedCompetency.restriction ? <Descriptions.Item label="Hạn chế" span={3}>{selectedCompetency.restriction}</Descriptions.Item> : null}
             </Descriptions>
 
@@ -2298,7 +2331,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                     <Table
                       columns={competencyEvidenceColumns}
                       dataSource={selectedCompetency.evidence_records}
-                      locale={{ emptyText: <Empty description="Chưa có bằng chứng năng lực có cấu trúc" /> }}
+                      locale={{ emptyText: <Empty description="Chưa có bằng chứng năng lực" /> }}
                       pagination={false}
                       rowKey="id"
                       scroll={{ x: 1100 }}
@@ -2415,32 +2448,14 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
         onOk={() => void competencyEvidenceForm.validateFields().then((values) => addCompetencyEvidenceMutation.mutate(values))}
         open={competencyEvidenceModalOpen}
         title="Thêm bằng chứng năng lực"
-        width={820}
+        width={720}
       >
         <Form form={competencyEvidenceForm} layout="vertical">
-          <div className="competency-form-grid">
-            <Form.Item label="Loại bằng chứng" name="evidence_type" rules={[{ required: true }]}>
-              <Select options={competencyEvidenceTypeOptions} />
-            </Form.Item>
-            <Form.Item label="Tên bằng chứng" name="title" rules={[{ required: true, message: "Nhập tên bằng chứng" }]}>
-              <Input placeholder="Ví dụ: Kết quả đánh giá chứng kiến 2026" />
-            </Form.Item>
-            <Form.Item label="Mã / số tham chiếu" name="reference_no"><Input /></Form.Item>
-            <Form.Item label="Ngày bằng chứng" name="evidence_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-            <Form.Item label="Có giá trị đến" name="valid_until"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
-            <Form.Item label="Kết quả" name="result"><Input placeholder="Đạt, 8/10, hoàn thành..." /></Form.Item>
-            <Form.Item label="Điểm (0-100)" name="score"><InputNumber min={0} max={100} precision={2} style={{ width: "100%" }} /></Form.Item>
-            <Form.Item label="Ngày công đánh giá liên quan" name="mandays"><InputNumber min={0} precision={2} style={{ width: "100%" }} /></Form.Item>
-          </div>
-          <Form.Item label="Mô tả / căn cứ" name="description"><Input.TextArea rows={3} /></Form.Item>
-          <Form.Item label="Tệp minh chứng">
-            <input
-              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-              onChange={(event) => setCompetencyEvidenceFile(event.target.files?.[0] ?? null)}
-              type="file"
-            />
-            {competencyEvidenceFile ? <div className="competency-upload-note">{competencyEvidenceFile.name}</div> : null}
-          </Form.Item>
+          <CompetencyEvidenceFields
+            form={competencyEvidenceForm}
+            file={competencyEvidenceFile}
+            onFileChange={setCompetencyEvidenceFile}
+          />
         </Form>
       </Modal>
 
