@@ -29,6 +29,18 @@ test('self-service reuses the experts route from the account menu', () => {
   assert.match(navigation, /\/resources\/experts\?view=me/);
 });
 
+test('admin sidebar exposes the existing expert workspace next to scheduling', () => {
+  const shell = read('app/components/DashboardShell.tsx');
+  const navigation = read('app/lib/app-navigation.ts');
+  const entry = 'if (hasRole("ADMIN") && hasPermission("experts.read")) operations.push({ key: "experts", icon: <TeamOutlined />, label: "Chuyên gia & năng lực" });';
+  assert.ok(shell.includes(entry));
+  assert.ok(shell.indexOf(entry) > shell.indexOf('operations.push({ key: "schedule-resources"'));
+  assert.ok(shell.indexOf(entry) < shell.indexOf('operations.push({ key: "documents"'));
+  assert.equal(shell.split('operations.push({ key: "experts"').length - 1, 1);
+  assert.match(navigation, /experts: "\/resources\/experts"/);
+  assert.match(shell, /<ExpertsScreen roles=\{session.user.roles\} currentUserId=\{session.user.id\}/);
+});
+
 test('expert competency screen exposes governance detail with evidence review and decision history', () => {
   const source = read('app/components/ExpertsScreen.tsx');
   assert.match(source, /expert-competency-governance/);
@@ -79,4 +91,28 @@ test('renewal and reactivation UI respect review governance blockers', () => {
   assert.match(source, /normalize\(selectedCompetency\.governance\.review_status\) === "OVERDUE"/);
   assert.match(source, /selectedCompetency\.governance\.requires_management_action/);
   assert.match(source, /Cần có đánh giá năng lực phù hợp trước khi khôi phục/);
+});
+
+test('compact competency entry uses canonical multi-IAF and subject identity', () => {
+  const source = read('app/components/ExpertsScreen.tsx');
+  assert.match(source, /\/expert-competencies\/batch/);
+  assert.match(source, /\/expert-competencies\/me\/batch/);
+  assert.match(source, /\/industry-classifications\/iaf-scopes\?active=true/);
+  assert.match(source, /mode="multiple"/);
+  assert.match(source, /optionFilterProp="label"/);
+  assert.doesNotMatch(source, /Vai trò bổ sung/);
+  assert.match(source, /competencyRoleOptions.slice\(0, 2\)/);
+  assert.doesNotMatch(source, /<Form.Item[^>]*label="(?:Mức năng lực|Cấp mã lĩnh vực|Mã NACE)"/);
+  assert.match(source, /selectedExpert.account\?\.id !== currentUserId/);
+  assert.doesNotMatch(source, /submitter !== currentUserId/);
+  assert.equal(source.slice(source.indexOf('<div className="expert-kpi-grid">'), source.indexOf('<Card className="expert-list-card"')).match(/<Statistic/g).length, 4);
+});
+
+test('own evidence attachments use dedicated endpoints and editable-state guard', () => {
+  const source = read('app/components/ExpertsScreen.tsx');
+  const own = source.slice(source.indexOf('function OwnEvidenceFiles'), source.indexOf('function OwnCompetenciesWorkspace'));
+  assert.match(own, /\/document-files\/self\/competency-evidence/);
+  assert.match(own, /\/document-files\/self\/competency-files/);
+  assert.doesNotMatch(own, /\/document-files\/upload/);
+  assert.match(own, /editable && evidence.status === 'ACTIVE'/);
 });

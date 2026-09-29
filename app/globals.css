@@ -2852,8 +2852,21 @@ input { font: inherit; }
 .experts-screen {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
+
+.experts-screen > .screen-heading-row { display: flex; flex-wrap: wrap; justify-content: space-between; margin: 0; padding: 0; align-items: center; gap: 12px; }
+.experts-screen > .screen-heading-row h3 { margin: 0 0 4px; font-size: 24px; }
+.expert-kpi-grid .ant-card-body { padding: 12px 16px; }
+.expert-kpi-grid .ant-statistic-content { font-size: 24px; }
+.expert-kpi-grid .ant-statistic-title { margin-bottom: 4px; }
+.experts-screen .expert-list-card > .ant-card-body { padding: 12px 16px; }
+.experts-screen .expert-list-card > .ant-card-head { min-height: 44px; padding: 0 16px; }
+.experts-screen .expert-filter-bar { margin: 8px 0 12px; }
+.competency-editor .ant-form-item { margin-bottom: 14px; }
+.competency-editor .ant-picker { width: 100%; }
+.competency-editor .ant-alert { margin-bottom: 14px; }
+.competency-editor details > summary { cursor: pointer; margin-bottom: 8px; }
 
 .expert-kpi-grid {
   display: grid;

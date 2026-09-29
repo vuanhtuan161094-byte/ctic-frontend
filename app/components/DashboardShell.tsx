@@ -920,6 +920,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (certificationChildren.length) operations.push({ key: "certification-group", icon: <SafetyCertificateOutlined />, label: "Chứng nhận", children: certificationChildren });
 
     if (hasPermission("audit_plans.read", "audit_teams.read", "experts.read", "competencies.read")) operations.push({ key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" });
+    if (hasRole("ADMIN") && hasPermission("experts.read")) operations.push({ key: "experts", icon: <TeamOutlined />, label: "Chuyên gia & năng lực" });
     if (hasPermission("documents.read")) operations.push({ key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu" });
     if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị" });
     if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });

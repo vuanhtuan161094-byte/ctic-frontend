@@ -456,6 +456,7 @@ interface CompetencyFormValues {
   competency_role: string;
   scope_level: string;
   iaf_code: string;
+  iaf_codes: string[];
   nace_revision?: string;
   nace_code?: string;
   scope_description?: string;
@@ -567,14 +568,6 @@ const recommendationRoleOptions = [
   { value: "AUDITOR", label: "Chuyên gia đánh giá" },
   { value: "TECHNICAL_EXPERT", label: "Chuyên gia kỹ thuật" },
   { value: "WITNESS_EVALUATOR", label: "Đánh giá viên chứng kiến" },
-];
-
-const competencyLevelOptions = [
-  { value: "TRAINEE", label: "Tập sự" },
-  { value: "UNDER_SUPERVISION", label: "Dưới giám sát" },
-  { value: "QUALIFIED", label: "Đủ năng lực" },
-  { value: "SENIOR", label: "Cấp cao" },
-  { value: "EXPERT", label: "Chuyên gia" },
 ];
 
 const competencyEvidenceTypeOptions = [
@@ -774,6 +767,45 @@ type OwnCompetency = ExpertCompetency & {
   action_records: CompetencyAction[];
 };
 
+function CompetencyRoleField() {
+  const form = Form.useFormInstance();
+  const role = Form.useWatch('competency_role', form);
+  const secondary = Boolean(role && !['AUDITOR', 'LEAD_AUDITOR'].includes(role));
+  return <div><Form.Item name="competency_role" label="Vai trò" rules={[{ required: true }]}>
+    <Select options={secondary ? competencyRoleOptions.filter((option) => ['AUDITOR', 'LEAD_AUDITOR', role].includes(option.value)) : competencyRoleOptions.slice(0, 2)} />
+  </Form.Item>
+  {role === 'LEAD_AUDITOR' ? <Text type="secondary">Bao gồm vai trò chuyên gia đánh giá trong cùng tiêu chuẩn và IAF.</Text> : null}</div>;
+}
+
+function CompetencyIafField({ selfService = false, editing = false }: { selfService?: boolean; editing?: boolean }) {
+  const form = Form.useFormInstance();
+  const legacyScope = Form.useWatch('scope_level', { form, preserve: true }) === 'NACE';
+  const query = useQuery({ queryKey: ['competency-iaf-catalog', selfService],
+    queryFn: async () => (await api.get<Array<{ iaf_code: string; iaf_name: string }>>(selfService ? '/expert-competencies/me/iaf-scopes' : '/industry-classifications/iaf-scopes?active=true')).data });
+  return <div><Form.Item name="iaf_codes" label="Phạm vi IAF" rules={[{ required: true, type: 'array', min: 1 }]}>
+    <Select mode="multiple" maxCount={editing ? 1 : undefined} showSearch optionFilterProp="label" loading={query.isPending} disabled={query.isError || (editing && legacyScope)}
+      optionRender={(option) => <span style={{ whiteSpace: 'normal' }}>{option.label}</span>}
+      options={(query.data ?? []).map((row) => ({ value: row.iaf_code, label: `IAF ${row.iaf_code} — ${row.iaf_name}` }))} />
+  </Form.Item>{query.isError ? <Alert type="error" title={getErrorMessage(query.error)} /> : null}</div>;
+}
+
+function OwnEvidenceFiles({ evidence, editable }: { evidence: CompetencyEvidence; editable: boolean }) {
+  const { message } = App.useApp();
+  const query = useQuery({ queryKey: ['own-evidence-files', evidence.id], queryFn: async () =>
+    (await api.get<CompetencyAttachment[]>(`/document-files/self/competency-evidence/${evidence.id}/files`)).data });
+  const upload = useMutation({ mutationFn: async (file: File) => { const data = new FormData(); data.append('file', file);
+    await api.post(`/document-files/self/competency-evidence/${evidence.id}/files`, data); },
+    onSuccess: async () => { await query.refetch(); message.success('Đã tải tệp bằng chứng'); }, onError: (e) => message.error(getErrorMessage(e)) });
+  return <div><Text strong>{evidence.title}</Text> <Text type="secondary">{evidence.reference_no}</Text>
+    {query.isError ? <Alert type="error" title={getErrorMessage(query.error)} /> : null}
+    {(query.data ?? []).map((file) => <Button key={file.id} size="small" onClick={() => void openDocumentFile({
+      url: `/document-files/self/competency-files/${file.id}/download`, filename: file.original_name,
+    }).catch((e) => message.error(getErrorMessage(e)))}>{file.original_name}</Button>)}
+    {editable && evidence.status === 'ACTIVE' ? <label>Tệp đính kèm <input type="file" aria-label={`Tệp đính kèm ${evidence.title}`} disabled={upload.isPending}
+      onChange={(event) => { const file = event.target.files?.[0]; if (file) upload.mutate(file); event.target.value = ''; }} /></label> : null}
+  </div>;
+}
+
 function OwnCompetenciesWorkspace() {
   const { message } = App.useApp();
   const client = useQueryClient();
@@ -790,16 +822,17 @@ function OwnCompetenciesWorkspace() {
     mutationFn: async (values: CompetencyFormValues) => {
       const payload = {
         management_system: values.management_system, standard_code: values.standard_code,
-        competency_role: values.competency_role, scope_level: values.scope_level,
-        iaf_code: values.iaf_code, nace_code: values.nace_code,
-        nace_revision: values.scope_level === "NACE" ? "NACE_REV_2" : undefined,
+        competency_role: values.competency_role,
+        iaf_code: values.iaf_codes?.[0],
         effective_date: values.effective_date.format("YYYY-MM-DD"),
         expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
         evidence_summary: values.evidence_summary,
+        approval_basis: values.approval_basis,
+        restriction: values.restriction,
       };
       return editor && editor !== "new"
         ? api.patch(`/expert-competencies/me/${editor.id}`, payload)
-        : api.post("/expert-competencies/me", payload);
+        : api.post("/expert-competencies/me/batch", { ...payload, iaf_code: undefined, scope_level: undefined, nace_code: undefined, nace_revision: undefined, iaf_codes: values.iaf_codes });
     },
     onSuccess: async () => { setEditor(null); await refresh(); message.success("Đã lưu dự thảo năng lực"); },
     onError: (e) => message.error(getErrorMessage(e)),
@@ -821,9 +854,10 @@ function OwnCompetenciesWorkspace() {
   const edit = (row?: OwnCompetency) => {
     form.resetFields();
     form.setFieldsValue(row ? { management_system: row.management_system, standard_code: row.standard_code,
-      competency_role: row.competency_role, scope_level: row.scope_level, iaf_code: row.iaf_code,
+      competency_role: row.competency_role, scope_level: row.scope_level, iaf_code: row.iaf_code, iaf_codes: [row.iaf_code],
       nace_code: row.nace_code ?? undefined, effective_date: dayjs(row.effective_date),
-      expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined, evidence_summary: row.evidence_summary ?? undefined } : {
+      expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined, evidence_summary: row.evidence_summary ?? undefined,
+      approval_basis: row.approval_basis ?? undefined, restriction: row.restriction ?? undefined } : {
       management_system: "QMS", standard_code: "ISO 9001:2015", competency_role: "AUDITOR",
       scope_level: "IAF", effective_date: dayjs(),
     });
@@ -834,6 +868,7 @@ function OwnCompetenciesWorkspace() {
     <Space wrap><Title level={3}>Năng lực của tôi</Title><Button onClick={() => edit()} disabled={query.isError || query.isPending}>Thêm năng lực</Button><Button onClick={() => void query.refetch()}>Tải lại</Button></Space>
     {query.isError ? <Alert type="error" showIcon title={getErrorMessage(query.error)} /> : null}
     <Table<OwnCompetency> rowKey="id" dataSource={query.data ?? []} loading={query.isPending} size="small" scroll={{ x: 900 }}
+      expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || 'Chưa có tóm tắt bằng chứng'}</Text>{row.evidence_records.length ? row.evidence_records.map((item) => <OwnEvidenceFiles key={item.id} evidence={item} editable={editable(row)} />) : <Text>Chưa có bằng chứng. Chọn “Bổ sung bằng chứng”, lưu thông tin rồi đính kèm tệp.</Text>}</Space> }}
       columns={[
         { title: "Tiêu chuẩn / hệ thống", render: (_, row) => <>{row.standard_code}<div>{row.management_system}</div></> },
         { title: "Vai trò", dataIndex: "competency_role", render: (value) => competencyRoleOptions.find((r) => r.value === value)?.label ?? value },
@@ -846,19 +881,22 @@ function OwnCompetenciesWorkspace() {
           <Popconfirm title="Gửi năng lực này để phê duyệt?" onConfirm={() => submit.mutateAsync(row.id)}><Button size="small" loading={submit.isPending}>Gửi phê duyệt</Button></Popconfirm>
         </Space> : null },
       ]}
-      expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || "Chưa có tóm tắt bằng chứng"}</Text>{row.evidence_records.map((record) => <Text key={record.id}>{record.title} · {record.reference_no || record.evidence_type}</Text>)}</Space> }}
     />
-    <Modal title={editor === "new" ? "Thêm năng lực" : "Sửa năng lực"} open={editor !== null} onCancel={() => setEditor(null)} confirmLoading={save.isPending} onOk={() => void form.validateFields().then((v) => save.mutate(v))} okText="Lưu dự thảo">
+    <Modal className="competency-editor" width={680} title={editor === "new" ? "Thêm năng lực" : "Sửa năng lực"} open={editor !== null} onCancel={() => setEditor(null)} confirmLoading={save.isPending} onOk={() => void form.validateFields().then((v) => save.mutate(v))} okText="Lưu dự thảo">
       <Form form={form} layout="vertical">
-        <Form.Item name="management_system" label="Hệ thống" rules={[{ required: true }]}><Select options={managementSystemOptions} /></Form.Item>
+        <div className="competency-form-grid">
+        <Form.Item name="management_system" label="Chương trình" rules={[{ required: true }]}><Select onChange={(value) => form.setFieldValue('standard_code', standardBySystem[value])} options={managementSystemOptions} /></Form.Item>
         <Form.Item name="standard_code" label="Tiêu chuẩn" rules={[{ required: true }]}><Input /></Form.Item>
-        <Form.Item name="competency_role" label="Vai trò" rules={[{ required: true }]}><Select options={competencyRoleOptions} /></Form.Item>
-        <Form.Item name="scope_level" label="Cấp phạm vi" rules={[{ required: true }]}><Select options={[{ value: "IAF", label: "IAF" }, { value: "NACE", label: "NACE" }]} /></Form.Item>
-        <Form.Item name="iaf_code" label="Mã IAF" rules={[{ required: true }]}><Input /></Form.Item>
-        <Form.Item name="nace_code" label="Mã NACE"><Input /></Form.Item>
+        <CompetencyRoleField />
+        <CompetencyIafField selfService editing={editor !== 'new'} />
+        {editor && editor !== 'new' && editor.scope_level === 'NACE' ? <Text>Phạm vi NACE cũ {editor.nace_code} được giữ nguyên.</Text> : null}
         <Form.Item name="effective_date" label="Hiệu lực từ" rules={[{ required: true }]}><DatePicker /></Form.Item>
         <Form.Item name="expiry_date" label="Hiệu lực đến"><DatePicker /></Form.Item>
-        <Form.Item name="evidence_summary" label="Tóm tắt bằng chứng"><Input.TextArea rows={3} /></Form.Item>
+        </div>
+        <Form.Item name="evidence_summary" label="Tóm tắt bằng chứng"><Input.TextArea rows={2} /></Form.Item>
+        <Text type="secondary">Sau khi lưu dự thảo, chọn “Bổ sung bằng chứng” để nhập thông tin và đính kèm tệp.</Text>
+        <Form.Item name="approval_basis" label="Cơ sở phê duyệt / ghi chú"><Input.TextArea rows={2} /></Form.Item>
+        <details><summary>Hạn chế năng lực (không bắt buộc)</summary><Form.Item name="restriction"><Input.TextArea rows={2} /></Form.Item></details>
       </Form>
     </Modal>
     <Modal title="Bổ sung bằng chứng" open={evidenceFor !== null} onCancel={() => setEvidenceFor(null)} confirmLoading={evidence.isPending} onOk={() => void evidenceForm.validateFields().then((v) => evidence.mutate(v))}>
@@ -916,9 +954,8 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
 
   const canManage = roles.some((role) => role.toLowerCase() === "admin");
   const canApproveCompetency = (row: ExpertCompetency) => {
-    const submitter = row.action_records?.find((action) => action.action_type === "SUBMIT")?.actor_id;
     return canManage && row.approval_status === "PENDING_APPROVAL"
-      && Boolean(currentUserId && submitter && submitter !== currentUserId);
+      && Boolean(currentUserId && selectedExpert && selectedExpert.account?.id !== currentUserId);
   };
 
   const overviewQuery = useQuery({
@@ -1027,17 +1064,17 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     mutationFn: async (values: CompetencyFormValues) => {
       if (!selectedExpertId) throw new Error("Chưa chọn chuyên gia");
       return (
-        await api.request<ExpertCompetency>({ method: editingCompetencyId ? "PATCH" : "POST", url: editingCompetencyId ? `/expert-competencies/${editingCompetencyId}` : "/expert-competencies", data: {
+        await api.request<ExpertCompetency>({ method: editingCompetencyId ? "PATCH" : "POST", url: editingCompetencyId ? `/expert-competencies/${editingCompetencyId}` : "/expert-competencies/batch", data: {
           ...(editingCompetencyId ? {} : { expert_id: selectedExpertId }),
           management_system: values.management_system,
           standard_code: values.standard_code,
           competency_role: values.competency_role,
-          scope_level: values.scope_level,
-          iaf_code: values.iaf_code,
+          scope_level: editingCompetencyId ? values.scope_level : undefined,
+          iaf_code: editingCompetencyId ? values.iaf_codes?.[0] : undefined,
+          iaf_codes: editingCompetencyId ? undefined : values.iaf_codes,
           nace_revision: values.scope_level === "NACE" ? values.nace_revision || "NACE_REV_2" : undefined,
           nace_code: values.scope_level === "NACE" ? values.nace_code : undefined,
           scope_description: values.scope_description,
-          competency_level: values.competency_level,
           effective_date: values.effective_date.format("YYYY-MM-DD"),
           expiry_date: values.expiry_date?.format("YYYY-MM-DD"),
           approval_basis: values.approval_basis,
@@ -1087,7 +1124,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     competencyForm.resetFields();
     competencyForm.setFieldsValue({ management_system: row.management_system, standard_code: row.standard_code,
       competency_role: row.competency_role, competency_level: row.competency_level, scope_level: row.scope_level,
-      iaf_code: row.iaf_code, nace_code: row.nace_code ?? undefined, nace_revision: row.nace_revision ?? undefined,
+      iaf_code: row.iaf_code, iaf_codes: [row.iaf_code], nace_code: row.nace_code ?? undefined, nace_revision: row.nace_revision ?? undefined,
       effective_date: dayjs(row.effective_date), expiry_date: row.expiry_date ? dayjs(row.expiry_date) : undefined,
       evidence_summary: row.evidence_summary ?? undefined, approval_basis: row.approval_basis ?? undefined,
       scope_description: row.scope_description ?? undefined, restriction: row.restriction ?? undefined });
@@ -1444,7 +1481,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       render: (_, record) => (
         <div className="expert-summary-cell">
           <strong>{record.standard_code}</strong>
-          <small>{roleLabels[normalize(record.competency_role)] ?? record.competency_role} · {record.competency_level}</small>
+          <small>{roleLabels[normalize(record.competency_role)] ?? record.competency_role}</small>
         </div>
       ),
     },
@@ -1487,7 +1524,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
           </Space> : null}
           {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? (
             <Popconfirm title="Phê duyệt phạm vi năng lực này?" onConfirm={() => approveCompetencyMutation.mutate(record.id)}>
-              <Button size="small" type="primary" disabled={!canApproveCompetency(record)} title="Người gửi không được tự duyệt">Phê duyệt</Button>
+              <Button size="small" type="primary" disabled={!canApproveCompetency(record)} title="Không được duyệt năng lực thuộc chính mình">Phê duyệt</Button>
             </Popconfirm>
           ) : null}
           {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? <Button size="small" onClick={() => returnCompetency(record.id)}>Yêu cầu bổ sung</Button> : null}
@@ -1902,10 +1939,9 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     <div className="experts-screen">
       <div className="screen-heading-row">
         <div>
-          <Text className="screen-eyebrow">QUẢN LÝ NGUỒN LỰC</Text>
-          <Title level={1}>Chuyên gia & năng lực</Title>
+          <Title level={3}>Chuyên gia & năng lực</Title>
           <Text type="secondary">
-            Hồ sơ chuyên gia, phạm vi năng lực, bằng chứng, đào tạo, giám sát năng lực, chu kỳ đánh giá và lịch sử quyết định được quản trị tập trung.
+            Hồ sơ, phạm vi IAF và bằng chứng năng lực chuyên gia.
           </Text>
         </div>
         <Space>
@@ -1918,15 +1954,15 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       <div className="expert-kpi-grid">
         <Card><Statistic prefix={<TeamOutlined />} title="Tổng chuyên gia" value={overviewQuery.data?.experts.total ?? 0} /></Card>
         <Card><Statistic prefix={<SafetyCertificateOutlined />} title="Năng lực đã duyệt" value={overviewQuery.data?.competencies.approved ?? 0} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Năng lực đã hết hiệu lực" value={overviewQuery.data?.competencies.expired ?? 0} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Sắp hết hiệu lực" value={overviewQuery.data?.competencies.expiring_90_days ?? 0} /></Card>
         <Card><Statistic prefix={<WarningOutlined />} title="Đánh giá năng lực quá hạn" value={overviewQuery.data?.competencies.review_overdue ?? 0} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Thiếu bằng chứng năng lực" value={overviewQuery.data?.competencies.evidence_gaps ?? 0} /></Card>
-        <Card><Statistic prefix={<CheckCircleOutlined />} title="Hồ sơ chuyên gia đã duyệt" value={overviewQuery.data?.experts.approved_profiles ?? 0} /></Card>
-        <Card><Statistic prefix={<LinkOutlined />} title="Đã gắn tài khoản" value={overviewQuery.data?.experts.linked_accounts ?? 0} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Chứng chỉ hết hạn trong 90 ngày" value={overviewQuery.data?.certificates.expiring_90_days ?? 0} /></Card>
       </div>
 
       <Card className="expert-list-card" title="Danh sách chuyên gia">
+        <details><summary>Chỉ báo quản trị bổ sung</summary><Space wrap>
+          <Text>Năng lực đã hết hiệu lực: {overviewQuery.data?.competencies.expired ?? 0}</Text>
+          <Text>Thiếu bằng chứng năng lực: {overviewQuery.data?.competencies.evidence_gaps ?? 0}</Text>
+        </Space></details>
         <div className="expert-filter-bar">
           <Input allowClear onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên, mã chuyên gia, tài khoản, đơn vị..." prefix={<SearchOutlined />} value={search} />
           <Select onChange={setStatus} options={[
@@ -1937,6 +1973,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
         </div>
         <Table
           columns={expertColumns}
+          size="small"
           dataSource={expertsQuery.data ?? []}
           loading={expertsQuery.isLoading}
           locale={{ emptyText: <Empty description="Chưa có hồ sơ chuyên gia" /> }}
@@ -2034,6 +2071,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                   <Card
                     extra={canManage && selectedExpert.status === "active" ? (
                       <Button icon={<PlusOutlined />} onClick={() => {
+                        competencyForm.resetFields(); setEditingCompetencyId(null);
                         competencyForm.setFieldsValue({
                           management_system: "QMS",
                           standard_code: standardBySystem.QMS,
@@ -2159,7 +2197,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                         description="Hệ thống sẽ chặn nếu chưa có bằng chứng năng lực."
                         onConfirm={() => approveCompetencyMutation.mutate(selectedCompetency.id)}
                       >
-                        <Button type="primary" disabled={!canApproveCompetency(selectedCompetency)} title="Người gửi không được tự duyệt">Phê duyệt</Button>
+                        <Button type="primary" disabled={!canApproveCompetency(selectedCompetency)} title="Không được duyệt năng lực thuộc chính mình">Phê duyệt</Button>
                       </Popconfirm>
                     ) : null}
                     {normalize(selectedCompetency.approval_status) === "APPROVED" ? (
@@ -2333,13 +2371,14 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       </Modal>
 
       <Modal
+        className="competency-editor"
         confirmLoading={createCompetencyMutation.isPending}
-        okText={editingCompetencyId ? "Lưu thay đổi" : "Tạo hồ sơ năng lực"}
+        okText="Lưu dự thảo"
         onCancel={() => { setCompetencyModalOpen(false); setEditingCompetencyId(null); }}
         onOk={() => void competencyForm.validateFields().then((values) => createCompetencyMutation.mutate(values))}
         open={competencyModalOpen}
-        title={`${editingCompetencyId ? "Sửa" : "Thêm"} chương trình và lĩnh vực · ${selectedExpert?.full_name ?? ""}`}
-        width={850}
+        title={`${editingCompetencyId ? "Sửa" : "Thêm"} năng lực · ${selectedExpert?.full_name ?? ""}`}
+        width={680}
       >
         <Form form={competencyForm} layout="vertical">
           <div className="competency-form-grid">
@@ -2347,25 +2386,21 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
               <Select onChange={(value) => competencyForm.setFieldValue("standard_code", standardBySystem[value])} options={managementSystemOptions} />
             </Form.Item>
             <Form.Item label="Tiêu chuẩn được đánh giá" name="standard_code" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item label="Vai trò được phê duyệt" name="competency_role" rules={[{ required: true }]}><Select options={competencyRoleOptions} /></Form.Item>
-            <Form.Item label="Mức năng lực" name="competency_level" rules={[{ required: true }]}><Select options={competencyLevelOptions} /></Form.Item>
-            <Form.Item label="Cấp mã lĩnh vực" name="scope_level" rules={[{ required: true }]}><Select options={[{ value: "IAF", label: "IAF" }, { value: "NACE", label: "NACE chi tiết" }]} /></Form.Item>
-            <Form.Item label="Mã IAF" name="iaf_code" rules={[{ required: true, message: "Nhập mã IAF" }]}><Input placeholder="14" /></Form.Item>
+            <CompetencyRoleField />
+            <CompetencyIafField editing={Boolean(editingCompetencyId)} />
             <Form.Item noStyle shouldUpdate={(prev, current) => prev.scope_level !== current.scope_level}>
               {({ getFieldValue }) => getFieldValue("scope_level") === "NACE" ? (
                 <>
-                  <Form.Item label="Phiên bản NACE" name="nace_revision"><Input placeholder="NACE_REV_2" /></Form.Item>
-                  <Form.Item label="Mã NACE" name="nace_code" rules={[{ required: true, message: "Nhập mã NACE" }]}><Input placeholder="22.29" /></Form.Item>
+                  <Text type="secondary">Phạm vi NACE cũ được giữ nguyên, không tự mở rộng sang IAF.</Text>
                 </>
               ) : null}
             </Form.Item>
             <Form.Item label="Ngày hiệu lực" name="effective_date" rules={[{ required: true }]}><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
             <Form.Item label="Ngày hết hiệu lực" name="expiry_date"><DatePicker format="DD/MM/YYYY" style={{ width: "100%" }} /></Form.Item>
           </div>
-          <Form.Item label="Lĩnh vực/hoạt động được đánh giá" name="scope_description"><Input.TextArea rows={2} placeholder="Ví dụ: Sản xuất sản phẩm nhựa, cao su; gia công cơ khí..." /></Form.Item>
-          <Form.Item label="Cơ sở phê duyệt" name="approval_basis"><Input.TextArea rows={2} placeholder="Đào tạo, kinh nghiệm, đánh giá chứng kiến, hồ sơ chuyên môn..." /></Form.Item>
-          <Form.Item label="Tóm tắt bằng chứng năng lực" name="evidence_summary"><Input.TextArea rows={2} /></Form.Item>
-          <Form.Item label="Hạn chế năng lực" name="restriction"><Input.TextArea rows={2} /></Form.Item>
+          <Alert type="info" title="Bằng chứng năng lực" description="Sau khi lưu dự thảo, mở chi tiết từng phạm vi IAF để bổ sung bằng chứng và đính kèm tệp." />
+          <Form.Item label="Cơ sở phê duyệt / ghi chú" name="approval_basis"><Input.TextArea rows={2} /></Form.Item>
+          <details><summary>Hạn chế năng lực (không bắt buộc)</summary><Form.Item name="restriction"><Input.TextArea rows={2} /></Form.Item></details>
         </Form>
       </Modal>
 
