@@ -114,5 +114,27 @@ test('own evidence attachments use dedicated endpoints and editable-state guard'
   assert.match(own, /\/document-files\/self\/competency-evidence/);
   assert.match(own, /\/document-files\/self\/competency-files/);
   assert.doesNotMatch(own, /\/document-files\/upload/);
-  assert.match(own, /editable && evidence.status === 'ACTIVE'/);
+  assert.match(own, /editable && evidence.status === "ACTIVE"/);
+});
+
+test('evidence entry is concise by type and treats the file as the detailed source', () => {
+  const source = read('app/components/ExpertsScreen.tsx');
+  const fields = read('app/components/CompetencyEvidenceFields.tsx');
+
+  assert.match(source, /<CompetencyEvidenceFields/);
+  assert.match(fields, /Form\.useWatch\("evidence_type"/);
+  assert.match(fields, /TRAINING_CERTIFICATE/);
+  assert.match(fields, /AUDIT_LOG/);
+  assert.match(fields, /WORK_EXPERIENCE/);
+  assert.match(fields, /WITNESS_ASSESSMENT/);
+  assert.match(fields, /INTERVIEW_TEST/);
+  assert.match(fields, /CUSTOMER_FEEDBACK/);
+  assert.match(fields, /AUDIT_REPORT_REVIEW/);
+  assert.match(fields, /showMandays/);
+  assert.match(fields, /showScore/);
+  assert.match(fields, /Không cần nhập lại nội dung đã có trong tài liệu/);
+  assert.match(fields, /nội dung chi tiết xem trực tiếp trong tệp minh chứng/);
+  assert.doesNotMatch(source, /<Descriptions\.Item label="Mức năng lực"/);
+  assert.match(source, /\/document-files\/self\/competency-evidence\/\$\{created\.id\}\/files/);
+  assert.match(source, /Tệp minh chứng/);
 });
