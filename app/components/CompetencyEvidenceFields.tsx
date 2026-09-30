@@ -1,10 +1,8 @@
 "use client";
 
 import { UploadOutlined } from "@ant-design/icons";
-import { Button, DatePicker, Form, Input, InputNumber, Select, Typography, Upload } from "antd";
+import { Button, DatePicker, Form, Input, InputNumber, Select, Upload } from "antd";
 import type { FormInstance, UploadFile } from "antd";
-
-const { Text } = Typography;
 
 export const competencyEvidenceTypeOptions = [
   { value: "TRAINING_CERTIFICATE", label: "Đào tạo / chứng chỉ" },
@@ -30,7 +28,7 @@ type EvidenceConfig = {
 
 const evidenceConfig: Record<string, EvidenceConfig> = {
   TRAINING_CERTIFICATE: {
-    referenceLabel: "Số chứng chỉ / số hồ sơ",
+    referenceLabel: "Số chứng chỉ",
     dateLabel: "Ngày cấp",
     validUntilLabel: "Có giá trị đến",
     descriptionLabel: "Ghi chú",
@@ -157,6 +155,10 @@ export function CompetencyEvidenceFields({
             accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
             beforeUpload={(selectedFile) => {
               onFileChange(selectedFile);
+              const currentTitle = String(form.getFieldValue("title") ?? "").trim();
+              if (!currentTitle) {
+                form.setFieldValue("title", selectedFile.name.replace(/\.[^.]+$/, ""));
+              }
               return false;
             }}
             fileList={fileList}
@@ -169,13 +171,10 @@ export function CompetencyEvidenceFields({
             <Button icon={<UploadOutlined />}>Chọn tệp</Button>
           </Upload>
           <div className="competency-upload-note">
-            Có thể mở trực tiếp tệp này khi xem hồ sơ. Không cần nhập lại nội dung đã có trong tài liệu.
+            Không cần nhập lại nội dung đã có trong tài liệu; nội dung chi tiết xem trực tiếp trong tệp minh chứng.
           </div>
         </Form.Item>
       ) : null}
-      <Text type="secondary">
-        Chỉ nhập thông tin cần để nhận biết và tra cứu; nội dung chi tiết xem trực tiếp trong tệp minh chứng.
-      </Text>
     </>
   );
 }
