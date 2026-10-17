@@ -1,21 +1,21 @@
 .cmp-cap-page, .cmp-cap-response { min-width: 0; width: 100%; box-sizing: border-box; overflow-wrap: anywhere; }
-.cmp-cap-page { display: flex; flex-direction: column; gap: 20px; }
-.cmp-cap-page .cmp-page-header { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+.cmp-cap-page { display: flex; flex-direction: column; gap: 16px; }
+.cmp-cap-page .cmp-page-header { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 .cmp-cap-summary { display: flex; flex-direction: column; gap: 12px; }
 .cmp-cap-nav { display: flex; gap: 8px; overflow-x: auto; max-width: 100%; padding-bottom: 8px; }
 .cmp-cap-nav [aria-current="page"] { border-color: var(--cmp-color-primary); font-weight: 600; }
 .cmp-cap-page .cmp-cap-nav .ant-btn { flex: 0 0 auto; white-space: nowrap; }
-.cmp-cap-content, .cmp-cap-response { padding: 24px; background: var(--cmp-surface, #fff); border: 1px solid var(--cmp-border, #e5e7eb); border-radius: 12px; }
-.cmp-cap-version { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.cmp-cap-content, .cmp-cap-response { padding: 18px; background: var(--cmp-surface, #fff); border: 1px solid var(--cmp-border, #e5e7eb); border-radius: 12px; }
+.cmp-cap-version { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
 .cmp-cap-version .ant-select { min-width: 230px; max-width: 100%; }
 .cmp-cap-page .ant-list-item { gap: 12px; flex-wrap: wrap; }
 .cmp-cap-page .ant-list-item > span { min-width: 0; flex: 1; }
 .cmp-cap-page .ant-descriptions-item-content { white-space: pre-wrap; }
-.cmp-cap-response-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cmp-cap-response-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 768px) {
-  .cmp-cap-content, .cmp-cap-response { padding: 16px; }
+  .cmp-cap-content, .cmp-cap-response { padding: 12px; }
   .cmp-cap-response-grid { grid-template-columns: 1fr; }
-  .cmp-cap-page .ant-btn, .cmp-cap-response .ant-btn { white-space: normal; height: auto; min-height: 32px; }
+  .cmp-cap-page .ant-btn, .cmp-cap-response .ant-btn { white-space: normal; height: auto; min-height: 44px; }
   .cmp-cap-page .ant-tag { white-space: normal; }
   .cmp-cap-page .cmp-page-header__actions { width: 100%; }
 }

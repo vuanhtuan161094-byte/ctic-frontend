@@ -9,7 +9,7 @@
 .cmp-audit-page .cmp-page-header {
   align-items: stretch;
   flex-direction: column;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .cmp-audit-page .cmp-page-header__actions {
@@ -33,8 +33,8 @@
 .cmp-audit-secondary-nav {
   display: flex;
   gap: 4px;
-  margin: 16px 0 0;
-  padding: 6px;
+  margin: 12px 0 0;
+  padding: 5px;
   overflow-x: auto;
   border: 1px solid var(--cmp-color-border, #d8e1eb);
   border-radius: 12px;
@@ -69,9 +69,9 @@
 .cmp-audit-context-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
-  margin: 12px 0 18px;
-  padding: 10px 14px;
+  gap: 8px 16px;
+  margin: 10px 0 14px;
+  padding: 8px 12px;
   color: #526579;
   border-bottom: 1px solid #dfe7ef;
 }
@@ -83,18 +83,18 @@
 
 .cmp-audit-section {
   min-width: 0;
-  padding: 18px 0;
+  padding: 14px 0;
 }
 
 .cmp-audit-section > * + * {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .cmp-audit-summary-grid,
 .cmp-audit-document-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -110,8 +110,8 @@
 }
 
 .cmp-audit-team-list .ant-list-item {
-  gap: 12px;
-  padding-inline: 16px;
+  gap: 10px;
+  padding-inline: 12px;
 }
 
 .cmp-audit-local-nav {

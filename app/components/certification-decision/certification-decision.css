@@ -1,4 +1,4 @@
-.cmp-decision-page { display:grid; gap:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.cmp-decision-page { display:grid; gap:14px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
 .cmp-decision-context { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
 .cmp-decision-context .ant-select { flex:1; min-width:180px; max-width:100%; }
 .cmp-decision-content { min-width:0; max-width:100%; }

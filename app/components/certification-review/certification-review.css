@@ -1,8 +1,8 @@
-.cmp-review-page { display:grid; gap:16px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
+.cmp-review-page { display:grid; gap:14px; min-width:0; max-width:100%; overflow-wrap:anywhere; }
 .cmp-review-context { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
 .cmp-review-context .ant-select { flex:1; min-width:200px; max-width:100%; }
 .cmp-review-content { min-width:0; max-width:100%; }
-.cmp-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.cmp-review-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .cmp-review-page .ant-space, .cmp-review-page .ant-space-item, .cmp-review-page .ant-tabs, .cmp-review-page .ant-tabs-content-holder { min-width:0; max-width:100%; }
 .cmp-review-page .ant-table-wrapper { max-width:100%; overflow:auto; }
 .cmp-review-page .ant-card-head-wrapper, .cmp-review-page .ant-space { flex-wrap:wrap; }
