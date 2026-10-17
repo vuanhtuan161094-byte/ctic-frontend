@@ -127,3 +127,31 @@ test('self evidence uses narrow upload/download routes and locks submitted state
   await page.screenshot({ path: info.outputPath('self-evidence-1784x864.png'), fullPage: true });
   expect(h.errors).toEqual([]);
 });
+
+test('mobile competency cards preserve scope, owner approval guard and review actions', async ({ page }, info) => {
+  const h = await fixture(page, { subject: 'actor' });
+  await openAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const competencyView = page.locator('.expert-competency-responsive');
+  await expect(competencyView.locator('.cmp-data-table--responsive')).toBeHidden();
+  const cards = competencyView.locator('.cmp-responsive-card');
+  await expect(cards).toHaveCount(2);
+
+  const pending = cards.nth(0);
+  await expect(pending.getByText('IAF 14', { exact: true })).toBeVisible();
+  await expect(pending.getByRole('button', { name: 'Phê duyệt', exact: true })).toBeDisabled();
+  await expect(pending.getByRole('button', { name: 'Yêu cầu bổ sung', exact: true })).toBeVisible();
+
+  const returned = cards.nth(1);
+  await expect(returned.getByText('NACE 22.19', { exact: true })).toBeVisible();
+  await expect(returned.getByRole('button', { name: 'Sửa', exact: true })).toBeVisible();
+  await expect(returned.getByRole('button', { name: 'Gửi phê duyệt', exact: true })).toBeVisible();
+  const cardTitleBox = await page.locator('.expert-competency-tab-card > .ant-card-head .ant-card-head-title').boundingBox();
+  const cardActionBox = await page.locator('.expert-competency-tab-card > .ant-card-head .ant-card-extra').boundingBox();
+  expect(cardTitleBox).not.toBeNull();
+  expect(cardActionBox).not.toBeNull();
+  expect(cardActionBox.y).toBeGreaterThan(cardTitleBox.y + cardTitleBox.height - 1);
+  await page.screenshot({ path: info.outputPath('expert-competencies-mobile.png') });
+  expect(h.errors).toEqual([]);
+});

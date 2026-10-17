@@ -53,6 +53,7 @@ import { useMemo, useState } from "react";
 import { api, getErrorMessage } from "../lib/api";
 import { documentRequestFromFile, openDocumentFile } from "../lib/document-file-client";
 import { CompetencyEvidenceFields } from "./CompetencyEvidenceFields";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 import ExpertDevelopmentPanel from "./ExpertDevelopmentPanel";
 import ExpertResourceGovernancePanel from "./ExpertResourceGovernancePanel";
 
@@ -1009,6 +1010,11 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [status, setStatus] = useState("active");
   const [expertPage, setExpertPage] = useState(1);
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
+  const [competencyCardPagination, setCompetencyCardPagination] = useState<{ expertId: string | null; page: number }>({ expertId: null, page: 1 });
+  const openExpertProfile = (expertId: string | null) => {
+    setSelectedExpertId(expertId);
+    setCompetencyCardPagination({ expertId, page: 1 });
+  };
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<"create" | "edit">("create");
   const [competencyModalOpen, setCompetencyModalOpen] = useState(false);
@@ -1122,7 +1128,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       setProfileModalOpen(false);
       profileForm.resetFields();
       await refreshAll();
-      setSelectedExpertId(saved.id);
+      openExpertProfile(saved.id);
     },
     onError: (error) => message.error(getErrorMessage(error)),
   });
@@ -1506,7 +1512,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       title: "Chuyên gia & tài khoản",
       key: "expert",
       render: (_, record) => (
-        <button className="expert-name-button" onClick={() => setSelectedExpertId(record.id)} type="button">
+        <button className="expert-name-button" onClick={() => openExpertProfile(record.id)} type="button">
           <Avatar icon={<UserOutlined />} />
           <span>
             <strong>{record.full_name}</strong>
@@ -1559,9 +1565,37 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       title: "",
       key: "action",
       width: 80,
-      render: (_, record) => <Button onClick={() => setSelectedExpertId(record.id)}>Mở</Button>,
+      render: (_, record) => <Button onClick={() => openExpertProfile(record.id)}>Mở</Button>,
     },
   ], []);
+
+  const competencyActionNode = (record: ExpertCompetency) => (
+    <Space wrap>
+      <Button onClick={() => setSelectedCompetencyId(record.id)} size="small">Hồ sơ</Button>
+      {canManage && ["DRAFT", "RETURNED"].includes(normalize(record.approval_status)) ? <Space>
+        <Button size="small" onClick={() => editCompetency(record)}>Sửa</Button>
+        <Popconfirm title="Gửi phê duyệt năng lực?" onConfirm={() => submitCompetencyMutation.mutate(record.id)}><Button size="small">Gửi phê duyệt</Button></Popconfirm>
+      </Space> : null}
+      {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? (
+        <Popconfirm title="Phê duyệt phạm vi năng lực này?" onConfirm={() => approveCompetencyMutation.mutate(record.id)}>
+          <Button size="small" type="primary" disabled={!canApproveCompetency(record)} title="Không được duyệt năng lực thuộc chính mình">Phê duyệt</Button>
+        </Popconfirm>
+      ) : null}
+      {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? <Button size="small" onClick={() => returnCompetency(record.id)}>Yêu cầu bổ sung</Button> : null}
+      {canManage && normalize(record.approval_status) === "APPROVED" ? (
+        <Button
+          danger
+          onClick={() => {
+            competencySuspendForm.resetFields();
+            setCompetencySuspendTargetId(record.id);
+          }}
+          size="small"
+        >
+          Đình chỉ
+        </Button>
+      ) : null}
+    </Space>
+  );
 
   const competencyColumns: TableColumnsType<ExpertCompetency> = [
     {
@@ -1604,35 +1638,49 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       title: "",
       key: "action",
       width: 260,
-      render: (_, record) => (
-        <Space>
-          <Button onClick={() => setSelectedCompetencyId(record.id)} size="small">Hồ sơ</Button>
-          {canManage && ["DRAFT", "RETURNED"].includes(normalize(record.approval_status)) ? <Space>
-            <Button size="small" onClick={() => editCompetency(record)}>Sửa</Button>
-            <Popconfirm title="Gửi phê duyệt năng lực?" onConfirm={() => submitCompetencyMutation.mutate(record.id)}><Button size="small">Gửi phê duyệt</Button></Popconfirm>
-          </Space> : null}
-          {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? (
-            <Popconfirm title="Phê duyệt phạm vi năng lực này?" onConfirm={() => approveCompetencyMutation.mutate(record.id)}>
-              <Button size="small" type="primary" disabled={!canApproveCompetency(record)} title="Không được duyệt năng lực thuộc chính mình">Phê duyệt</Button>
-            </Popconfirm>
-          ) : null}
-          {canManage && normalize(record.approval_status) === "PENDING_APPROVAL" ? <Button size="small" onClick={() => returnCompetency(record.id)}>Yêu cầu bổ sung</Button> : null}
-          {canManage && normalize(record.approval_status) === "APPROVED" ? (
-            <Button
-              danger
-              onClick={() => {
-                competencySuspendForm.resetFields();
-                setCompetencySuspendTargetId(record.id);
-              }}
-              size="small"
-            >
-              Đình chỉ
-            </Button>
-          ) : null}
-        </Space>
-      ),
+      render: (_, record) => competencyActionNode(record),
     },
   ];
+
+  const expertCompetencies = selectedExpert?.competencies ?? [];
+  const competencyCardPageSize = 10;
+  const competencyCardPageCount = Math.max(1, Math.ceil(expertCompetencies.length / competencyCardPageSize));
+  const selectedExpertCardPage = competencyCardPagination.expertId === selectedExpertId
+    ? competencyCardPagination.page
+    : 1;
+  const currentCompetencyCardPage = Math.min(selectedExpertCardPage, competencyCardPageCount);
+  const visibleExpertCompetencies = expertCompetencies.slice(
+    (currentCompetencyCardPage - 1) * competencyCardPageSize,
+    currentCompetencyCardPage * competencyCardPageSize,
+  );
+  const competencyResponsiveCards: ResponsiveCardItem[] = visibleExpertCompetencies.map((record) => ({
+    key: record.id,
+    title: record.standard_code,
+    status: profileStatusTag(record.approval_status),
+    fields: [
+      { key: "role", label: "Vai trò", value: roleLabels[normalize(record.competency_role)] ?? record.competency_role },
+      {
+        key: "scope",
+        label: "Phạm vi",
+        value: (
+          <div className="expert-competency-card-scope">
+            <Space size={[4, 4]} wrap>
+              <Tag>IAF {record.iaf_code}</Tag>
+              {record.nace_code ? <Tag>NACE {record.nace_code}</Tag> : null}
+            </Space>
+            <small>{record.scope_description || "Chưa mô tả lĩnh vực"}</small>
+          </div>
+        ),
+      },
+      { key: "validity", label: "Hiệu lực", value: formatDateRange(record.effective_date, record.expiry_date) },
+      ...(record.approval_status === "RETURNED" ? [{
+        key: "return-reason",
+        label: "Cần bổ sung",
+        value: <Text type="danger">{record.action_records?.find((action) => action.action_type === "RETURN")?.reason || "Xem yêu cầu bổ sung trong hồ sơ"}</Text>,
+      }] : []),
+    ],
+    actions: competencyActionNode(record),
+  }));
 
   const competencyEvidenceColumns: TableColumnsType<CompetencyEvidence> = [
     {
@@ -2098,7 +2146,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                       <span>{expert.certificate_summary?.total ?? 0} chứng chỉ</span>
                       <small>Gần nhất: {formatDate(expert.audit_summary?.last_audit_date)}</small>
                     </div>
-                    <Button block onClick={() => setSelectedExpertId(expert.id)} size="small">Mở hồ sơ chuyên gia</Button>
+                    <Button block onClick={() => openExpertProfile(expert.id)} size="small">Mở hồ sơ chuyên gia</Button>
                   </article>
                 ))}
               </div>
@@ -2132,7 +2180,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
 
       <Drawer
         destroyOnHidden
-        onClose={() => setSelectedExpertId(null)}
+        onClose={() => openExpertProfile(null)}
         open={Boolean(selectedExpertId)}
         title={selectedExpert ? (
           <div className="expert-drawer-title">
@@ -2216,6 +2264,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 label: <span><SafetyCertificateOutlined /> Chương trình & lĩnh vực ({selectedExpert.competencies.length})</span>,
                 children: (
                   <Card
+                    className="expert-competency-tab-card"
                     extra={canManage && selectedExpert.status === "active" ? (
                       <Button icon={<PlusOutlined />} onClick={() => {
                         competencyForm.resetFields(); setEditingCompetencyId(null);
@@ -2231,7 +2280,23 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                     ) : null}
                     title="Chương trình chứng nhận, vai trò và mã lĩnh vực được phê duyệt"
                   >
-                    <Table columns={competencyColumns} dataSource={selectedExpert.competencies} locale={{ emptyText: <Empty description="Chưa có chương trình và phạm vi năng lực" /> }} pagination={false} rowKey="id" scroll={{ x: 1160 }} />
+                    <div className="expert-competency-responsive">
+                      <div className="cmp-data-table--responsive">
+                        <Table columns={competencyColumns} dataSource={selectedExpert.competencies} locale={{ emptyText: <Empty description="Chưa có chương trình và phạm vi năng lực" /> }} pagination={false} rowKey="id" scroll={{ x: 1160 }} />
+                      </div>
+                      <ResponsiveCardList empty={<Empty description="Chưa có chương trình và phạm vi năng lực" />} items={competencyResponsiveCards} />
+                      {expertCompetencies.length > competencyCardPageSize ? (
+                        <Pagination
+                          className="expert-competency-mobile-pagination"
+                          current={currentCompetencyCardPage}
+                          onChange={(page) => setCompetencyCardPagination({ expertId: selectedExpertId, page })}
+                          pageSize={competencyCardPageSize}
+                          showSizeChanger={false}
+                          showTotal={(total) => `${total} hồ sơ năng lực`}
+                          total={expertCompetencies.length}
+                        />
+                      ) : null}
+                    </div>
                   </Card>
                 ),
               },

@@ -8636,6 +8636,56 @@ input { font: inherit; }
   min-height: 40px;
 }
 
+.expert-competency-mobile-pagination { display: none; }
+.expert-competency-card-scope { display: grid; gap: 4px; min-width: 0; }
+.expert-competency-card-scope small { color: var(--cmp-text-secondary); overflow-wrap: anywhere; }
+
+@media (max-width: 768px) {
+  .expert-competency-tab-card > .ant-card-head {
+    height: auto;
+    min-height: 0;
+    padding: 0 12px;
+  }
+
+  .expert-competency-tab-card .ant-card-head-wrapper {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .expert-competency-tab-card .ant-card-head-title {
+    padding: 12px 0 0;
+    white-space: normal;
+  }
+
+  .expert-competency-tab-card .ant-card-extra {
+    margin-inline: 0;
+    padding: 0 0 12px;
+  }
+
+  .expert-competency-tab-card .ant-card-extra .ant-btn {
+    height: auto;
+    line-height: 1.4;
+    max-width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    white-space: normal;
+    width: 100%;
+  }
+
+  .expert-competency-mobile-pagination {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .expert-competency-mobile-pagination .ant-pagination { white-space: nowrap; }
+  .expert-competency-responsive .cmp-responsive-card,
+  .expert-competency-responsive .cmp-responsive-card * { min-width: 0; overflow-wrap: anywhere; }
+}
+
 @media (max-width: 680px) {
   .customer-portal-screen .project-summary-grid {
     gap: 8px;
