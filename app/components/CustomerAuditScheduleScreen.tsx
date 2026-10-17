@@ -3,8 +3,9 @@
 import { CalendarOutlined, EnvironmentOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
-import { Alert, Button, Card, Empty, Skeleton, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Grid, Pagination, Skeleton, Space, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
+import { useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
@@ -66,6 +67,9 @@ function planStatusLabel(value?: string | null) {
 }
 
 export function CustomerAuditScheduleScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
+  const [schedulePage, setSchedulePage] = useState(1);
   const query = useQuery({
     queryKey: ["customer-portal", "schedule"],
     queryFn: async () => (
@@ -119,6 +123,11 @@ export function CustomerAuditScheduleScreen() {
     return <Alert message="Không tải được lịch đánh giá" description={getErrorMessage(query.error)} showIcon type="error" />;
   }
 
+  const plans = query.data ?? [];
+  const schedulePageCount = Math.max(1, Math.ceil(plans.length / 10));
+  const visibleSchedulePage = Math.min(schedulePage, schedulePageCount);
+  const visiblePlans = plans.slice((visibleSchedulePage - 1) * 10, visibleSchedulePage * 10);
+
   return (
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
@@ -129,15 +138,40 @@ export function CustomerAuditScheduleScreen() {
         </div>
         <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => void query.refetch()}>Làm mới</Button>
       </div>
-      <Card>
-        {(query.data ?? []).length ? (
+      <Card loading={query.isLoading}>
+        {plans.length ? (
+          useCompactPortalList ? (
+            <>
+              <div aria-label="Danh sách lịch đánh giá" className="portal-mobile-list">
+                {visiblePlans.map((item) => (
+                  <article className="portal-mobile-card" key={item.id}>
+                    <div className="portal-mobile-card__heading">
+                      <div className="portal-mobile-card__identity">
+                        <strong>{item.project.project_code}</strong>
+                        <small>{item.project.standard_name ?? "—"}</small>
+                      </div>
+                      <Tag color="blue">{planStatusLabel(item.status)}</Tag>
+                    </div>
+                    <div className="portal-mobile-card__meta">
+                      <span><strong>Kế hoạch:</strong> {item.plan_code ?? "Kế hoạch đánh giá"} · {auditTypeLabel(item.audit_type)}</span>
+                      <span><strong>Thời gian:</strong> <CalendarOutlined /> {formatDate(item.planned_start_date)} – {formatDate(item.planned_end_date ?? item.planned_start_date)}</span>
+                      <span><strong>Địa điểm:</strong> {item.location ? <><EnvironmentOutlined /> {item.location}</> : "—"}</span>
+                      {item.audit_scope ? <span><strong>Phạm vi:</strong> {item.audit_scope}</span> : null}
+                    </div>
+                  </article>
+                ))}
+              </div>
+              {plans.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleSchedulePage} onChange={setSchedulePage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} kế hoạch`} total={plans.length} /> : null}
+            </>
+          ) : (
           <Table<CustomerAuditPlan>
             columns={columns}
-            dataSource={query.data ?? []}
+            dataSource={plans}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
             rowKey="id"
             scroll={{ x: 900 }}
           />
+          )
         ) : <Empty description="Chưa có lịch đánh giá được công bố" />}
       </Card>
     </div>

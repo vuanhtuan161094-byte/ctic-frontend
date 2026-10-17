@@ -15,6 +15,8 @@ import {
   Button,
   Card,
   Empty,
+  Grid,
+  Pagination,
   Skeleton,
   Space,
   Statistic,
@@ -75,7 +77,10 @@ function customerSafeError(error: unknown) {
 }
 
 export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerCorrectiveActionsScreenProps) {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [workspacePage, setWorkspacePage] = useState(1);
 
   const workspacesQuery = useQuery({
     queryKey: ["customer-corrective-action-workspaces"],
@@ -98,6 +103,9 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
     }),
     { findings: 0, open: 0, overdue: 0 },
   ), [workspaces]);
+  const workspacePageCount = Math.max(1, Math.ceil(workspaces.length / 10));
+  const visibleWorkspacePage = Math.min(workspacePage, workspacePageCount);
+  const visibleWorkspaces = workspaces.slice((visibleWorkspacePage - 1) * 10, visibleWorkspacePage * 10);
 
   const columns: TableColumnsType<CustomerWorkspaceSummary> = [
     {
@@ -170,7 +178,7 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
   }
 
   return (
-    <div className="projects-screen">
+    <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
           <span className="eyebrow">KHÔNG GIAN KHÁCH HÀNG</span>
@@ -190,13 +198,48 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
 
       <Card>
         {workspaces.length ? (
-          <Table<CustomerWorkspaceSummary>
-            columns={columns}
-            dataSource={workspaces}
-            pagination={{ pageSize: 10, hideOnSinglePage: true }}
-            rowKey={(workspace) => workspace.plan.id}
-            scroll={{ x: 760 }}
-          />
+          useCompactPortalList ? (
+            <>
+              <div aria-label="Các kế hoạch có hành động khắc phục" className="portal-mobile-list">
+                {visibleWorkspaces.map((workspace) => (
+                  <article className="portal-mobile-card" key={workspace.plan.id}>
+                    <div className="portal-mobile-card__heading">
+                      <div className="portal-mobile-card__identity">
+                        <strong>{workspace.project.project_code}</strong>
+                        <small>{workspace.project.standard_name ?? "Chưa xác định tiêu chuẩn"}</small>
+                      </div>
+                      <Tag color={workspace.finding_summary.open > 0 ? "orange" : "green"}>{workspace.finding_summary.open} đang xử lý</Tag>
+                    </div>
+                    <div className="portal-mobile-card__meta">
+                      <span><strong>Kế hoạch:</strong> {workspace.plan.plan_code ?? "Chưa cấp mã"} · {workspace.plan.audit_type ?? "Đánh giá"}</span>
+                      <span><strong>Thời gian:</strong> {formatDate(workspace.plan.planned_start_date)} – {formatDate(workspace.plan.planned_end_date)}</span>
+                      <span><strong>Tổng NC:</strong> {workspace.finding_summary.total}</span>
+                      {workspace.finding_summary.overdue > 0 ? <span><strong>Quá hạn:</strong> {workspace.finding_summary.overdue}</span> : null}
+                    </div>
+                    <Button
+                      block
+                      disabled={workspace.finding_summary.total === 0}
+                      icon={<AuditOutlined />}
+                      onClick={() => setSelectedPlanId(workspace.plan.id)}
+                      size="small"
+                      type={workspace.finding_summary.open > 0 ? "primary" : "default"}
+                    >
+                      Mở khắc phục
+                    </Button>
+                  </article>
+                ))}
+              </div>
+              {workspaces.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleWorkspacePage} onChange={setWorkspacePage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} kế hoạch`} total={workspaces.length} /> : null}
+            </>
+          ) : (
+            <Table<CustomerWorkspaceSummary>
+              columns={columns}
+              dataSource={workspaces}
+              pagination={{ pageSize: 10, hideOnSinglePage: true }}
+              rowKey={(workspace) => workspace.plan.id}
+              scroll={{ x: 760 }}
+            />
+          )
         ) : (
           <Empty description="Chưa có kế hoạch đánh giá được gán cho tài khoản này" />
         )}

@@ -11,9 +11,11 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  Grid,
   Input,
   List,
   Modal,
+  Pagination,
   Space,
   Table,
   Tabs,
@@ -64,8 +66,11 @@ function caseNumber(record: PortalCase) {
 export function CustomerCasesScreen() {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
   const [domain, setDomain] = useState<PortalDomain>("changes");
   const [selected, setSelected] = useState<PortalCase | null>(null);
+  const [casePage, setCasePage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
@@ -140,6 +145,10 @@ export function CustomerCasesScreen() {
     { title: "Trạng thái", dataIndex: "status", key: "status", width: 160, render: (value) => <Tag color="processing">{value}</Tag> },
     { title: "", key: "action", width: 90, render: (_, record) => <Button icon={<EyeOutlined />} onClick={() => setSelected(record)} size="small">Xem</Button> },
   ];
+  const cases = query.data ?? [];
+  const casePageCount = Math.max(1, Math.ceil(cases.length / 15));
+  const visibleCasePage = Math.min(casePage, casePageCount);
+  const visibleCases = cases.slice((visibleCasePage - 1) * 15, visibleCasePage * 15);
 
   return (
     <div className="projects-screen customer-portal-screen">
@@ -159,9 +168,35 @@ export function CustomerCasesScreen() {
           { key: "changes", label: "Thay đổi chứng nhận" },
           { key: "complaints", label: "Complaints" },
           { key: "appeals", label: "Appeals" },
-        ]} onChange={(key) => { setDomain(key as PortalDomain); setSelected(null); }} />
+        ]} onChange={(key) => { setDomain(key as PortalDomain); setCasePage(1); setSelected(null); }} />
         {query.isError ? <Alert description={getErrorMessage(query.error)} message="Không tải được case" showIcon type="error" /> : (
-          <Table columns={columns} dataSource={query.data ?? []} loading={query.isLoading} locale={{ emptyText: <Empty description="Chưa có case" /> }} pagination={{ pageSize: 15 }} rowKey="id" />
+          useCompactPortalList ? (
+            query.isLoading ? <Card loading /> : visibleCases.length ? (
+              <>
+                <div aria-label="Danh sách yêu cầu và phản hồi" className="portal-mobile-list">
+                  {visibleCases.map((record) => (
+                    <article className="portal-mobile-card" key={record.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{caseNumber(record)}</strong>
+                          <small>Gửi ngày {dayjs(record.created_at).format("DD/MM/YYYY")}</small>
+                        </div>
+                        <Tag color={record.overdue ? "red" : "processing"}>{record.overdue ? "Quá hạn" : record.status}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Nội dung:</strong> {record.subject || record.description || record.grounds || "—"}</span>
+                        {record.challenged_decision?.decision_number ? <span><strong>Quyết định:</strong> {record.challenged_decision.decision_number}</span> : null}
+                      </div>
+                      <Button block onClick={() => setSelected(record)} size="small">Xem chi tiết</Button>
+                    </article>
+                  ))}
+                </div>
+                {cases.length > 15 ? <Pagination className="compact-mobile-pagination" current={visibleCasePage} onChange={setCasePage} pageSize={15} responsive showSizeChanger={false} showTotal={(total) => `${total} case`} total={cases.length} /> : null}
+              </>
+            ) : <Empty description="Chưa có case" />
+          ) : (
+            <Table columns={columns} dataSource={cases} loading={query.isLoading} locale={{ emptyText: <Empty description="Chưa có case" /> }} pagination={{ pageSize: 15 }} rowKey="id" />
+          )
         )}
       </Card>
 
