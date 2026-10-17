@@ -18,9 +18,11 @@ import {
   DatePicker,
   Empty,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Row,
   Select,
   Space,
@@ -192,9 +194,12 @@ function toPayload(values: ApplicationFormValues) {
 export function CustomerApplicationsScreen() {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
   const [form] = Form.useForm<ApplicationFormValues>();
   const [editing, setEditing] = useState<CustomerApplication | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [applicationPage, setApplicationPage] = useState(1);
 
   const applicationsQuery = useQuery({
     queryKey: ["customer-portal", "applications"],
@@ -377,8 +382,12 @@ export function CustomerApplicationsScreen() {
       title: "",
       key: "actions",
       align: "right",
-      render: (_, item) => (
-        <Space wrap>
+      render: (_, item) => renderApplicationActions(item),
+    },
+  ];
+
+  const renderApplicationActions = (item: CustomerApplication, compact = false) => (
+        <Space className={compact ? "portal-mobile-card__actions" : undefined} wrap>
           <Button disabled={!item.can_edit} icon={<EditOutlined />} onClick={() => openEdit(item)} size="small">
             Sửa
           </Button>
@@ -399,9 +408,12 @@ export function CustomerApplicationsScreen() {
             Gửi đơn
           </Button>
         </Space>
-      ),
-    },
-  ];
+      );
+
+  const applications = applicationsQuery.data ?? [];
+  const applicationPageCount = Math.max(1, Math.ceil(applications.length / 10));
+  const visibleApplicationPage = Math.min(applicationPage, applicationPageCount);
+  const visibleApplications = applications.slice((visibleApplicationPage - 1) * 10, visibleApplicationPage * 10);
 
   if (applicationsQuery.isError) {
     return <Alert message="Không tải được đơn đăng ký" description={getErrorMessage(applicationsQuery.error)} showIcon type="error" />;
@@ -418,16 +430,55 @@ export function CustomerApplicationsScreen() {
         <Button icon={<FileAddOutlined />} onClick={openCreate} type="primary">Tạo đơn đăng ký</Button>
       </div>
 
-      <Card>
-        {(applicationsQuery.data ?? []).length ? (
+      <Card loading={applicationsQuery.isLoading}>
+        {applications.length ? (
+          useCompactPortalList ? (
+            <>
+              <div aria-label="Danh sách đơn đăng ký" className="portal-mobile-list">
+                {visibleApplications.map((item) => {
+                  const status = portalStatusMeta[item.portal_status];
+                  return (
+                    <article className="portal-mobile-card" key={item.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{item.application_code}</strong>
+                          <small>{dayjs(item.application_date).format("DD/MM/YYYY")} · {item.customers.company_name}</small>
+                        </div>
+                        <Tag color={status.color}>{status.label}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Tiêu chuẩn:</strong> {item.standard_name}</span>
+                        <span><strong>Phạm vi:</strong> {item.certification_scope}</span>
+                        <span><strong>Hồ sơ:</strong> {item.project?.project_code ?? "Chưa hình thành"}</span>
+                      </div>
+                      {renderApplicationActions(item, true)}
+                    </article>
+                  );
+                })}
+              </div>
+              {applications.length > 10 ? (
+                <Pagination
+                  className="portal-mobile-pagination"
+                  current={visibleApplicationPage}
+                  onChange={setApplicationPage}
+                  pageSize={10}
+                  responsive
+                  showSizeChanger={false}
+                  showTotal={(total) => `${total} đơn`}
+                  total={applications.length}
+                />
+              ) : null}
+            </>
+          ) : (
           <Table<CustomerApplication>
             columns={columns}
-            dataSource={applicationsQuery.data ?? []}
+            dataSource={applications}
             loading={applicationsQuery.isLoading}
             pagination={{ pageSize: 10, hideOnSinglePage: true }}
             rowKey="id"
             scroll={{ x: 1000 }}
           />
+          )
         ) : <Empty description="Chưa có đơn đăng ký" />}
       </Card>
 
