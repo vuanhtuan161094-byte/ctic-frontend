@@ -1002,6 +1002,30 @@ input { font: inherit; }
   }
 }
 
+@media (max-width: 900px) {
+  .management-cockpit-heading {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    width: 100%;
+  }
+
+  .management-cockpit-heading > div:first-child,
+  .management-cockpit-heading > .ant-space {
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .management-cockpit-screen .ant-tabs-nav {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .management-cockpit-screen .ant-tabs-nav-wrap {
+    min-width: 0;
+  }
+}
+
 @media (max-width: 1080px) {
   .work-alert-grid { grid-template-columns: 1fr; }
 }
@@ -7783,6 +7807,144 @@ input { font: inherit; }
   }
 
   .application-content .expert-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Certificate and reporting pages: keep key metrics visible without oversized cards. */
+.certificates-screen,
+.reports-screen,
+.management-cockpit-screen {
+  gap: 14px;
+  min-width: 0;
+}
+
+.management-cockpit-screen {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.certificates-heading {
+  align-items: center;
+  gap: 12px;
+}
+
+.certificates-heading h2.ant-typography {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 2px 0 0;
+}
+
+.certificate-summary-grid,
+.report-kpi-grid {
+  gap: 10px;
+}
+
+.certificate-summary-grid .ant-card-body,
+.report-kpi-grid .ant-card-body {
+  padding: 12px;
+}
+
+.certificate-summary-grid .ant-statistic-title,
+.report-kpi-grid .ant-statistic-title {
+  font-size: 11.5px;
+  line-height: 1.3;
+  min-height: 0;
+}
+
+.certificate-summary-grid .ant-statistic-content,
+.report-kpi-grid .ant-statistic-content {
+  font-size: 24px;
+}
+
+.certificate-summary-grid .ant-statistic-content-prefix,
+.report-kpi-grid .ant-statistic-content-prefix {
+  font-size: 18px;
+  margin-right: 7px;
+}
+
+.certificate-filter-bar,
+.report-toolbar {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.certificates-list-card > .ant-card-body,
+.report-table-card > .ant-card-body {
+  padding: 12px;
+}
+
+.report-analysis-grid,
+.report-bottom-grid,
+.management-detail-grid,
+.commercial-currency-grid {
+  gap: 12px;
+}
+
+.report-distribution-list {
+  gap: 10px;
+}
+
+.report-result-grid {
+  gap: 8px;
+}
+
+.report-result-grid > div {
+  border-radius: 8px;
+  min-height: 58px;
+  padding: 9px;
+}
+
+.report-result-grid strong {
+  font-size: 18px;
+}
+
+.report-kpi-grid .ant-card-body > span {
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.management-kpi-grid {
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.management-kpi-grid .ant-card-body {
+  gap: 6px;
+  padding: 12px;
+}
+
+.management-kpi-grid .ant-card-head-title {
+  white-space: normal;
+}
+
+.management-kpi-grid .ant-statistic-content {
+  font-size: 24px;
+}
+
+@media (max-width: 760px) {
+  .certificate-summary-grid,
+  .report-kpi-grid,
+  .management-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .certificates-heading {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 360px) {
+  .certificate-summary-grid,
+  .report-kpi-grid,
+  .management-kpi-grid {
     grid-template-columns: 1fr;
   }
 }
