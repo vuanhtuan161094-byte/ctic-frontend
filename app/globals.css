@@ -8267,6 +8267,18 @@ input { font: inherit; }
   width: 100%;
 }
 
+.portal-mobile-card__actions--single.ant-space {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.customer-portal-users__mobile-add.ant-btn {
+  height: auto;
+  margin-bottom: 12px;
+  min-height: 40px;
+  white-space: normal;
+  width: 100%;
+}
+
 .portal-mobile-card__actions > .ant-space-item {
   min-width: 0;
   width: 100%;

@@ -16,8 +16,10 @@ import {
   Card,
   Empty,
   Form,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -119,12 +121,17 @@ function formatDateTime(value?: string | null) {
 }
 
 export function CustomerPortalUsersScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<RequestFormValues>();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [requestType, setRequestType] = useState<RequestType | null>(null);
   const [targetUser, setTargetUser] = useState<PortalUser | null>(null);
+  const [userPage, setUserPage] = useState(1);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const accessQuery = useQuery({
     queryKey: ["customer-portal", "user-access"],
@@ -152,6 +159,15 @@ export function CustomerPortalUsersScreen() {
     [effectiveCustomerId, requests],
   );
   const activeCount = selectedGroup?.users.filter((user) => user.access_status.toLowerCase() === "active").length ?? 0;
+  const userPageCount = Math.max(1, Math.ceil((selectedGroup?.users.length ?? 0) / 10));
+  const visibleUserPage = Math.min(userPage, userPageCount);
+  const visibleUsers = selectedGroup?.users.slice((visibleUserPage - 1) * 10, visibleUserPage * 10) ?? [];
+  const requestsPageCount = Math.max(1, Math.ceil(customerRequests.length / 10));
+  const visibleRequestsPage = Math.min(requestsPage, requestsPageCount);
+  const visibleRequests = customerRequests.slice((visibleRequestsPage - 1) * 10, visibleRequestsPage * 10);
+  const historyPageCount = Math.max(1, Math.ceil((selectedGroup?.history.length ?? 0) / 10));
+  const visibleHistoryPage = Math.min(historyPage, historyPageCount);
+  const visibleHistory = selectedGroup?.history.slice((visibleHistoryPage - 1) * 10, visibleHistoryPage * 10) ?? [];
 
   const mutation = useMutation({
     mutationFn: async (values: RequestFormValues) => {
@@ -187,6 +203,26 @@ export function CustomerPortalUsersScreen() {
     form.resetFields();
   };
 
+  const renderUserAction = (record: PortalUser) => record.access_status.toLowerCase() === "active" ? (
+    <Button
+      danger
+      disabled={activeCount <= 1}
+      icon={<StopOutlined />}
+      onClick={() => openRequest("REVOKE_ACCESS", record)}
+      size="small"
+    >
+      Đề nghị ngừng
+    </Button>
+  ) : (
+    <Button
+      icon={<UndoOutlined />}
+      onClick={() => openRequest("REACTIVATE_ACCESS", record)}
+      size="small"
+    >
+      Đề nghị khôi phục
+    </Button>
+  );
+
   const userColumns: TableColumnsType<PortalUser> = [
     {
       title: "Người dùng",
@@ -220,25 +256,7 @@ export function CustomerPortalUsersScreen() {
       title: "Thao tác",
       key: "actions",
       width: 190,
-      render: (_, record) => record.access_status.toLowerCase() === "active" ? (
-        <Button
-          danger
-          disabled={activeCount <= 1}
-          icon={<StopOutlined />}
-          onClick={() => openRequest("REVOKE_ACCESS", record)}
-          size="small"
-        >
-          Đề nghị ngừng
-        </Button>
-      ) : (
-        <Button
-          icon={<UndoOutlined />}
-          onClick={() => openRequest("REACTIVATE_ACCESS", record)}
-          size="small"
-        >
-          Đề nghị khôi phục
-        </Button>
-      ),
+      render: (_, record) => renderUserAction(record),
     },
   ];
 
@@ -340,19 +358,149 @@ export function CustomerPortalUsersScreen() {
       {selectedGroup ? (
         <>
           <Card
-            extra={<Button icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">Đề nghị bổ sung người dùng</Button>}
+            extra={useCompactPortalList ? null : <Button icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">Đề nghị bổ sung người dùng</Button>}
             title={<Space><UserOutlined /><span>{selectedGroup.company_name}</span><Tag>{selectedGroup.customer_code}</Tag></Space>}
           >
+            {useCompactPortalList ? (
+              <Button className="customer-portal-users__mobile-add" icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">
+                Đề nghị bổ sung người dùng
+              </Button>
+            ) : null}
             {activeCount <= 1 ? <Alert message="Hệ thống không cho phép ngừng người dùng Portal cuối cùng của tổ chức." showIcon style={{ marginBottom: 16 }} type="info" /> : null}
-            <Table<PortalUser> columns={userColumns} dataSource={selectedGroup.users} locale={{ emptyText: <Empty description="Chưa có người dùng Portal" /> }} pagination={false} rowKey="access_id" />
+            {useCompactPortalList ? (
+              selectedGroup.users.length ? (
+                <>
+                  <div aria-label="Người dùng Portal" className="portal-mobile-list">
+                    {visibleUsers.map((record) => (
+                      <article className="portal-mobile-card" key={record.access_id}>
+                        <div className="portal-mobile-card__heading">
+                          <div className="portal-mobile-card__identity">
+                            <strong>{record.full_name || record.email}</strong>
+                            <small>{record.email}</small>
+                          </div>
+                          <Tag color={record.access_status.toLowerCase() === "active" ? "green" : "default"}>
+                            {record.access_status.toLowerCase() === "active" ? "Đang hoạt động" : "Đã ngừng"}
+                          </Tag>
+                        </div>
+                        <div className="portal-mobile-card__meta">
+                          <span><strong>Tài khoản:</strong> {record.account_status.toLowerCase() === "active" ? "Hoạt động" : "Ngừng"}</span>
+                        </div>
+                        <Space className="portal-mobile-card__actions portal-mobile-card__actions--single" wrap>
+                          {renderUserAction(record)}
+                        </Space>
+                      </article>
+                    ))}
+                  </div>
+                  {selectedGroup.users.length > 10 ? (
+                    <Pagination
+                      className="compact-mobile-pagination"
+                      current={visibleUserPage}
+                      onChange={setUserPage}
+                      pageSize={10}
+                      responsive
+                      showSizeChanger={false}
+                      showTotal={(total) => `${total} người dùng`}
+                      total={selectedGroup.users.length}
+                    />
+                  ) : null}
+                </>
+              ) : <Empty description="Chưa có người dùng Portal" />
+            ) : (
+              <Table<PortalUser> columns={userColumns} dataSource={selectedGroup.users} locale={{ emptyText: <Empty description="Chưa có người dùng Portal" /> }} pagination={false} rowKey="access_id" />
+            )}
           </Card>
 
           <Card style={{ marginTop: 16 }} title="Lịch sử yêu cầu quản trị tài khoản">
-            <Table<UserAccessRequest> columns={requestColumns} dataSource={customerRequests} loading={requestsQuery.isLoading} pagination={{ pageSize: 10 }} rowKey="id" />
+            {useCompactPortalList ? (
+              customerRequests.length ? (
+                <>
+                  <div aria-label="Lịch sử yêu cầu quản trị tài khoản" className="portal-mobile-list">
+                    {visibleRequests.map((request) => {
+                      const meta = requestStatusMeta[request.status];
+                      const requestedUser = request.resolved_user?.full_name
+                        || request.target_user?.full_name
+                        || request.requested_full_name
+                        || request.resolved_user?.email
+                        || request.target_user?.email
+                        || request.requested_email
+                        || "—";
+                      return (
+                        <article className="portal-mobile-card" key={request.id}>
+                          <div className="portal-mobile-card__heading">
+                            <div className="portal-mobile-card__identity">
+                              <strong>{request.request_code}</strong>
+                              <small>{requestTypeLabels[request.request_type]}</small>
+                            </div>
+                            <Tag color={meta.color}>{meta.label}</Tag>
+                          </div>
+                          <div className="portal-mobile-card__meta">
+                            <span><strong>Người dùng:</strong> {requestedUser}</span>
+                            <span><strong>Ngày gửi:</strong> {formatDateTime(request.submitted_at)}</span>
+                            <span><strong>Lý do:</strong> {request.reason}</span>
+                            {request.review_comment ? <span><strong>Phản hồi:</strong> {request.review_comment}</span> : null}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                  {customerRequests.length > 10 ? (
+                    <Pagination
+                      className="compact-mobile-pagination"
+                      current={visibleRequestsPage}
+                      onChange={setRequestsPage}
+                      pageSize={10}
+                      responsive
+                      showSizeChanger={false}
+                      showTotal={(total) => `${total} yêu cầu`}
+                      total={customerRequests.length}
+                    />
+                  ) : null}
+                </>
+              ) : <Empty description="Chưa có yêu cầu quản trị tài khoản" />
+            ) : (
+              <Table<UserAccessRequest> columns={requestColumns} dataSource={customerRequests} loading={requestsQuery.isLoading} pagination={{ pageSize: 10 }} rowKey="id" />
+            )}
           </Card>
 
           <Card style={{ marginTop: 16 }} title="Lịch sử quyền truy cập">
-            <Table<AccessHistory> columns={historyColumns} dataSource={selectedGroup.history} pagination={{ pageSize: 10 }} rowKey="id" />
+            {useCompactPortalList ? (
+              selectedGroup.history.length ? (
+                <>
+                  <div aria-label="Lịch sử quyền truy cập" className="portal-mobile-list">
+                    {visibleHistory.map((record) => (
+                      <article className="portal-mobile-card" key={record.id}>
+                        <div className="portal-mobile-card__heading">
+                          <div className="portal-mobile-card__identity">
+                            <strong>{record.full_name || record.email}</strong>
+                            <small>{record.email}</small>
+                          </div>
+                          <Tag>{historyLabels[record.action]}</Tag>
+                        </div>
+                        <div className="portal-mobile-card__meta">
+                          <span><strong>Nguồn:</strong> {record.source === "CUSTOMER_REQUEST" ? "Yêu cầu khách hàng" : "Tổ chức chứng nhận"}</span>
+                          <span><strong>Mã yêu cầu:</strong> {record.request_code || "—"}</span>
+                          <span><strong>Thời điểm:</strong> {formatDateTime(record.changed_at)}</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {selectedGroup.history.length > 10 ? (
+                    <Pagination
+                      className="compact-mobile-pagination"
+                      current={visibleHistoryPage}
+                      onChange={setHistoryPage}
+                      pageSize={10}
+                      responsive
+                      showSizeChanger={false}
+                      showTotal={(total) => `${total} thay đổi`}
+                      total={selectedGroup.history.length}
+                    />
+                  ) : null}
+                </>
+              ) : <Empty description="Chưa có lịch sử quyền truy cập" />
+            ) : (
+              <Table<AccessHistory> columns={historyColumns} dataSource={selectedGroup.history} pagination={{ pageSize: 10 }} rowKey="id" />
+            )}
           </Card>
         </>
       ) : <Card><Empty description="Chưa có tổ chức được gán cho tài khoản" /></Card>}
