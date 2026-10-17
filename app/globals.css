@@ -8497,6 +8497,126 @@ input { font: inherit; }
   }
 }
 
+.own-competency-mobile-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.own-competency-mobile-card {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.own-competency-mobile-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.own-competency-mobile-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.own-competency-mobile-heading strong {
+  color: var(--cmp-text-primary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.own-competency-mobile-heading small,
+.own-competency-mobile-meta {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.own-competency-mobile-heading > .ant-tag {
+  flex: 0 1 auto;
+  margin: 0;
+  max-width: 48%;
+  white-space: normal;
+}
+
+.own-competency-mobile-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.own-competency-mobile-meta strong {
+  color: var(--cmp-text-primary);
+  font-weight: var(--cmp-font-weight-medium);
+}
+
+.own-competency-mobile-return {
+  color: var(--cmp-state-critical);
+}
+
+.own-competency-mobile-actions.ant-space,
+.own-competency-mobile-evidence {
+  border-top: 1px solid var(--cmp-border-default);
+  padding-top: 8px;
+}
+
+.own-competency-mobile-actions.ant-space {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+.own-competency-mobile-actions > .ant-space-item {
+  min-width: 0;
+  width: 100%;
+}
+
+.own-competency-mobile-actions .ant-btn {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+  width: 100%;
+}
+
+.own-competency-mobile-evidence {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.own-competency-mobile-evidence > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.own-competency-mobile-evidence input[type="file"] {
+  max-width: 100%;
+}
+
+@media (max-width: 680px) {
+  .expert-self-actions {
+    width: 100%;
+  }
+
+  .expert-self-actions h3.ant-typography {
+    flex-basis: 100%;
+    margin: 0 0 4px;
+  }
+
+  .expert-self-actions .ant-btn {
+    flex: 1 1 auto;
+  }
+}
+
 @media (max-width: 760px) {
   .projects-screen .project-list-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));

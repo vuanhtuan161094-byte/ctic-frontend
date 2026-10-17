@@ -811,9 +811,13 @@ function OwnEvidenceFiles({ evidence, editable }: { evidence: CompetencyEvidence
 function OwnCompetenciesWorkspace() {
   const { message } = App.useApp();
   const client = useQueryClient();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactCompetencyList = !breakpoints.lg;
   const [editor, setEditor] = useState<OwnCompetency | "new" | null>(null);
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [competencyPage, setCompetencyPage] = useState(1);
+  const [expandedCompetencyIds, setExpandedCompetencyIds] = useState<string[]>([]);
   const [form] = Form.useForm<CompetencyFormValues>();
   const [evidenceForm] = Form.useForm<CompetencyEvidenceFormValues>();
   const query = useQuery({
@@ -888,10 +892,63 @@ function OwnCompetenciesWorkspace() {
     setEditor(row ?? "new");
   };
   const editable = (row: OwnCompetency) => ["DRAFT", "RETURNED"].includes(row.approval_status);
+  const competencies = query.data ?? [];
+  const competencyPageCount = Math.max(1, Math.ceil(competencies.length / 10));
+  const visibleCompetencyPage = Math.min(competencyPage, competencyPageCount);
+  const visibleCompetencies = competencies.slice((visibleCompetencyPage - 1) * 10, visibleCompetencyPage * 10);
+  const openEvidenceForm = (row: OwnCompetency) => {
+    evidenceForm.resetFields();
+    evidenceForm.setFieldsValue({ evidence_type: "OTHER", evidence_date: dayjs() });
+    setEvidenceFile(null);
+    setEvidenceFor(row.id);
+  };
   return <section className="experts-screen" aria-label="Năng lực của tôi">
-    <Space wrap><Title level={3}>Năng lực của tôi</Title><Button onClick={() => edit()} disabled={query.isError || query.isPending}>Thêm năng lực</Button><Button onClick={() => void query.refetch()}>Tải lại</Button></Space>
+    <Space className="expert-self-actions" wrap><Title level={3}>Năng lực của tôi</Title><Button onClick={() => edit()} disabled={query.isError || query.isPending}>Thêm năng lực</Button><Button onClick={() => void query.refetch()}>Tải lại</Button></Space>
     {query.isError ? <Alert type="error" showIcon title={getErrorMessage(query.error)} /> : null}
-    <Table<OwnCompetency> rowKey="id" dataSource={query.data ?? []} loading={query.isPending} size="small" scroll={{ x: 900 }}
+    {useCompactCompetencyList ? (
+      <>
+        {query.isPending ? <Card><Skeleton active paragraph={{ rows: 6 }} /></Card> : visibleCompetencies.length ? (
+          <div aria-label="Danh sách năng lực cá nhân" className="own-competency-mobile-list">
+            {visibleCompetencies.map((row) => {
+              const expanded = expandedCompetencyIds.includes(row.id);
+              return (
+                <article className="own-competency-mobile-card" key={row.id}>
+                  <div className="own-competency-mobile-heading">
+                    <div><strong>{row.standard_code}</strong><small>{row.management_system} · {competencyRoleOptions.find((item) => item.value === row.competency_role)?.label ?? row.competency_role}</small></div>
+                    {profileStatusTag(row.approval_status)}
+                  </div>
+                  <div className="own-competency-mobile-meta">
+                    <span><strong>Phạm vi:</strong> IAF {row.iaf_code}{row.nace_code ? ` · NACE ${row.nace_code}` : ""}</span>
+                    <span><strong>Hiệu lực:</strong> {formatDateRange(row.effective_date, row.expiry_date)}</span>
+                    {row.approval_status === "RETURNED" && row.action_records[0]?.reason ? <span className="own-competency-mobile-return"><strong>Cần bổ sung:</strong> {row.action_records[0].reason}</span> : null}
+                  </div>
+                  <Space className="own-competency-mobile-actions" wrap>
+                    <Button aria-expanded={expanded} onClick={() => setExpandedCompetencyIds((ids) => expanded ? ids.filter((id) => id !== row.id) : [...ids, row.id])} size="small">
+                      {expanded ? "Ẩn bằng chứng" : `Bằng chứng (${row.evidence_records.length})`}
+                    </Button>
+                    {editable(row) ? <>
+                      <Button onClick={() => edit(row)} size="small">Sửa</Button>
+                      <Button onClick={() => openEvidenceForm(row)} size="small">Bổ sung bằng chứng</Button>
+                      <Popconfirm title="Gửi năng lực này để phê duyệt?" onConfirm={() => submit.mutateAsync(row.id)}>
+                        <Button loading={submit.isPending} size="small">Gửi phê duyệt</Button>
+                      </Popconfirm>
+                    </> : null}
+                  </Space>
+                  {expanded ? (
+                    <div className="own-competency-mobile-evidence">
+                      <Text>{row.evidence_summary || "Chưa có tóm tắt bằng chứng"}</Text>
+                      {row.evidence_records.length ? row.evidence_records.map((item) => <OwnEvidenceFiles key={item.id} evidence={item} editable={editable(row)} />) : <Text type="secondary">Chưa có bằng chứng. Chọn “Bổ sung bằng chứng” để thêm thông tin và tệp minh chứng.</Text>}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : <Card><Empty description="Chưa có hồ sơ năng lực" /></Card>}
+        {competencies.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleCompetencyPage} onChange={setCompetencyPage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} hồ sơ năng lực`} total={competencies.length} /> : null}
+      </>
+    ) : (
+    <Table<OwnCompetency> rowKey="id" dataSource={competencies} loading={query.isPending} size="small" scroll={{ x: 900 }}
       expandable={{ expandedRowRender: (row) => <Space direction="vertical"><Text>{row.evidence_summary || "Chưa có tóm tắt bằng chứng"}</Text>{row.evidence_records.length ? row.evidence_records.map((item) => <OwnEvidenceFiles key={item.id} evidence={item} editable={editable(row)} />) : <Text>Chưa có bằng chứng. Chọn “Bổ sung bằng chứng” để thêm thông tin và tệp minh chứng.</Text>}</Space> }}
       columns={[
         { title: "Tiêu chuẩn / hệ thống", render: (_, row) => <>{row.standard_code}<div>{row.management_system}</div></> },
@@ -901,16 +958,12 @@ function OwnCompetenciesWorkspace() {
         { title: "Trạng thái", render: (_, row) => <>{profileStatusTag(row.approval_status)}{row.approval_status === "RETURNED" ? <div><Text type="danger">{row.action_records[0]?.reason}</Text></div> : null}</> },
         { title: "Thao tác", render: (_, row) => editable(row) ? <Space wrap>
           <Button size="small" onClick={() => edit(row)}>Sửa</Button>
-          <Button size="small" onClick={() => {
-            evidenceForm.resetFields();
-            evidenceForm.setFieldsValue({ evidence_type: "OTHER", evidence_date: dayjs() });
-            setEvidenceFile(null);
-            setEvidenceFor(row.id);
-          }}>Bổ sung bằng chứng</Button>
+          <Button size="small" onClick={() => openEvidenceForm(row)}>Bổ sung bằng chứng</Button>
           <Popconfirm title="Gửi năng lực này để phê duyệt?" onConfirm={() => submit.mutateAsync(row.id)}><Button size="small" loading={submit.isPending}>Gửi phê duyệt</Button></Popconfirm>
         </Space> : null },
       ]}
     />
+    )}
     <Modal className="competency-editor" width={680} title={editor === "new" ? "Thêm năng lực" : "Sửa năng lực"} open={editor !== null} onCancel={() => setEditor(null)} confirmLoading={save.isPending} onOk={() => void form.validateFields().then((v) => save.mutate(v))} okText="Lưu dự thảo">
       <Form form={form} layout="vertical">
         <div className="competency-form-grid">
