@@ -17,6 +17,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Statistic,
@@ -30,6 +31,7 @@ import type { TableColumnsType } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useMemo, useState } from "react";
 import { api, getErrorMessage } from "../lib/api";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
@@ -73,6 +75,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
   const [preset, setPreset] = useState<PeriodPreset>("THIS_MONTH");
   const [customRange, setCustomRange] = useState<[Dayjs, Dayjs] | null>(null);
   const [schemeId, setSchemeId] = useState<string>();
+  const [workloadPage, setWorkloadPage] = useState(1);
   const [quotationPage, setQuotationPage] = useState(1);
   const [billingPage, setBillingPage] = useState(1);
   const [quotationOpen, setQuotationOpen] = useState(false);
@@ -154,6 +157,12 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
     finally { setSaving(false); }
   };
 
+  const renderQuotationActions = (row: Quotation) => canManageCommercial ? <Space wrap>
+    {row.status === "DRAFT" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "SUBMIT_REVIEW")}>Gửi duyệt</Button> : null}
+    {row.status === "UNDER_REVIEW" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "APPROVE")}>Duyệt</Button> : null}
+    {row.status === "APPROVED" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "SEND")}>Đã gửi</Button> : null}
+    {row.status === "SENT" ? <Button size="small" type="primary" onClick={() => void transitionQuotation(row.id, "ACCEPT")}>Chấp nhận</Button> : null}
+  </Space> : null;
   const quotationColumns: TableColumnsType<Quotation> = [
     { title: "Báo giá", render: (_, row) => <Space direction="vertical" size={0}><Text strong>{row.quotation_number} · v{row.version_no}</Text><Text type="secondary">{row.customer.company_name}</Text></Space> },
     { title: "Scheme", render: (_, row) => row.scheme?.code ?? "—" },
@@ -161,12 +170,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
     { title: "Giá trị", render: (_, row) => money(row.total_amount, row.currency) },
     { title: "Trạng thái", dataIndex: "status", render: (value) => <Tag color={statusColor[value]}>{value}</Tag> },
     { title: "Hợp đồng", render: (_, row) => row.linked_contract?.contract_number ?? "—" },
-    { title: "Thao tác", render: (_, row) => canManageCommercial ? <Space wrap>
-      {row.status === "DRAFT" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "SUBMIT_REVIEW")}>Gửi duyệt</Button> : null}
-      {row.status === "UNDER_REVIEW" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "APPROVE")}>Duyệt</Button> : null}
-      {row.status === "APPROVED" ? <Button size="small" onClick={() => void transitionQuotation(row.id, "SEND")}>Đã gửi</Button> : null}
-      {row.status === "SENT" ? <Button size="small" type="primary" onClick={() => void transitionQuotation(row.id, "ACCEPT")}>Chấp nhận</Button> : null}
-    </Space> : null },
+    { title: "Thao tác", render: (_, row) => renderQuotationActions(row) },
   ];
   const billingColumns: TableColumnsType<BillingMilestone> = [
     { title: "Mốc", render: (_, row) => <Space direction="vertical" size={0}><Text strong>{row.milestone_name}</Text><Text type="secondary">{row.contract.contract_number}</Text></Space> },
@@ -177,6 +181,47 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
   ];
 
   const cockpit = cockpitQuery.data;
+  const workload = cockpit?.resource.workload ?? [];
+  const workloadPageCount = Math.max(1, Math.ceil(workload.length / 10));
+  const currentWorkloadPage = Math.min(workloadPage, workloadPageCount);
+  const workloadPageItems = workload.slice((currentWorkloadPage - 1) * 10, currentWorkloadPage * 10);
+  const quotationRows = quotationsQuery.data?.items ?? [];
+  const quotationPageSize = quotationsQuery.data?.page_size ?? 25;
+  const billingRows = billingQuery.data?.items ?? [];
+  const billingPageSize = billingQuery.data?.page_size ?? 25;
+  const workloadCards: ResponsiveCardItem[] = workloadPageItems.map((row) => ({
+    key: row.expert_id,
+    title: row.expert_name,
+    fields: [
+      { key: "assigned", label: "MD phân công", value: row.assigned_mandays },
+      { key: "completed", label: "MD hoàn tất", value: row.completed_mandays },
+      { key: "engagements", label: "Engagement", value: row.engagement_count },
+    ],
+  }));
+  const quotationCards: ResponsiveCardItem[] = quotationRows.map((row) => ({
+    key: row.id,
+    title: `${row.quotation_number} · v${row.version_no}`,
+    status: <Tag color={statusColor[row.status]}>{row.status}</Tag>,
+    fields: [
+      { key: "customer", label: "Khách hàng", value: row.customer.company_name },
+      { key: "scheme", label: "Scheme", value: row.scheme?.code ?? "—" },
+      { key: "mandays", label: "MD kỹ thuật", value: row.technical_approved_mandays ?? "Không có snapshot" },
+      { key: "amount", label: "Giá trị", value: money(row.total_amount, row.currency) },
+      { key: "contract", label: "Hợp đồng", value: row.linked_contract?.contract_number ?? "—" },
+    ],
+    actions: renderQuotationActions(row),
+  }));
+  const billingCards: ResponsiveCardItem[] = billingRows.map((row) => ({
+    key: row.id,
+    title: row.milestone_name,
+    status: <Tag color={statusColor[row.status]}>{row.status}</Tag>,
+    fields: [
+      { key: "contract", label: "Hợp đồng", value: row.contract.contract_number },
+      { key: "planned", label: "Kế hoạch", value: money(row.planned_amount, row.currency) },
+      { key: "paid", label: "Đã thu", value: money(row.paid_amount, row.currency) },
+      { key: "invoice", label: "Tham chiếu hóa đơn", value: row.invoice_reference ?? "—" },
+    ],
+  }));
   return <div className="management-cockpit-screen">
     <div className="page-heading management-cockpit-heading">
       <div><span className="eyebrow">COMMERCIAL & MANAGEMENT BI</span><Title level={2}>Buồng lái quản trị</Title><Text type="secondary">KPI do backend định nghĩa, dữ liệu giao dịch là nguồn sự thật.</Text></div>
@@ -205,9 +250,9 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
         <section className="commercial-currency-grid">{cockpit.commercial.by_currency.map((item) => <Card key={item.currency} title={`Commercial · ${item.currency}`}><Descriptions column={1}><Descriptions.Item label="Pipeline">{money(item.pipeline_value, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã ký">{money(item.contracted_value, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã lập tham chiếu hóa đơn">{money(item.invoiced, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã thu">{money(item.collected, item.currency)}</Descriptions.Item><Descriptions.Item label="Còn phải thu">{money(item.outstanding, item.currency)}</Descriptions.Item></Descriptions></Card>)}</section>
         {!cockpit.commercial.by_currency.length ? <Card>Chưa có dữ liệu commercial trong bộ lọc.</Card> : null}
       </> },
-      { key: "resource", label: "Nguồn lực", children: <Card title="Workload chuyên gia" extra={<Tag color="orange">Không suy diễn utilization %</Tag>}><Alert showIcon type="warning" message={cockpit.resource.utilization_note} /><Table pagination={{ pageSize: 10 }} rowKey="expert_id" dataSource={cockpit.resource.workload} columns={[{ title: "Chuyên gia", dataIndex: "expert_name" }, { title: "MD phân công", dataIndex: "assigned_mandays" }, { title: "MD hoàn tất", dataIndex: "completed_mandays" }, { title: "Engagement", dataIndex: "engagement_count" }]} /></Card> },
-      { key: "quotations", label: "Báo giá", children: <Card title="Báo giá / proposal" extra={canManageCommercial ? <Button icon={<FileAddOutlined />} type="primary" onClick={() => setQuotationOpen(true)}>Tạo báo giá</Button> : null}><Table columns={quotationColumns} dataSource={quotationsQuery.data?.items ?? []} loading={quotationsQuery.isLoading} onChange={(pagination) => setQuotationPage(pagination.current ?? 1)} pagination={{ current: quotationPage, total: quotationsQuery.data?.total, pageSize: quotationsQuery.data?.page_size ?? 25 }} rowKey="id" scroll={{ x: 1100 }} /></Card> },
-      { key: "billing", label: "Billing", children: <Card title="Mốc lập hóa đơn / thanh toán" extra={canManageCommercial ? <Button icon={<DollarOutlined />} onClick={() => setBillingOpen(true)}>Tạo milestone</Button> : null}><Table columns={billingColumns} dataSource={billingQuery.data?.items ?? []} loading={billingQuery.isLoading} onChange={(pagination) => setBillingPage(pagination.current ?? 1)} pagination={{ current: billingPage, total: billingQuery.data?.total, pageSize: billingQuery.data?.page_size ?? 25 }} rowKey="id" /></Card> },
+      { key: "resource", label: "Nguồn lực", children: <Card title="Workload chuyên gia" extra={<Tag color="orange">Không suy diễn utilization %</Tag>}><Alert showIcon type="warning" message={cockpit.resource.utilization_note} /><div className="cmp-data-table--responsive"><Table pagination={{ current: currentWorkloadPage, pageSize: 10, showSizeChanger: false }} onChange={(pagination) => setWorkloadPage(pagination.current ?? 1)} rowKey="expert_id" dataSource={workload} columns={[{ title: "Chuyên gia", dataIndex: "expert_name" }, { title: "MD phân công", dataIndex: "assigned_mandays" }, { title: "MD hoàn tất", dataIndex: "completed_mandays" }, { title: "Engagement", dataIndex: "engagement_count" }]} /></div><ResponsiveCardList empty={<Text type="secondary">Chưa có dữ liệu workload.</Text>} items={workloadCards} />{workload.length > 10 ? <div className="management-mobile-pagination"><Pagination current={currentWorkloadPage} onChange={setWorkloadPage} pageSize={10} showSizeChanger={false} total={workload.length} /></div> : null}</Card> },
+      { key: "quotations", label: "Báo giá", children: <Card title="Báo giá / proposal" extra={canManageCommercial ? <Button icon={<FileAddOutlined />} type="primary" onClick={() => setQuotationOpen(true)}>Tạo báo giá</Button> : null}><div className="cmp-data-table--responsive"><Table columns={quotationColumns} dataSource={quotationRows} loading={quotationsQuery.isLoading} onChange={(pagination) => setQuotationPage(pagination.current ?? 1)} pagination={{ current: quotationPage, total: quotationsQuery.data?.total, pageSize: quotationPageSize }} rowKey="id" scroll={{ x: 1100 }} /></div><ResponsiveCardList items={quotationCards} />{(quotationsQuery.data?.total ?? 0) > quotationPageSize ? <div className="management-mobile-pagination"><Pagination current={quotationPage} onChange={setQuotationPage} pageSize={quotationPageSize} showSizeChanger={false} total={quotationsQuery.data?.total ?? 0} /></div> : null}</Card> },
+      { key: "billing", label: "Billing", children: <Card title="Mốc lập hóa đơn / thanh toán" extra={canManageCommercial ? <Button icon={<DollarOutlined />} onClick={() => setBillingOpen(true)}>Tạo milestone</Button> : null}><div className="cmp-data-table--responsive"><Table columns={billingColumns} dataSource={billingRows} loading={billingQuery.isLoading} onChange={(pagination) => setBillingPage(pagination.current ?? 1)} pagination={{ current: billingPage, total: billingQuery.data?.total, pageSize: billingPageSize }} rowKey="id" /></div><ResponsiveCardList items={billingCards} />{(billingQuery.data?.total ?? 0) > billingPageSize ? <div className="management-mobile-pagination"><Pagination current={billingPage} onChange={setBillingPage} pageSize={billingPageSize} showSizeChanger={false} total={billingQuery.data?.total ?? 0} /></div> : null}</Card> },
     ]} /> : <Card loading={cockpitQuery.isLoading}><BarChartOutlined /> Chọn đủ bộ lọc để tải KPI.</Card>}
 
     <Modal title="Tạo báo giá" open={quotationOpen} onCancel={() => setQuotationOpen(false)} onOk={() => void createQuotation()} confirmLoading={saving} okText="Tạo DRAFT">
