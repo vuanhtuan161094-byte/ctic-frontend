@@ -44,12 +44,12 @@
   --cmp-page-max-width: 1600px;
   --cmp-page-shell-max-width: 1680px;
   --cmp-content-narrow: 960px;
-  --cmp-page-gutter: 28px;
-  --cmp-page-gutter-tablet: 20px;
+  --cmp-page-gutter: 24px;
+  --cmp-page-gutter-tablet: 18px;
   --cmp-page-gutter-mobile: 12px;
   --cmp-control-height: 36px;
   --cmp-control-height-compact: 30px;
-  --cmp-table-cell-block: 10px;
+  --cmp-table-cell-block: 9px;
   --cmp-table-cell-inline: 12px;
   --cmp-form-section-gap: 16px;
   --cmp-card-padding: 16px;

@@ -16,8 +16,10 @@ import {
   Card,
   Descriptions,
   Empty,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Skeleton,
   Space,
@@ -228,6 +230,9 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [openingItemId, setOpeningItemId] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<WorkTaskItem | null>(null);
+  const [mobilePage, setMobilePage] = useState(1);
+  const screens = Grid.useBreakpoint();
+  const useMobileTaskCards = !screens.md;
 
   const taskQuery = useQuery({
     queryKey: ["work-tasks", "me", statusFilter],
@@ -315,6 +320,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         .includes(keyword);
     });
   }, [groupFilter, items, priorityFilter, searchTerm, timeFilter]);
+
+  const mobilePageCount = Math.max(1, Math.ceil(filteredItems.length / 10));
+  const visibleMobilePage = Math.min(mobilePage, mobilePageCount);
+  const mobilePageItems = filteredItems.slice((visibleMobilePage - 1) * 10, visibleMobilePage * 10);
 
   const openTask = async (item: WorkTaskItem) => {
     if (!item.can_execute && item.can_view) {
@@ -583,27 +592,91 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           />
         </div>
 
-        <Table<WorkTaskItem>
-          columns={columns}
-          dataSource={filteredItems}
-          locale={{
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="Không có công việc phù hợp bộ lọc"
+        {useMobileTaskCards ? (
+          <div className="my-task-mobile-list">
+            {mobilePageItems.length ? mobilePageItems.map((item) => {
+              const due = getDueMeta(item.due_at);
+              return (
+                <article className="my-task-mobile-card" key={item.id}>
+                  <div className="my-task-mobile-copy">
+                    <div className="my-task-mobile-title">
+                      <span className={`my-task-priority-dot priority-${item.priority}`} />
+                      <div>
+                        <Text strong>{getTaskTitle(item)}</Text>
+                        <Space size={6} wrap>
+                          {item.is_delegated ? (
+                            <Tag color="purple">
+                              Xử lý thay cho {item.delegated_from_user?.full_name || item.delegated_from_user?.username || "người ủy quyền"}
+                            </Tag>
+                          ) : <Tag color="blue">Được phân công</Tag>}
+                          {item.project_code ? <Tag className="task-project-code">{item.project_code}</Tag> : null}
+                        </Space>
+                      </div>
+                    </div>
+                    {item.description ? <p>{item.description}</p> : null}
+                    <small>
+                      {item.organization_name ?? getWorkTypeLabel(item.work_type)}
+                      {item.assignee ? ` · Phụ trách: ${item.assignee}` : ""}
+                    </small>
+                    <div className="my-task-mobile-meta">
+                      <Tag color={priorityMeta[item.priority].color}>{priorityMeta[item.priority].label}</Tag>
+                      <Tag>{getStatusLabel(item.status)}</Tag>
+                      <span className={due.className}>
+                        {item.sla_label || due.label}
+                        {item.due_at ? ` · ${dayjs(item.due_at).format("DD/MM/YYYY")}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    disabled={!item.can_execute && !item.can_view}
+                    icon={<EyeOutlined />}
+                    loading={openingItemId === item.id}
+                    onClick={() => void openTask(item)}
+                    size="small"
+                    type="primary"
+                  >
+                    {item.can_execute ? "Mở" : "Xem"}
+                  </Button>
+                </article>
+              );
+            }) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc phù hợp bộ lọc" />
+            )}
+            {filteredItems.length > 10 ? (
+              <Pagination
+                current={visibleMobilePage}
+                onChange={setMobilePage}
+                pageSize={10}
+                showSizeChanger={false}
+                showTotal={(total) => `${total} công việc`}
+                size="small"
+                total={filteredItems.length}
               />
-            ),
-          }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `${total} công việc`,
-          }}
-          rowClassName={(item) => `task-row-priority-${item.priority.toLowerCase()}`}
-          rowKey="id"
-          scroll={{ x: 1040 }}
-          size="middle"
-        />
+            ) : null}
+          </div>
+        ) : (
+          <Table<WorkTaskItem>
+            columns={columns}
+            dataSource={filteredItems}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Không có công việc phù hợp bộ lọc"
+                />
+              ),
+            }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `${total} công việc`,
+            }}
+            rowClassName={(item) => `task-row-priority-${item.priority.toLowerCase()}`}
+            rowKey="id"
+            scroll={{ x: 1040 }}
+            size="middle"
+          />
+        )}
       </Card>
 
       <Modal

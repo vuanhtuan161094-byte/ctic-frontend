@@ -181,8 +181,10 @@ test("canonical configuration route renders with a controlled API fixture", asyn
   await openConfiguration(page);
 
   const configurationContent = page.locator(".configuration-route-page__content");
-  const editionAction = page.getByRole("button", { name: "Thao tác ISO 9001:2015" });
-  const editionRow = editionAction.locator("xpath=..");
+  await page.getByRole("button", { name: "Chi tiết" }).click();
+  const editionRow = page.locator(".certification-standard-row").filter({ hasText: "ISO 9001:2015" });
+  await expect(editionRow).toHaveCount(1);
+  const editionAction = editionRow.getByRole("button", { name: "Thao tác ISO 9001:2015" });
   await expectContainedWithin(editionRow.getByText("Đang áp dụng", { exact: true }), configurationContent);
   await expectContainedWithin(editionRow.getByText("Áp dụng từ 15/09/2015", { exact: true }), configurationContent);
   await expectContainedWithin(editionAction, configurationContent);

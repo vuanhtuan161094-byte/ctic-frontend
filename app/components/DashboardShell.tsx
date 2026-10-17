@@ -1202,8 +1202,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
 
   return (
     <Layout className={`application-shell ${customerPortalMode ? "application-shell--portal" : "application-shell--internal"}`}>
-      {isDesktop ? <Sider className="desktop-sider" width={268}>{navigation}</Sider> : null}
-      <Drawer className="mobile-navigation" closable={false} onClose={() => setMobileMenuOpen(false)} open={mobileMenuOpen} placement="left" styles={{ body: { padding: 0, background: "var(--cmp-brand-strong)" } }} size={286}>{navigation}</Drawer>
+      {isDesktop ? <Sider className="desktop-sider" width={252}>{navigation}</Sider> : null}
+      <Drawer className="mobile-navigation" closable={false} onClose={() => setMobileMenuOpen(false)} open={mobileMenuOpen} placement="left" styles={{ body: { padding: 0, background: "var(--cmp-brand-strong)" } }} size={272}>{navigation}</Drawer>
 
       <Layout>
         <Header className="top-header top-header-v2">
