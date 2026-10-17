@@ -8242,6 +8242,22 @@ input { font: inherit; }
   font-weight: var(--cmp-font-weight-medium);
 }
 
+.portal-mobile-card__details {
+  border-top: 1px solid var(--cmp-border-default);
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.portal-mobile-card__documents .ant-btn {
+  height: auto;
+  justify-content: flex-start;
+  min-height: 36px;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
+}
+
 .portal-mobile-card__actions.ant-space {
   border-top: 1px solid var(--cmp-border-default);
   display: grid;

@@ -16,8 +16,10 @@ import {
   Collapse,
   Empty,
   Form,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -110,6 +112,8 @@ function formatSize(bytes: number) {
 }
 
 export function CustomerDocumentsScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactPortalList = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [applicationModal, setApplicationModal] = useState<PortalApplication | null>(null);
@@ -119,6 +123,8 @@ export function CustomerDocumentsScreen() {
   const [requestFiles, setRequestFiles] = useState<UploadFile[]>([]);
   const [responseNote, setResponseNote] = useState("");
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
+  const [requestPage, setRequestPage] = useState(1);
+  const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(() => new Set());
 
   const query = useQuery({
     queryKey: ["customer-portal", "documents"],
@@ -127,6 +133,9 @@ export function CustomerDocumentsScreen() {
 
   const applications = useMemo(() => query.data?.applications ?? [], [query.data?.applications]);
   const requests = useMemo(() => query.data?.requests ?? [], [query.data?.requests]);
+  const requestPageCount = Math.max(1, Math.ceil(requests.length / 10));
+  const visibleRequestPage = Math.min(requestPage, requestPageCount);
+  const visibleRequests = requests.slice((visibleRequestPage - 1) * 10, visibleRequestPage * 10);
 
   const refresh = async () => {
     await Promise.all([
@@ -198,6 +207,28 @@ export function CustomerDocumentsScreen() {
     }
   };
 
+  const openRequestModal = (item: PortalRequest) => {
+    setRequestModal(item);
+    setRequestFiles([]);
+    setResponseNote("");
+  };
+
+  const renderRequestDetails = (item: PortalRequest) => (
+    <Space direction="vertical" style={{ width: "100%" }}>
+      {item.description ? <Alert description={item.description} message="Nội dung yêu cầu" showIcon type="info" /> : null}
+      {item.review_comment ? <Alert description={item.review_comment} message="Ý kiến xem xét gần nhất" showIcon type={item.status === "REVISION_REQUIRED" ? "warning" : "success"} /> : null}
+      {item.documents.length ? (
+        <Space className="portal-mobile-card__documents" direction="vertical" style={{ width: "100%" }}>
+          {item.documents.map((file) => (
+            <Button key={file.id} loading={openingFileId === file.id} onClick={() => void openFile(file)} size="small">
+              {file.original_name} · v{file.version_no} · {formatSize(file.file_size)}
+            </Button>
+          ))}
+        </Space>
+      ) : <Text type="secondary">Chưa có tài liệu phản hồi.</Text>}
+    </Space>
+  );
+
   const requestColumns: TableColumnsType<PortalRequest> = [
     {
       title: "Yêu cầu",
@@ -259,27 +290,85 @@ export function CustomerDocumentsScreen() {
       {query.isError ? <Alert description={getErrorMessage(query.error)} message="Không tải được tài liệu Portal" showIcon type="error" /> : null}
 
       <Card style={{ marginBottom: 16 }} title={<Space><FileSearchOutlined />Yêu cầu bổ sung tài liệu</Space>}>
-        <Table<PortalRequest>
-          columns={requestColumns}
-          dataSource={requests}
-          loading={query.isLoading}
-          locale={{ emptyText: <Empty description="Không có yêu cầu bổ sung tài liệu" /> }}
-          pagination={{ pageSize: 10 }}
-          rowKey="id"
-          expandable={{
-            expandedRowRender: (item) => (
-              <Space direction="vertical" style={{ width: "100%" }}>
-                {item.description ? <Alert description={item.description} message="Nội dung yêu cầu" showIcon type="info" /> : null}
-                {item.review_comment ? <Alert description={item.review_comment} message="Ý kiến xem xét gần nhất" showIcon type={item.status === "REVISION_REQUIRED" ? "warning" : "success"} /> : null}
-                {item.documents.length ? item.documents.map((file) => (
-                  <Button key={file.id} loading={openingFileId === file.id} onClick={() => void openFile(file)} size="small">
-                    {file.original_name} · v{file.version_no} · {formatSize(file.file_size)}
-                  </Button>
-                )) : <Text type="secondary">Chưa có tài liệu phản hồi.</Text>}
-              </Space>
-            ),
-          }}
-        />
+        {useCompactPortalList ? (
+          requests.length ? (
+            <>
+              <div aria-label="Danh sách yêu cầu bổ sung tài liệu" className="portal-mobile-list">
+                {visibleRequests.map((item) => {
+                  const isExpanded = expandedRequestIds.has(item.id);
+                  return (
+                    <article className="portal-mobile-card" key={item.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{item.request_code}</strong>
+                          <small>{item.title}</small>
+                        </div>
+                        <Tag color={statusMeta[item.status].color}>{statusMeta[item.status].label}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Hồ sơ:</strong> {item.application.application_code} · {categoryLabels[item.category]}</span>
+                        <span><strong>Hạn cung cấp:</strong> {formatDate(item.due_date)}</span>
+                        <span><strong>Tài liệu:</strong> {item.documents.length} phiên bản</span>
+                      </div>
+                      {isExpanded ? (
+                        <div className="portal-mobile-card__details" id={`request-details-${item.id}`}>
+                          {renderRequestDetails(item)}
+                        </div>
+                      ) : null}
+                      <Space className="portal-mobile-card__actions" wrap>
+                        <Button
+                          aria-controls={`request-details-${item.id}`}
+                          aria-expanded={isExpanded}
+                          icon={<FileSearchOutlined />}
+                          onClick={() => setExpandedRequestIds((current) => {
+                            const next = new Set(current);
+                            if (next.has(item.id)) next.delete(item.id);
+                            else next.add(item.id);
+                            return next;
+                          })}
+                          size="small"
+                        >
+                          {isExpanded ? "Ẩn chi tiết" : "Chi tiết & tệp"}
+                        </Button>
+                        <Button
+                          disabled={item.status !== "REQUESTED" && item.status !== "REVISION_REQUIRED"}
+                          icon={<SendOutlined />}
+                          onClick={() => openRequestModal(item)}
+                          size="small"
+                          type={item.status === "REVISION_REQUIRED" ? "primary" : "default"}
+                        >
+                          Gửi tài liệu
+                        </Button>
+                      </Space>
+                    </article>
+                  );
+                })}
+              </div>
+              {requests.length > 10 ? (
+                <Pagination
+                  className="compact-mobile-pagination"
+                  current={visibleRequestPage}
+                  onChange={setRequestPage}
+                  pageSize={10}
+                  responsive
+                  showSizeChanger={false}
+                  showTotal={(total) => `${total} yêu cầu`}
+                  total={requests.length}
+                />
+              ) : null}
+            </>
+          ) : <Empty description="Không có yêu cầu bổ sung tài liệu" />
+        ) : (
+          <Table<PortalRequest>
+            columns={requestColumns}
+            dataSource={requests}
+            loading={query.isLoading}
+            locale={{ emptyText: <Empty description="Không có yêu cầu bổ sung tài liệu" /> }}
+            pagination={{ pageSize: 10 }}
+            rowKey="id"
+            expandable={{ expandedRowRender: renderRequestDetails }}
+          />
+        )}
       </Card>
 
       <Card title={<Space><FileDoneOutlined />Tài liệu kèm đơn đăng ký</Space>}>
