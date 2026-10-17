@@ -19,8 +19,10 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -108,6 +110,8 @@ function formatDate(value?: string | null) {
 }
 
 export function CustomerDocumentRequestsScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactList = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [createForm] = Form.useForm<CreateValues>();
@@ -117,6 +121,7 @@ export function CustomerDocumentRequestsScreen() {
   const [selected, setSelected] = useState<DocumentRequest | null>(null);
   const [decision, setDecision] = useState<"ACCEPT" | "REVISION_REQUIRED" | null>(null);
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
+  const [mobilePage, setMobilePage] = useState(1);
 
   const requestQuery = useQuery({
     queryKey: ["customer-document-requests", status],
@@ -134,6 +139,9 @@ export function CustomerDocumentRequestsScreen() {
   });
 
   const requests = useMemo(() => requestQuery.data ?? [], [requestQuery.data]);
+  const mobilePageCount = Math.max(1, Math.ceil(requests.length / 10));
+  const visibleMobilePage = Math.min(mobilePage, mobilePageCount);
+  const visibleRequests = requests.slice((visibleMobilePage - 1) * 10, visibleMobilePage * 10);
   const applicationOptions = useMemo(
     () => (applicationsQuery.data ?? []).map((item) => ({
       value: item.id,
@@ -225,7 +233,7 @@ export function CustomerDocumentRequestsScreen() {
           <Title level={2}>Yêu cầu tài liệu khách hàng</Title>
           <Text type="secondary">Điều phối viên tạo yêu cầu theo đơn đăng ký và xem xét phản hồi có truy xuất phiên bản.</Text>
         </div>
-        <Space>
+        <Space className="customer-document-requests__toolbar">
           <Select
             onChange={setStatus}
             options={[{ value: "ALL", label: "Tất cả" }, ...Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))]}
@@ -238,15 +246,56 @@ export function CustomerDocumentRequestsScreen() {
       </div>
 
       {requestQuery.isError ? <Alert description={getErrorMessage(requestQuery.error)} message="Không tải được yêu cầu tài liệu" showIcon type="error" /> : (
-        <Card>
-          <Table<DocumentRequest>
-            columns={columns}
-            dataSource={requests}
-            loading={requestQuery.isLoading}
-            locale={{ emptyText: <Empty description="Không có yêu cầu tài liệu" /> }}
-            pagination={{ pageSize: 20 }}
-            rowKey="id"
-          />
+        <Card loading={useCompactList && requestQuery.isLoading}>
+          {useCompactList ? (
+            requests.length ? (
+              <>
+                <div aria-label="Yêu cầu tài liệu khách hàng" className="portal-mobile-list">
+                  {visibleRequests.map((item) => (
+                    <article className="portal-mobile-card" key={item.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{item.request_code}</strong>
+                          <small>{item.title}</small>
+                        </div>
+                        <Tag color={statusMeta[item.status].color}>{statusMeta[item.status].label}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Khách hàng:</strong> {item.customer.company_name} · {item.customer.customer_code}</span>
+                        <span><strong>Đơn đăng ký:</strong> {item.application.application_code} · {item.application.standard_name}</span>
+                        <span><strong>Nhóm:</strong> {categoryLabels[item.category]}</span>
+                        <span><strong>Hạn cung cấp:</strong> {formatDate(item.due_date)}</span>
+                      </div>
+                      <Space className="portal-mobile-card__actions portal-mobile-card__actions--single" wrap>
+                        <Button icon={<EyeOutlined />} onClick={() => setSelected(item)} size="small">Xem yêu cầu</Button>
+                      </Space>
+                    </article>
+                  ))}
+                </div>
+                {requests.length > 10 ? (
+                  <Pagination
+                    className="compact-mobile-pagination"
+                    current={visibleMobilePage}
+                    onChange={setMobilePage}
+                    pageSize={10}
+                    responsive
+                    showSizeChanger={false}
+                    showTotal={(total) => `${total} yêu cầu`}
+                    total={requests.length}
+                  />
+                ) : null}
+              </>
+            ) : <Empty description="Không có yêu cầu tài liệu" />
+          ) : (
+            <Table<DocumentRequest>
+              columns={columns}
+              dataSource={requests}
+              loading={requestQuery.isLoading}
+              locale={{ emptyText: <Empty description="Không có yêu cầu tài liệu" /> }}
+              pagination={{ pageSize: 20 }}
+              rowKey="id"
+            />
+          )}
         </Card>
       )}
 
@@ -281,7 +330,7 @@ export function CustomerDocumentRequestsScreen() {
         onClose={() => setSelected(null)}
         open={Boolean(selected)}
         title={selected ? `${selected.request_code} · ${selected.customer.customer_code}` : "Yêu cầu tài liệu"}
-        width={720}
+        width={breakpoints.md ? 720 : "100%"}
       >
         {selected ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>

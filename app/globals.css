@@ -8283,6 +8283,10 @@ input { font: inherit; }
   align-items: stretch;
 }
 
+.customer-document-requests__toolbar.ant-space {
+  align-items: stretch;
+}
+
 @media (max-width: 991px) {
   .customer-user-requests__toolbar.ant-space {
     display: grid;
@@ -8295,6 +8299,20 @@ input { font: inherit; }
   }
 
   .customer-user-requests__toolbar .ant-btn {
+    width: 100%;
+  }
+
+  .customer-document-requests__toolbar.ant-space {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .customer-document-requests__toolbar .ant-select {
+    width: 100% !important;
+  }
+
+  .customer-document-requests__toolbar .ant-btn {
     width: 100%;
   }
 }

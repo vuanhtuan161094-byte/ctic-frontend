@@ -458,7 +458,7 @@ export function canonicalPathForNavigation(
     "customer-change-requests": "/governance?type=organization-change",
     "governance-cases": "/governance",
     "customer-user-requests": "/customer-user-requests",
-    "customer-document-requests": "/documents?queue=customer-response",
+    "customer-document-requests": "/customer-document-requests",
   };
   return internalMap[navigation.activeView] ?? "/workspace";
 }
