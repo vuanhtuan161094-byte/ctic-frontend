@@ -22,6 +22,7 @@ import {
   Empty,
   Input,
   List,
+  Pagination,
   Select,
   Skeleton,
   Space,
@@ -37,6 +38,7 @@ import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile } from "../lib/document-file-client";
 import { DocumentPreviewModal, type PreviewableFile } from "./DocumentPreviewModal";
 import { ControlledDocumentPanel } from "./ControlledDocumentPanel";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 const { Text, Title } = Typography;
 
@@ -188,6 +190,7 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
   const [documentTypeFilter, setDocumentTypeFilter] = useState("all");
   const [entityTypeFilter, setEntityTypeFilter] = useState("all");
   const [versionFilter, setVersionFilter] = useState("current");
+  const [documentPage, setDocumentPage] = useState(1);
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
   const [previewFile, setPreviewFile] = useState<PreviewableFile | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -255,6 +258,14 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
       return searchable.includes(keyword);
     });
   }, [documentTypeFilter, documentsQuery.data?.items, entityTypeFilter, searchTerm, versionFilter]);
+
+  const documentPageSize = 10;
+  const documentPageCount = Math.max(1, Math.ceil(filteredDocuments.length / documentPageSize));
+  const currentDocumentPage = Math.min(documentPage, documentPageCount);
+  const visibleDocuments = filteredDocuments.slice(
+    (currentDocumentPage - 1) * documentPageSize,
+    currentDocumentPage * documentPageSize,
+  );
 
   const openFile = async (record: DocumentRecord, download = false) => {
     if (!download) {
@@ -334,6 +345,29 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
   ], []);
 
   const summary = documentsQuery.data?.summary;
+  const documentCards: ResponsiveCardItem[] = visibleDocuments.map((record) => ({
+    key: record.id,
+    title: record.original_name,
+    status: record.is_current ? <Tag color="green">Hiện hành</Tag> : <Tag>Lịch sử</Tag>,
+    fields: [
+      { key: "type", label: "Loại tài liệu", value: documentTypeLabel(record.document_type) },
+      {
+        key: "context",
+        label: "Liên kết nghiệp vụ",
+        value: (
+          <div className="document-context-cell">
+            <strong>{record.context?.company_name ?? entityTypeLabel(record.entity_type)}</strong>
+            <span>{record.context?.project_code ?? record.context?.reference_code ?? record.entity_id}</span>
+            {record.context?.standard_name ? <small>{record.context.standard_name}</small> : null}
+          </div>
+        ),
+      },
+      { key: "version", label: "Phiên bản", value: `Phiên bản ${record.version_no}` },
+      { key: "file", label: "Tệp", value: `${fileKindLabel(record.file_kind)} · ${formatFileSize(record.file_size)}` },
+      { key: "updated", label: "Cập nhật", value: <>{uploaderName(record)}<br /><Text type="secondary">{formatDateTime(record.created_at)}</Text></> },
+    ],
+    actions: <Button icon={<EyeOutlined />} onClick={() => setSelectedDocument(record)} size="small">Chi tiết</Button>,
+  }));
 
   return (
     <div className="documents-screen">
@@ -361,12 +395,27 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
               children: <Card className="documents-catalog-card" bordered={false}>
                 <Alert message="Khu vực tra cứu phụ" description="Dùng khi cần tìm các tệp đính kèm phát sinh từ đơn đăng ký, kế hoạch, báo cáo, CAP... Không cần mở khu vực này để quản lý tài liệu và mẫu biểu ở trên." type="info" showIcon style={{ marginBottom: 16 }} />
                 <div className="documents-filter-bar">
-                  <Input allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm tên tệp, khách hàng, mã hồ sơ..." prefix={<SearchOutlined />} value={searchTerm} />
-                  <Select aria-label="Loại tài liệu" onChange={setDocumentTypeFilter} options={[{ value: "all", label: "Tất cả loại tài liệu" }, ...documentTypes.map((value) => ({ value, label: documentTypeLabel(value) }))]} value={documentTypeFilter} />
-                  <Select aria-label="Nguồn nghiệp vụ" onChange={setEntityTypeFilter} options={[{ value: "all", label: "Tất cả nguồn nghiệp vụ" }, ...entityTypes.map((value) => ({ value, label: entityTypeLabel(value) }))]} value={entityTypeFilter} />
-                  <Select aria-label="Trạng thái phiên bản" onChange={setVersionFilter} options={[{ value: "current", label: "Tệp hiện hành" }, { value: "archived", label: "Phiên bản lịch sử" }, { value: "all", label: "Tất cả phiên bản" }]} value={versionFilter} />
+                  <Input allowClear onChange={(event) => { setSearchTerm(event.target.value); setDocumentPage(1); }} placeholder="Tìm tên tệp, khách hàng, mã hồ sơ..." prefix={<SearchOutlined />} value={searchTerm} />
+                  <Select aria-label="Loại tài liệu" onChange={(value) => { setDocumentTypeFilter(value); setDocumentPage(1); }} options={[{ value: "all", label: "Tất cả loại tài liệu" }, ...documentTypes.map((value) => ({ value, label: documentTypeLabel(value) }))]} value={documentTypeFilter} />
+                  <Select aria-label="Nguồn nghiệp vụ" onChange={(value) => { setEntityTypeFilter(value); setDocumentPage(1); }} options={[{ value: "all", label: "Tất cả nguồn nghiệp vụ" }, ...entityTypes.map((value) => ({ value, label: entityTypeLabel(value) }))]} value={entityTypeFilter} />
+                  <Select aria-label="Trạng thái phiên bản" onChange={(value) => { setVersionFilter(value); setDocumentPage(1); }} options={[{ value: "current", label: "Tệp hiện hành" }, { value: "archived", label: "Phiên bản lịch sử" }, { value: "all", label: "Tất cả phiên bản" }]} value={versionFilter} />
                 </div>
-                <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" /> }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
+                <div className="cmp-data-table--responsive">
+                  <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" /> }} onChange={(pagination) => setDocumentPage(pagination.current ?? 1)} pagination={{ current: currentDocumentPage, pageSize: documentPageSize, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
+                </div>
+                <ResponsiveCardList empty={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" />} items={documentCards} />
+                {filteredDocuments.length > documentPageSize ? (
+                  <Pagination
+                    className="documents-mobile-pagination"
+                    current={currentDocumentPage}
+                    onChange={setDocumentPage}
+                    pageSize={documentPageSize}
+                    responsive
+                    showSizeChanger={false}
+                    showTotal={(total) => `${total} tài liệu`}
+                    total={filteredDocuments.length}
+                  />
+                ) : null}
               </Card>,
             }]}
           />

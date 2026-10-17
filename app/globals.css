@@ -1523,6 +1523,14 @@ input { font: inherit; }
   min-height: 42px;
 }
 
+.documents-mobile-pagination { display: none; }
+
+.documents-screen .cmp-responsive-card,
+.documents-screen .cmp-responsive-card * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .document-name-button {
   align-items: center;
   background: transparent;
@@ -1662,6 +1670,16 @@ input { font: inherit; }
 }
 
 @media (max-width: 768px) {
+  .documents-mobile-pagination {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .documents-mobile-pagination .ant-pagination { white-space: nowrap; }
+
   .documents-heading {
     align-items: flex-start;
     gap: 14px;
