@@ -457,7 +457,7 @@ export function canonicalPathForNavigation(
     "configuration-import": "/admin/configuration/import",
     "customer-change-requests": "/governance?type=organization-change",
     "governance-cases": "/governance",
-    "customer-user-requests": "/admin/accounts?queue=portal-access",
+    "customer-user-requests": "/customer-user-requests",
     "customer-document-requests": "/documents?queue=customer-response",
   };
   return internalMap[navigation.activeView] ?? "/workspace";

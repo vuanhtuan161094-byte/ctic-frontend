@@ -17,8 +17,10 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -96,12 +98,15 @@ function formatDateTime(value?: string | null) {
 }
 
 export function CustomerUserRequestsScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactList = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<ReviewFormValues>();
   const [status, setStatus] = useState<RequestStatus>("SUBMITTED");
   const [selected, setSelected] = useState<CustomerUserRequest | null>(null);
   const [decision, setDecision] = useState<"APPROVE" | "REJECT" | null>(null);
+  const [mobilePage, setMobilePage] = useState(1);
 
   const query = useQuery({
     queryKey: ["customer-user-requests", status],
@@ -110,6 +115,9 @@ export function CustomerUserRequestsScreen() {
     ).data,
   });
   const items = useMemo(() => query.data ?? [], [query.data]);
+  const mobilePageCount = Math.max(1, Math.ceil(items.length / 10));
+  const visibleMobilePage = Math.min(mobilePage, mobilePageCount);
+  const visibleItems = items.slice((visibleMobilePage - 1) * 10, visibleMobilePage * 10);
 
   const reviewMutation = useMutation({
     mutationFn: async (values: ReviewFormValues) => {
@@ -138,6 +146,12 @@ export function CustomerUserRequestsScreen() {
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
+  const requestedUserLabel = (record: CustomerUserRequest) => record.requested_full_name
+    || record.target_user?.full_name
+    || record.requested_email
+    || record.target_user?.email
+    || "—";
+
   const columns: TableColumnsType<CustomerUserRequest> = [
     { title: "Mã yêu cầu", dataIndex: "request_code", key: "request_code", width: 190, render: (value: string) => <Text strong>{value}</Text> },
     {
@@ -154,7 +168,7 @@ export function CustomerUserRequestsScreen() {
     {
       title: "Người dùng",
       key: "target",
-      render: (_, record) => record.requested_full_name || record.target_user?.full_name || record.requested_email || record.target_user?.email || "—",
+      render: (_, record) => requestedUserLabel(record),
     },
     { title: "Ngày gửi", dataIndex: "submitted_at", key: "submitted_at", width: 160, render: (value: string) => formatDateTime(value) },
     {
@@ -178,7 +192,7 @@ export function CustomerUserRequestsScreen() {
           <Title level={2}>Yêu cầu tài khoản khách hàng</Title>
           <Text type="secondary">Chỉ Admin được tạo tài khoản hoặc thay đổi quyền Portal. Yêu cầu từ khách hàng không tự cấp quyền và không thể thay đổi vai trò nội bộ.</Text>
         </div>
-        <Space>
+        <Space className="customer-user-requests__toolbar">
           <Select<RequestStatus>
             onChange={setStatus}
             options={Object.entries(statusMeta).map(([value, meta]) => ({ value: value as RequestStatus, label: meta.label }))}
@@ -192,15 +206,55 @@ export function CustomerUserRequestsScreen() {
       {query.isError ? (
         <Alert description={getErrorMessage(query.error)} message="Không tải được yêu cầu tài khoản" showIcon type="error" />
       ) : (
-        <Card>
-          <Table<CustomerUserRequest>
-            columns={columns}
-            dataSource={items}
-            loading={query.isLoading}
-            locale={{ emptyText: <Empty description="Không có yêu cầu trong trạng thái này" /> }}
-            pagination={{ pageSize: 20 }}
-            rowKey="id"
-          />
+        <Card loading={useCompactList && query.isLoading}>
+          {useCompactList ? (
+            items.length ? (
+              <>
+                <div aria-label="Yêu cầu tài khoản khách hàng" className="portal-mobile-list">
+                  {visibleItems.map((record) => (
+                    <article className="portal-mobile-card" key={record.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{record.request_code}</strong>
+                          <small>{requestTypeLabels[record.request_type]}</small>
+                        </div>
+                        <Tag color={statusMeta[record.status].color}>{statusMeta[record.status].label}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Khách hàng:</strong> {record.customer.company_name} · {record.customer.customer_code}</span>
+                        <span><strong>Người dùng:</strong> {requestedUserLabel(record)}</span>
+                        <span><strong>Ngày gửi:</strong> {formatDateTime(record.submitted_at)}</span>
+                      </div>
+                      <Space className="portal-mobile-card__actions portal-mobile-card__actions--single" wrap>
+                        <Button icon={<EyeOutlined />} onClick={() => setSelected(record)} size="small">Xem yêu cầu</Button>
+                      </Space>
+                    </article>
+                  ))}
+                </div>
+                {items.length > 10 ? (
+                  <Pagination
+                    className="compact-mobile-pagination"
+                    current={visibleMobilePage}
+                    onChange={setMobilePage}
+                    pageSize={10}
+                    responsive
+                    showSizeChanger={false}
+                    showTotal={(total) => `${total} yêu cầu`}
+                    total={items.length}
+                  />
+                ) : null}
+              </>
+            ) : <Empty description="Không có yêu cầu trong trạng thái này" />
+          ) : (
+            <Table<CustomerUserRequest>
+              columns={columns}
+              dataSource={items}
+              loading={query.isLoading}
+              locale={{ emptyText: <Empty description="Không có yêu cầu trong trạng thái này" /> }}
+              pagination={{ pageSize: 20 }}
+              rowKey="id"
+            />
+          )}
         </Card>
       )}
 
@@ -208,7 +262,7 @@ export function CustomerUserRequestsScreen() {
         onClose={() => setSelected(null)}
         open={Boolean(selected)}
         title={selected ? `${selected.request_code} · ${selected.customer.customer_code}` : "Yêu cầu tài khoản"}
-        width={680}
+        width={breakpoints.md ? 680 : "100%"}
       >
         {selected ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>

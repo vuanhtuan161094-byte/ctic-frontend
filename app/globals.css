@@ -8279,6 +8279,26 @@ input { font: inherit; }
   width: 100%;
 }
 
+.customer-user-requests__toolbar.ant-space {
+  align-items: stretch;
+}
+
+@media (max-width: 991px) {
+  .customer-user-requests__toolbar.ant-space {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .customer-user-requests__toolbar .ant-select {
+    width: 100% !important;
+  }
+
+  .customer-user-requests__toolbar .ant-btn {
+    width: 100%;
+  }
+}
+
 .portal-mobile-card__actions > .ant-space-item {
   min-width: 0;
   width: 100%;
