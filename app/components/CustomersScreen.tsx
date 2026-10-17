@@ -26,9 +26,11 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   List,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
   Skeleton,
@@ -44,6 +46,7 @@ import { api, getErrorMessage } from "../lib/api";
 import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
 
 const { Text, Title } = Typography;
+const CUSTOMER_PAGE_SIZE = 10;
 
 const COUNTRY_CODE_OPTIONS = [
   { value: "VN", label: "VN · Việt Nam" },
@@ -172,8 +175,11 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CustomerFormValues>();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactCustomerList = !breakpoints.lg;
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [customerPage, setCustomerPage] = useState(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -234,6 +240,12 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       return matchesSearch && (statusFilter === "all" || status === statusFilter);
     });
   }, [customers, searchTerm, statusFilter]);
+  const customerPageCount = Math.max(1, Math.ceil(filteredCustomers.length / CUSTOMER_PAGE_SIZE));
+  const visibleCustomerPage = Math.min(customerPage, customerPageCount);
+  const visibleCustomers = filteredCustomers.slice(
+    (visibleCustomerPage - 1) * CUSTOMER_PAGE_SIZE,
+    visibleCustomerPage * CUSTOMER_PAGE_SIZE,
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (values: CustomerFormValues) => {
@@ -453,14 +465,14 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
         <div className="customer-list-toolbar">
           <Input
             allowClear
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => { setSearchTerm(event.target.value); setCustomerPage(1); }}
             placeholder="Tìm mã khách hàng, tên tổ chức, mã số thuế, liên hệ..."
             prefix={<SearchOutlined />}
             value={searchTerm}
           />
           <Select
             aria-label="Lọc trạng thái khách hàng"
-            onChange={setStatusFilter}
+            onChange={(value) => { setStatusFilter(value); setCustomerPage(1); }}
             options={[
               { value: "all", label: "Tất cả trạng thái" },
               { value: "active", label: "Đang hoạt động" },
@@ -469,14 +481,72 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
             value={statusFilter}
           />
         </div>
-        <Table
-          columns={columns}
-          dataSource={filteredCustomers}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp" /> }}
-          pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} khách hàng` }}
-          rowKey="id"
-          scroll={{ x: 920 }}
-        />
+        {useCompactCustomerList ? (
+          <>
+            {visibleCustomers.length ? (
+              <div aria-label="Danh sách khách hàng" className="customer-mobile-list">
+                {visibleCustomers.map((customer) => (
+                  <article className="customer-mobile-card" key={customer.id}>
+                    <div className="customer-mobile-card__heading">
+                      <div className="customer-mobile-card__identity">
+                        <button
+                          aria-label={`Mở hồ sơ ${customer.company_name}`}
+                          className="customer-mobile-card__code"
+                          onClick={() => setSelectedCustomerId(customer.id)}
+                          type="button"
+                        >
+                          {customer.customer_code}
+                        </button>
+                        <strong>{customer.company_name}</strong>
+                      </div>
+                      <CustomerStatusTag status={customer.status} />
+                    </div>
+                    <div className="customer-mobile-card__meta">
+                      <span>{taxIdentifierLabel(customer.country_code)} · {customer.tax_code || "Chưa cập nhật"}</span>
+                      <span>{customer.phone || "Chưa cập nhật số điện thoại"}</span>
+                      <span>{customer.email || "Chưa cập nhật email"}</span>
+                    </div>
+                    <div className="customer-mobile-card__actions">
+                      <Tag icon={<FolderOpenOutlined />}>
+                        {projectsByCustomer.get(customer.id)?.length ?? 0} hồ sơ
+                      </Tag>
+                      <Button onClick={() => setSelectedCustomerId(customer.id)} size="small">Chi tiết</Button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp" />
+            )}
+            {filteredCustomers.length > CUSTOMER_PAGE_SIZE ? (
+              <Pagination
+                className="customer-mobile-pagination"
+                current={visibleCustomerPage}
+                onChange={setCustomerPage}
+                pageSize={CUSTOMER_PAGE_SIZE}
+                responsive
+                showSizeChanger={false}
+                showTotal={(total) => `${total} khách hàng`}
+                total={filteredCustomers.length}
+              />
+            ) : null}
+          </>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredCustomers}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp" /> }}
+            pagination={{
+              current: visibleCustomerPage,
+              pageSize: CUSTOMER_PAGE_SIZE,
+              showSizeChanger: false,
+              showTotal: (total) => `${total} khách hàng`,
+              onChange: setCustomerPage,
+            }}
+            rowKey="id"
+            scroll={{ x: 920 }}
+          />
+        )}
       </Card>
 
       <Drawer

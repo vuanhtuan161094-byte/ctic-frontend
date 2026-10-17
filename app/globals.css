@@ -7948,3 +7948,96 @@ input { font: inherit; }
     grid-template-columns: 1fr;
   }
 }
+
+.customer-mobile-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.customer-mobile-card {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.customer-mobile-card__heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.customer-mobile-card__identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.customer-mobile-card__identity strong {
+  color: var(--cmp-text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.customer-mobile-card__code {
+  background: transparent;
+  border: 0;
+  color: var(--cmp-brand-primary);
+  cursor: pointer;
+  font-family: "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  font-weight: var(--cmp-font-weight-semibold);
+  justify-self: start;
+  padding: 0;
+}
+
+.customer-mobile-card__code:focus-visible {
+  outline: 2px solid var(--cmp-brand-primary);
+  outline-offset: 2px;
+}
+
+.customer-mobile-card__heading > .ant-tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  line-height: 18px;
+  margin: 0;
+}
+
+.customer-mobile-card__meta {
+  color: var(--cmp-text-secondary);
+  display: grid;
+  font-size: 11px;
+  gap: 3px;
+  line-height: 1.35;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.customer-mobile-card__actions {
+  align-items: center;
+  border-top: 1px solid var(--cmp-border-default);
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding-top: 7px;
+}
+
+.customer-mobile-card__actions .ant-tag {
+  margin: 0;
+}
+
+.customer-mobile-pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 10px 0 0 !important;
+}
