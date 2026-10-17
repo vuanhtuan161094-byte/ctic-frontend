@@ -17,8 +17,10 @@ import {
   Descriptions,
   Drawer,
   Empty,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Table,
@@ -116,6 +118,8 @@ function display(value?: string | null) {
 }
 
 export function CustomerChangeRequestsScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactList = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<string>("SUBMITTED");
@@ -123,6 +127,7 @@ export function CustomerChangeRequestsScreen() {
   const [reviewDecision, setReviewDecision] = useState<"APPROVE" | "REJECT" | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [openingAttachmentId, setOpeningAttachmentId] = useState<string | null>(null);
+  const [mobilePage, setMobilePage] = useState(1);
 
   const query = useQuery({
     queryKey: ["customer-change-requests", status],
@@ -132,6 +137,9 @@ export function CustomerChangeRequestsScreen() {
   });
 
   const items = useMemo(() => query.data ?? [], [query.data]);
+  const mobilePageCount = Math.max(1, Math.ceil(items.length / 10));
+  const visibleMobilePage = Math.min(mobilePage, mobilePageCount);
+  const visibleItems = items.slice((visibleMobilePage - 1) * 10, visibleMobilePage * 10);
 
   const reviewMutation = useMutation({
     mutationFn: async () => {
@@ -234,7 +242,7 @@ export function CustomerChangeRequestsScreen() {
           <Title level={2}>Yêu cầu thay đổi hồ sơ</Title>
           <Text type="secondary">Xem xét snapshot trước/sau do khách hàng gửi. Chỉ khi chấp thuận hệ thống mới cập nhật hồ sơ master.</Text>
         </div>
-        <Space>
+        <Space className="customer-change-requests__toolbar">
           <Select
             onChange={setStatus}
             options={Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))}
@@ -248,15 +256,56 @@ export function CustomerChangeRequestsScreen() {
       {query.isError ? (
         <Alert description={getErrorMessage(query.error)} message="Không tải được yêu cầu thay đổi" showIcon type="error" />
       ) : (
-        <Card>
-          <Table<CustomerChangeRequest>
-            columns={columns}
-            dataSource={items}
-            loading={query.isLoading}
-            locale={{ emptyText: <Empty description="Không có yêu cầu trong trạng thái này" /> }}
-            pagination={{ pageSize: 20 }}
-            rowKey="id"
-          />
+        <Card loading={useCompactList && query.isLoading}>
+          {useCompactList ? (
+            items.length ? (
+              <>
+                <div aria-label="Yêu cầu thay đổi hồ sơ" className="portal-mobile-list">
+                  {visibleItems.map((record) => (
+                    <article className="portal-mobile-card" key={record.id}>
+                      <div className="portal-mobile-card__heading">
+                        <div className="portal-mobile-card__identity">
+                          <strong>{record.request_code}</strong>
+                          <small>{record.customer.company_name}</small>
+                        </div>
+                        <Tag color={statusMeta[record.status].color}>{statusMeta[record.status].label}</Tag>
+                      </div>
+                      <div className="portal-mobile-card__meta">
+                        <span><strong>Mã khách hàng:</strong> {record.customer.customer_code}</span>
+                        <span><strong>Người gửi:</strong> {record.requester.full_name || record.requester.email}</span>
+                        <span><strong>Ngày gửi:</strong> {formatDateTime(record.submitted_at)}</span>
+                        <span><strong>Lý do:</strong> {record.reason}</span>
+                      </div>
+                      <Space className="portal-mobile-card__actions portal-mobile-card__actions--single" wrap>
+                        <Button icon={<EyeOutlined />} onClick={() => setSelected(record)} size="small">Xem thay đổi</Button>
+                      </Space>
+                    </article>
+                  ))}
+                </div>
+                {items.length > 10 ? (
+                  <Pagination
+                    className="compact-mobile-pagination"
+                    current={visibleMobilePage}
+                    onChange={setMobilePage}
+                    pageSize={10}
+                    responsive
+                    showSizeChanger={false}
+                    showTotal={(total) => `${total} yêu cầu`}
+                    total={items.length}
+                  />
+                ) : null}
+              </>
+            ) : <Empty description="Không có yêu cầu trong trạng thái này" />
+          ) : (
+            <Table<CustomerChangeRequest>
+              columns={columns}
+              dataSource={items}
+              loading={query.isLoading}
+              locale={{ emptyText: <Empty description="Không có yêu cầu trong trạng thái này" /> }}
+              pagination={{ pageSize: 20 }}
+              rowKey="id"
+            />
+          )}
         </Card>
       )}
 
@@ -264,7 +313,7 @@ export function CustomerChangeRequestsScreen() {
         onClose={() => setSelected(null)}
         open={Boolean(selected)}
         title={selected ? `${selected.request_code} · ${selected.customer.customer_code}` : "Yêu cầu thay đổi"}
-        width={720}
+        width={breakpoints.md ? 720 : "100%"}
       >
         {selected && before && after ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>

@@ -455,7 +455,7 @@ export function canonicalPathForNavigation(
     "configuration-classifications": "/admin/configuration/classifications",
     "configuration-mappings": "/admin/configuration/classifications",
     "configuration-import": "/admin/configuration/import",
-    "customer-change-requests": "/governance?type=organization-change",
+    "customer-change-requests": "/customer-change-requests",
     "governance-cases": "/governance",
     "customer-user-requests": "/customer-user-requests",
     "customer-document-requests": "/customer-document-requests",
