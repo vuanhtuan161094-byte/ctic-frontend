@@ -28,9 +28,11 @@ import {
   Divider,
   Empty,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Radio,
   Result,
   Select,
@@ -1287,10 +1289,13 @@ function applicationReviewSectionForField(field: string) {
 
 export function CertificationProjectsScreen({ onOpenProject, mode = "projects", initialReviewId = null }: CertificationProjectsScreenProps) {
   const isApplicationWorkspace = mode === "applications";
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactWorkspaceList = !breakpoints.lg;
   const currentWizardSteps = isApplicationWorkspace ? applicationWizardSteps : projectWizardSteps;
   const queryClient = useQueryClient();
   const [wizardForm] = Form.useForm<ProjectCreationValues>();
   const [searchTerm, setSearchTerm] = useState("");
+  const [workspacePage, setWorkspacePage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
   const [standardFilter, setStandardFilter] = useState("all");
   const [applicationMonthFilter, setApplicationMonthFilter] = useState("all");
@@ -2049,6 +2054,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       return matchesSearch && matchesStatus && matchesStandard && matchesMonth && matchesYear;
     });
   }, [applicationMonthFilter, applicationYearFilter, applications, searchTerm, standardFilter, statusFilter]);
+
+  const workspaceRows = isApplicationWorkspace ? filteredApplications : filteredProjects;
+  const workspacePageCount = Math.max(1, Math.ceil(workspaceRows.length / 10));
+  const visibleWorkspacePage = Math.min(workspacePage, workspacePageCount);
+  const visibleWorkspaceRows = workspaceRows.slice((visibleWorkspacePage - 1) * 10, visibleWorkspacePage * 10);
 
   const pendingApplications = applications.filter((item) => [
     "draft",
@@ -3384,6 +3394,62 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     });
   };
 
+  const applicationWorkflowStatus = (application: ProjectApplication) => {
+    const workflow = String(application.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+    if (workflow === "SUBMITTED") return <Tag color="purple" icon={<ClockCircleOutlined />}>Đã gửi reviewer</Tag>;
+    if (workflow === "RETURNED") return <Tag color="orange" icon={<WarningOutlined />}>Cần chỉnh sửa xem xét</Tag>;
+    if (workflow === "APPROVED") return <Tag color="green" icon={<CheckCircleOutlined />}>Đã phê duyệt xem xét</Tag>;
+    if (workflow === "DRAFT") return <Tag color="blue" icon={<FileSearchOutlined />}>Đang lập xem xét</Tag>;
+    return <ProjectStatusTag status={application.status} />;
+  };
+
+  const applicationReviewActionLabel = (application: ProjectApplication) => {
+    const workflow = String(application.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+    const assignedReviewerId = application.application_reviews?.[0]?.reviewer_id;
+    if (workflow === "SUBMITTED") return assignedReviewerId === currentUserId ? "Xem xét" : "Xem trạng thái";
+    if (workflow === "RETURNED") return "Sửa & gửi lại";
+    if (workflow === "APPROVED") return "Xem lại";
+    if (workflow === "DRAFT") return "Tiếp tục xem xét";
+    return normalizeStatus(application.status) === "accepted" ? "Xem lại" : "Xem xét";
+  };
+
+  const openApplicationReviewAction = (application: ProjectApplication) => {
+    const workflow = String(application.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
+    const assignedReviewerId = application.application_reviews?.[0]?.reviewer_id;
+    if (workflow === "SUBMITTED" && assignedReviewerId !== currentUserId) return openApplicationStatus(application);
+    if (workflow === "APPROVED") return openApplicationStatus(application);
+    return openApplicationReview(application);
+  };
+
+  const renderApplicationActions = (application: ProjectApplication, compact = false) => (
+    <Space className={compact ? "project-mobile-card__actions" : undefined} size={4} wrap onClick={(event) => event.stopPropagation()}>
+      <Button icon={<EyeOutlined />} onClick={() => openApplicationView(application)} size="small">Xem đơn</Button>
+      <Button
+        icon={<FileSearchOutlined />}
+        onClick={() => openApplicationReviewAction(application)}
+        size="small"
+        type={normalizeStatus(application.status) === "accepted" ? "default" : "primary"}
+      >
+        {applicationReviewActionLabel(application)}
+      </Button>
+      <Button
+        aria-label="Sửa đơn"
+        disabled={!canEditApplication(application)}
+        icon={<EditOutlined />}
+        onClick={() => openApplicationEdit(application)}
+        size="small"
+      />
+      <Button
+        aria-label="Xóa đơn"
+        danger
+        disabled={!canDeleteApplication(application)}
+        icon={<DeleteOutlined />}
+        onClick={() => confirmDeleteApplication(application)}
+        size="small"
+      />
+    </Space>
+  );
+
   const columns: TableColumnsType<CertificationProject> = [
     {
       title: "Mã hồ sơ",
@@ -3500,14 +3566,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       dataIndex: "status",
       key: "status",
       width: 150,
-      render: (value: string, record) => {
-        const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
-        if (workflow === "SUBMITTED") return <Tag color="purple" icon={<ClockCircleOutlined />}>Đã gửi reviewer</Tag>;
-        if (workflow === "RETURNED") return <Tag color="orange" icon={<WarningOutlined />}>Cần chỉnh sửa xem xét</Tag>;
-        if (workflow === "APPROVED") return <Tag color="green" icon={<CheckCircleOutlined />}>Đã phê duyệt xem xét</Tag>;
-        if (workflow === "DRAFT") return <Tag color="blue" icon={<FileSearchOutlined />}>Đang lập xem xét</Tag>;
-        return <ProjectStatusTag status={value} />;
-      },
+      render: (_, record) => applicationWorkflowStatus(record),
     },
     {
       title: "Cập nhật",
@@ -3521,48 +3580,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       title: "",
       key: "action",
       width: 260,
-      render: (_, record) => (
-        <Space size={4} wrap onClick={(event) => event.stopPropagation()}>
-          <Button icon={<EyeOutlined />} onClick={() => openApplicationView(record)} size="small">Xem đơn</Button>
-          <Button
-            icon={<FileSearchOutlined />}
-            onClick={() => {
-              const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
-              const assignedReviewerId = record.application_reviews?.[0]?.reviewer_id;
-              if (workflow === "SUBMITTED" && assignedReviewerId !== currentUserId) return openApplicationStatus(record);
-              if (workflow === "APPROVED") return openApplicationStatus(record);
-              return openApplicationReview(record);
-            }}
-            size="small"
-            type={normalizeStatus(record.status) === "accepted" ? "default" : "primary"}
-          >
-            {(() => {
-              const workflow = String(record.application_reviews?.[0]?.workflow_status ?? "").toUpperCase();
-              if (workflow === "SUBMITTED") {
-                const assignedReviewerId = record.application_reviews?.[0]?.reviewer_id;
-                return assignedReviewerId === currentUserId ? "Xem xét" : "Xem trạng thái";
-              }
-              if (workflow === "RETURNED") return "Sửa & gửi lại";
-              if (workflow === "APPROVED") return "Xem lại";
-              if (workflow === "DRAFT") return "Tiếp tục xem xét";
-              return normalizeStatus(record.status) === "accepted" ? "Xem lại" : "Xem xét";
-            })()}
-          </Button>
-          <Button
-            disabled={!canEditApplication(record)}
-            icon={<EditOutlined />}
-            onClick={() => openApplicationEdit(record)}
-            size="small"
-          />
-          <Button
-            danger
-            disabled={!canDeleteApplication(record)}
-            icon={<DeleteOutlined />}
-            onClick={() => confirmDeleteApplication(record)}
-            size="small"
-          />
-        </Space>
-      ),
+      render: (_, record) => renderApplicationActions(record),
     },
   ];
 
@@ -3623,14 +3641,14 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         <div className="project-list-toolbar">
           <Input
             allowClear
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => { setSearchTerm(event.target.value); setWorkspacePage(1); }}
             placeholder={isApplicationWorkspace ? "Tìm mã đơn, khách hàng, tiêu chuẩn..." : "Tìm mã hồ sơ, khách hàng, đơn đăng ký..."}
             prefix={<SearchOutlined />}
             value={searchTerm}
           />
           <Select
             aria-label="Lọc theo trạng thái"
-            onChange={setStatusFilter}
+            onChange={(value) => { setStatusFilter(value); setWorkspacePage(1); }}
             options={[
               { value: "all", label: "Tất cả trạng thái" },
               ...(isApplicationWorkspace ? applicationStatuses : statuses).map((status) => ({ value: status, label: statusLabels[status] ?? status.replaceAll("_", " ") })),
@@ -3639,7 +3657,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
           />
           <Select
             aria-label="Lọc theo tiêu chuẩn"
-            onChange={setStandardFilter}
+            onChange={(value) => { setStandardFilter(value); setWorkspacePage(1); }}
             options={[
               { value: "all", label: "Tất cả tiêu chuẩn" },
               ...(isApplicationWorkspace ? applicationStandards : standards).map((standard) => ({ value: standard, label: standard })),
@@ -3649,7 +3667,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
           {isApplicationWorkspace && (
             <Select
               aria-label="Lọc theo tháng cập nhật"
-              onChange={setApplicationMonthFilter}
+              onChange={(value) => { setApplicationMonthFilter(value); setWorkspacePage(1); }}
               options={[
                 { value: "all", label: "Tất cả tháng" },
                 ...Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: `Tháng ${index + 1}` })),
@@ -3660,7 +3678,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
           {isApplicationWorkspace && (
             <Select
               aria-label="Lọc theo năm cập nhật"
-              onChange={setApplicationYearFilter}
+              onChange={(value) => { setApplicationYearFilter(value); setWorkspacePage(1); }}
               options={[
                 { value: "all", label: "Tất cả năm" },
                 ...applicationYears.map((year) => ({ value: String(year), label: String(year) })),
@@ -3670,35 +3688,116 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
           )}
         </div>
 
-        <Table<CertificationWorkspaceRow>
-          columns={(isApplicationWorkspace ? applicationColumns : columns) as TableColumnsType<CertificationWorkspaceRow>}
-          dataSource={isApplicationWorkspace ? filteredApplications : filteredProjects}
-          locale={{
-            emptyText: (
+        {useCompactWorkspaceList ? (
+          <>
+            {visibleWorkspaceRows.length ? (
+              <div aria-label={isApplicationWorkspace ? "Danh sách đơn đăng ký" : "Danh sách hồ sơ chứng nhận"} className="project-mobile-list">
+                {isApplicationWorkspace
+                  ? visibleWorkspaceRows.map((row) => {
+                    const application = row as ProjectApplication;
+                    const updatedAt = application.updated_at ?? application.application_date;
+                    return (
+                      <article className="project-mobile-card" key={application.id}>
+                        <div className="project-mobile-card__heading">
+                          <div className="project-mobile-card__identity">
+                            <button className="project-mobile-card__code" onClick={() => openApplicationView(application)} type="button">
+                              {application.application_code}
+                            </button>
+                            <strong>{application.customers?.company_name ?? "Chưa xác định khách hàng"}</strong>
+                            <small>{application.customers?.customer_code ?? "—"}</small>
+                          </div>
+                          {applicationWorkflowStatus(application)}
+                        </div>
+                        <div className="project-mobile-card__meta">
+                          <span><strong>Tiêu chuẩn:</strong> {application.standard_name}</span>
+                          <span><strong>Phạm vi:</strong> {application.certification_scope ?? "Chưa cập nhật"}</span>
+                          <span><strong>Quy mô:</strong> {application.employee_count ?? "—"} người · {application.sites?.length ?? application.site_count ?? 1} địa điểm</span>
+                          <span><strong>Cập nhật:</strong> {updatedAt ? dayjs(updatedAt).format("DD/MM/YYYY") : "—"}</span>
+                        </div>
+                        {renderApplicationActions(application, true)}
+                      </article>
+                    );
+                  })
+                  : visibleWorkspaceRows.map((row) => {
+                    const project = row as CertificationProject;
+                    const customer = project.certification_applications?.customers;
+                    return (
+                      <article className="project-mobile-card" key={project.id}>
+                        <div className="project-mobile-card__heading">
+                          <div className="project-mobile-card__identity">
+                            <button className="project-mobile-card__code" onClick={() => onOpenProject(project.id)} type="button">
+                              {project.project_code}
+                            </button>
+                            <strong>{customer?.company_name ?? "Chưa xác định khách hàng"}</strong>
+                            <small>{customer?.customer_code ?? "—"}</small>
+                          </div>
+                          <ProjectStatusTag status={project.status} />
+                        </div>
+                        <div className="project-mobile-card__meta">
+                          <span><strong>Tiêu chuẩn:</strong> {project.standard_name}</span>
+                          <span><strong>Đơn đăng ký:</strong> {project.certification_applications?.application_code ?? "—"}</span>
+                          <span><strong>Hợp đồng:</strong> {project.contracts?.contract_number ?? "Chưa có hợp đồng"}</span>
+                          <span><strong>Cập nhật:</strong> {project.updated_at ? dayjs(project.updated_at).format("DD/MM/YYYY") : "—"}</span>
+                        </div>
+                        <Button className="project-mobile-card__open" onClick={() => onOpenProject(project.id)} size="small">Mở hồ sơ</Button>
+                      </article>
+                    );
+                  })}
+              </div>
+            ) : (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 description={isApplicationWorkspace
                   ? (applications.length ? "Không có đơn phù hợp bộ lọc" : "Chưa có đơn đăng ký chứng nhận")
                   : (projects.length ? "Không có hồ sơ phù hợp bộ lọc" : "Chưa có hồ sơ chứng nhận")}
               />
-            ),
-          }}
-          onRow={(record) => isApplicationWorkspace
-            ? ({
-                className: "clickable-project-row",
-                onClick: () => openApplicationView(record as ProjectApplication),
-              })
-            : ({
-                className: "clickable-project-row",
-                onClick: () => onOpenProject((record as CertificationProject).id),
-              })}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `${total} ${isApplicationWorkspace ? "đơn" : "hồ sơ"}`,
-          }}
-          rowKey="id"
-        />
+            )}
+            {workspaceRows.length > 10 ? (
+              <Pagination
+                className="project-mobile-pagination"
+                current={visibleWorkspacePage}
+                onChange={setWorkspacePage}
+                pageSize={10}
+                responsive
+                showSizeChanger={false}
+                showTotal={(total) => `${total} ${isApplicationWorkspace ? "đơn" : "hồ sơ"}`}
+                total={workspaceRows.length}
+              />
+            ) : null}
+          </>
+        ) : (
+          <Table<CertificationWorkspaceRow>
+            columns={(isApplicationWorkspace ? applicationColumns : columns) as TableColumnsType<CertificationWorkspaceRow>}
+            dataSource={workspaceRows}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={isApplicationWorkspace
+                    ? (applications.length ? "Không có đơn phù hợp bộ lọc" : "Chưa có đơn đăng ký chứng nhận")
+                    : (projects.length ? "Không có hồ sơ phù hợp bộ lọc" : "Chưa có hồ sơ chứng nhận")}
+                />
+              ),
+            }}
+            onRow={(record) => isApplicationWorkspace
+              ? ({
+                  className: "clickable-project-row",
+                  onClick: () => openApplicationView(record as ProjectApplication),
+                })
+              : ({
+                  className: "clickable-project-row",
+                  onClick: () => onOpenProject((record as CertificationProject).id),
+                })}
+            pagination={{
+              current: visibleWorkspacePage,
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `${total} ${isApplicationWorkspace ? "đơn" : "hồ sơ"}`,
+              onChange: setWorkspacePage,
+            }}
+            rowKey="id"
+          />
+        )}
       </Card>
 
       <Modal
