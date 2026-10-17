@@ -40,12 +40,13 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { isPdfDocument, openDocumentFile, previewDocumentFile } from "../lib/document-file-client";
 import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import CommercialDocumentsPanel from "./CommercialDocumentsPanel";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 import type { AuditExecutionWorkspaceMode } from "./AuditExecutionWorkspaceModal";
 import type {
   AuditDocumentFocus,
@@ -1619,6 +1620,34 @@ export function CertificationProjectDetailScreen({
     return columns;
   })();
 
+  const renderDossierColumn = (columnKey: string, record: DossierItem, index: number) => {
+    const column = dossierColumns.find((candidate) => String(candidate.key) === columnKey);
+    return typeof column?.render === "function"
+      ? column.render(undefined, record, index) as ReactNode
+      : null;
+  };
+
+  const dossierResponsiveCards = (items: DossierItem[], keyPrefix: string): ResponsiveCardItem[] => items.map((record, index) => ({
+    key: `${keyPrefix}-${record.document_key}-${record.item_no}`,
+    title: (
+      <Button
+        className="dossier-record-link"
+        icon={<FileOutlined />}
+        onClick={() => void openDossierItem(record)}
+        type="link"
+      >
+        {cleanDocumentName(record)}
+      </Button>
+    ),
+    status: renderDossierColumn("status", record, index),
+    fields: [
+      { key: "item-no", label: "STT", value: record.item_no },
+      { key: "form-code", label: "Mã biểu", value: renderDossierColumn("form_code", record, index) },
+      { key: "current-version", label: "Phiên bản / tài liệu", value: renderDossierColumn("current_version", record, index) },
+    ],
+    actions: renderDossierColumn("document_action", record, index),
+  }));
+
   if (detailQuery.isLoading) {
     return <Card className="project-detail-loading"><Skeleton active paragraph={{ rows: 16 }} /></Card>;
   }
@@ -1887,18 +1916,23 @@ export function CertificationProjectDetailScreen({
                   size="small"
                   title={<span><strong>{stageIndex + 1}. {stage.title}</strong><Text type="secondary"> · {stageItems.length} thành phần</Text></span>}
                 >
-                  <Table
-                    columns={dossierColumns}
-                    dataSource={stageItems}
-                    pagination={false}
-                    rowClassName={(record) => (
-                      selectedNextAction?.itemKey === normalize(record.document_key)
-                        ? "dossier-row-next-action"
-                        : ""
-                    )}
-                    rowKey={(record) => `${selectedDossier.dossier_key}-${record.document_key}-${record.item_no}`}
-                    size="small"
-                  />
+                  <>
+                    <div className="cmp-data-table--responsive">
+                      <Table
+                        columns={dossierColumns}
+                        dataSource={stageItems}
+                        pagination={false}
+                        rowClassName={(record) => (
+                          selectedNextAction?.itemKey === normalize(record.document_key)
+                            ? "dossier-row-next-action"
+                            : ""
+                        )}
+                        rowKey={(record) => `${selectedDossier.dossier_key}-${record.document_key}-${record.item_no}`}
+                        size="small"
+                      />
+                    </div>
+                    <ResponsiveCardList items={dossierResponsiveCards(stageItems, selectedDossier.dossier_key)} />
+                  </>
                 </Card>
               );
             })}
@@ -1926,13 +1960,18 @@ export function CertificationProjectDetailScreen({
         extra={<Text type="secondary">{pendingLabel(commonDossierItems)}</Text>}
         title="Hồ sơ dùng chung / xuyên chu kỳ"
       >
-        <Table
-          columns={dossierColumns}
-          dataSource={commonDossierItems}
-          pagination={false}
-          rowKey={(record) => `common-${record.document_key}-${record.item_no}`}
-          size="small"
-        />
+        <>
+          <div className="cmp-data-table--responsive">
+            <Table
+              columns={dossierColumns}
+              dataSource={commonDossierItems}
+              pagination={false}
+              rowKey={(record) => `common-${record.document_key}-${record.item_no}`}
+              size="small"
+            />
+          </div>
+          <ResponsiveCardList items={dossierResponsiveCards(commonDossierItems, "common")} />
+        </>
       </Card>
 
       <Card className="project-detail-card project-files-card" title="Tệp dùng chung đã lưu">
