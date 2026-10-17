@@ -1010,10 +1010,16 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [status, setStatus] = useState("active");
   const [expertPage, setExpertPage] = useState(1);
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
+  const [activeExpertTab, setActiveExpertTab] = useState("profile");
+  const [mobileSectionOpen, setMobileSectionOpen] = useState(false);
   const [competencyCardPagination, setCompetencyCardPagination] = useState<{ expertId: string | null; page: number }>({ expertId: null, page: 1 });
+  const [detailCardPagination, setDetailCardPagination] = useState<{ expertId: string | null; tab: string; page: number }>({ expertId: null, tab: "", page: 1 });
   const openExpertProfile = (expertId: string | null) => {
     setSelectedExpertId(expertId);
+    setActiveExpertTab("profile");
+    setMobileSectionOpen(false);
     setCompetencyCardPagination({ expertId, page: 1 });
+    setDetailCardPagination({ expertId, tab: "", page: 1 });
   };
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<"create" | "edit">("create");
@@ -1844,6 +1850,15 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     },
   ];
 
+  const workActionNode = (record: ExpertWorkExperience) => canManage ? (
+    <Space>
+      <Button aria-label="Sửa kinh nghiệm" icon={<EditOutlined />} onClick={() => openWorkModal(record)} size="small" />
+      <Popconfirm title="Xóa kinh nghiệm công việc này?" onConfirm={() => deleteWorkMutation.mutate(record.id)}>
+        <Button aria-label="Xóa kinh nghiệm" danger icon={<DeleteOutlined />} size="small" />
+      </Popconfirm>
+    </Space>
+  ) : null;
+
   const workColumns: TableColumnsType<ExpertWorkExperience> = [
     {
       title: "Đơn vị / vị trí",
@@ -1878,16 +1893,18 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       title: "",
       key: "action",
       width: 100,
-      render: (_, record) => canManage ? (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => openWorkModal(record)} size="small" />
-          <Popconfirm title="Xóa kinh nghiệm công việc này?" onConfirm={() => deleteWorkMutation.mutate(record.id)}>
-            <Button danger icon={<DeleteOutlined />} size="small" />
-          </Popconfirm>
-        </Space>
-      ) : null,
+      render: (_, record) => workActionNode(record),
     },
   ];
+
+  const certificateActionNode = (record: ExpertCertificate) => canManage ? (
+    <Space>
+      <Button aria-label="Sửa chứng chỉ" icon={<EditOutlined />} onClick={() => openCertificateModal(record)} size="small" />
+      <Popconfirm title="Xóa chứng chỉ này?" onConfirm={() => deleteCertificateMutation.mutate(record.id)}>
+        <Button aria-label="Xóa chứng chỉ" danger icon={<DeleteOutlined />} size="small" />
+      </Popconfirm>
+    </Space>
+  ) : null;
 
   const certificateColumns: TableColumnsType<ExpertCertificate> = [
     {
@@ -1930,14 +1947,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       title: "",
       key: "action",
       width: 100,
-      render: (_, record) => canManage ? (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => openCertificateModal(record)} size="small" />
-          <Popconfirm title="Xóa chứng chỉ này?" onConfirm={() => deleteCertificateMutation.mutate(record.id)}>
-            <Button danger icon={<DeleteOutlined />} size="small" />
-          </Popconfirm>
-        </Space>
-      ) : null,
+      render: (_, record) => certificateActionNode(record),
     },
   ];
 
@@ -1995,6 +2005,70 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
       render: (_, record) => record.actual_mandays ?? record.planned_mandays ?? "—",
     },
   ], []);
+
+  const renderDetailCards = (tab: string, items: ResponsiveCardItem[], empty: string) => {
+    const pageSize = 8;
+    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+    const selectedPage = detailCardPagination.expertId === selectedExpertId && detailCardPagination.tab === tab
+      ? detailCardPagination.page
+      : 1;
+    const page = Math.min(selectedPage, pageCount);
+    return (
+      <>
+        <ResponsiveCardList empty={<Empty description={empty} />} items={items.slice((page - 1) * pageSize, page * pageSize)} />
+        {items.length > pageSize ? (
+          <Pagination
+            className="expert-competency-mobile-pagination"
+            current={page}
+            onChange={(nextPage) => setDetailCardPagination({ expertId: selectedExpertId, tab, page: nextPage })}
+            pageSize={pageSize}
+            showSizeChanger={false}
+            total={items.length}
+          />
+        ) : null}
+      </>
+    );
+  };
+
+  const workCards: ResponsiveCardItem[] = (selectedExpert?.work_experiences ?? []).map((record) => ({
+    key: record.id,
+    title: record.organization,
+    fields: [
+      { key: "position", label: "Vị trí", value: record.position },
+      { key: "dates", label: "Thời gian", value: formatDateRange(record.start_date, record.end_date) },
+      { key: "industry", label: "Mã/lĩnh vực", value: record.industry_codes || "—" },
+      { key: "responsibility", label: "Nội dung", value: record.responsibility || "—" },
+    ],
+    actions: workActionNode(record),
+  }));
+  const certificateCards: ResponsiveCardItem[] = (selectedExpert?.certificates ?? []).map((record) => ({
+    key: record.id,
+    title: record.certificate_name,
+    fields: [
+      { key: "number", label: "Số chứng chỉ", value: record.certificate_number || "—" },
+      { key: "issuer", label: "Đơn vị cấp", value: record.issuing_organization || "—" },
+      { key: "standard", label: "Tiêu chuẩn", value: record.standard_code || "—" },
+      { key: "validity", label: "Hiệu lực", value: <Space wrap>{formatDateRange(record.issue_date, record.expiry_date)}{certificateStatus(record.expiry_date)}</Space> },
+      { key: "credential", label: "Minh chứng", value: record.credential_url ? <Button href={record.credential_url} icon={<LinkOutlined />} size="small" target="_blank">Mở</Button> : "—" },
+    ],
+    actions: certificateActionNode(record),
+  }));
+  const historyCards: ResponsiveCardItem[] = (selectedExpert?.audit_team_members ?? []).map((record) => {
+    const plan = record.audit_team_appointments?.audit_plans;
+    const project = plan?.certification_projects;
+    return {
+      key: record.id,
+      title: `${plan?.plan_code || "—"} · ${project?.project_code || "—"}`,
+      fields: [
+        { key: "customer", label: "Khách hàng", value: project?.certification_applications?.customers?.company_name || "—" },
+        { key: "program", label: "Chương trình", value: project?.standard_name || "—" },
+        { key: "role", label: "Vai trò", value: teamRoleLabels[normalize(record.team_role)] ?? record.team_role ?? "—" },
+        { key: "scopes", label: "Lĩnh vực", value: (record.scopes?.length ?? 0) > 0 ? <Space size={[4, 4]} wrap>{record.scopes?.map((scope, index) => <Tag key={`${scope.iaf_code}-${scope.nace_code}-${index}`}>IAF {scope.iaf_code || "—"}{scope.nace_code ? ` · NACE ${scope.nace_code}` : ""}</Tag>)}</Space> : "—" },
+        { key: "dates", label: "Thời gian", value: formatDateRange(record.planned_start_date, record.planned_end_date) },
+        { key: "mandays", label: "Ngày công", value: record.actual_mandays ?? record.planned_mandays ?? "—" },
+      ],
+    };
+  });
 
   const recommendationColumns = useMemo<TableColumnsType<ExpertRecommendation>>(() => [
     {
@@ -2226,7 +2300,24 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
               </div>
             </Card>
 
-            <Tabs items={[
+            <Select
+              aria-label="Mục hồ sơ chuyên gia"
+              className="expert-detail-mobile-select"
+              onChange={(tab) => { setActiveExpertTab(tab); setMobileSectionOpen(false); }}
+              onOpenChange={setMobileSectionOpen}
+              open={mobileSectionOpen}
+              options={[
+                { value: "profile", label: "Hồ sơ cá nhân" },
+                { value: "competencies", label: `Chương trình & lĩnh vực (${selectedExpert.competencies.length})` },
+                { value: "work", label: `Kinh nghiệm công việc (${selectedExpert.work_experiences.length})` },
+                { value: "certificates", label: `Chứng chỉ (${selectedExpert.certificates.length})` },
+                { value: "development", label: "Đào tạo & giám sát" },
+                { value: "resource-governance", label: "Nguồn lực & độc lập" },
+                { value: "history", label: `Nhật ký đánh giá (${selectedExpert.audit_team_members.length})` },
+              ]}
+              value={activeExpertTab}
+            />
+            <Tabs activeKey={activeExpertTab} className="expert-detail-tabs" onChange={setActiveExpertTab} items={[
               {
                 key: "profile",
                 label: <span><IdcardOutlined /> Hồ sơ cá nhân</span>,
@@ -2304,8 +2395,11 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 key: "work",
                 label: <span><TeamOutlined /> Kinh nghiệm công việc ({selectedExpert.work_experiences.length})</span>,
                 children: (
-                  <Card extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => openWorkModal()} type="primary">Thêm kinh nghiệm</Button> : null} title="Lịch sử công việc và kinh nghiệm ngành">
-                    <Table columns={workColumns} dataSource={selectedExpert.work_experiences} locale={{ emptyText: <Empty description="Chưa có lịch sử công việc" /> }} pagination={false} rowKey="id" scroll={{ x: 1050 }} />
+                  <Card className="expert-competency-tab-card" extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => openWorkModal()} type="primary">Thêm kinh nghiệm</Button> : null} title="Lịch sử công việc và kinh nghiệm ngành">
+                    <div className="expert-detail-responsive">
+                      <div className="cmp-data-table--responsive"><Table columns={workColumns} dataSource={selectedExpert.work_experiences} locale={{ emptyText: <Empty description="Chưa có lịch sử công việc" /> }} pagination={false} rowKey="id" scroll={{ x: 1050 }} /></div>
+                      {renderDetailCards("work", workCards, "Chưa có lịch sử công việc")}
+                    </div>
                   </Card>
                 ),
               },
@@ -2313,8 +2407,11 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 key: "certificates",
                 label: <span><SafetyCertificateOutlined /> Chứng chỉ ({selectedExpert.certificates.length})</span>,
                 children: (
-                  <Card extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => openCertificateModal()} type="primary">Thêm chứng chỉ</Button> : null} title="Bằng cấp, chứng chỉ đánh giá viên và chứng chỉ chuyên môn">
-                    <Table columns={certificateColumns} dataSource={selectedExpert.certificates} locale={{ emptyText: <Empty description="Chưa có chứng chỉ chuyên gia" /> }} pagination={false} rowKey="id" scroll={{ x: 1050 }} />
+                  <Card className="expert-competency-tab-card" extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => openCertificateModal()} type="primary">Thêm chứng chỉ</Button> : null} title="Bằng cấp, chứng chỉ đánh giá viên và chứng chỉ chuyên môn">
+                    <div className="expert-detail-responsive">
+                      <div className="cmp-data-table--responsive"><Table columns={certificateColumns} dataSource={selectedExpert.certificates} locale={{ emptyText: <Empty description="Chưa có chứng chỉ chuyên gia" /> }} pagination={false} rowKey="id" scroll={{ x: 1050 }} /></div>
+                      {renderDetailCards("certificates", certificateCards, "Chưa có chứng chỉ chuyên gia")}
+                    </div>
                   </Card>
                 ),
               },
@@ -2336,8 +2433,11 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 key: "history",
                 label: <span><AuditOutlined /> Nhật ký đánh giá ({selectedExpert.audit_team_members.length})</span>,
                 children: (
-                  <Card title="Các cuộc đánh giá chuyên gia đã tham gia">
-                    <Table columns={historyColumns} dataSource={selectedExpert.audit_team_members} locale={{ emptyText: <Empty description="Chưa có lịch sử tham gia đoàn đánh giá" /> }} pagination={{ pageSize: 8 }} rowKey="id" scroll={{ x: 1200 }} />
+                  <Card className="expert-competency-tab-card" title="Các cuộc đánh giá chuyên gia đã tham gia">
+                    <div className="expert-detail-responsive">
+                      <div className="cmp-data-table--responsive"><Table columns={historyColumns} dataSource={selectedExpert.audit_team_members} locale={{ emptyText: <Empty description="Chưa có lịch sử tham gia đoàn đánh giá" /> }} pagination={{ pageSize: 8 }} rowKey="id" scroll={{ x: 1200 }} /></div>
+                      {renderDetailCards("history", historyCards, "Chưa có lịch sử tham gia đoàn đánh giá")}
+                    </div>
                   </Card>
                 ),
               },

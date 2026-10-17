@@ -7,7 +7,7 @@ const competency = (id, status = 'DRAFT') => ({ id, expert_id: 'e1', standard_co
   competency_role: 'AUDITOR', competency_level: 'QUALIFIED', scope_level: 'IAF', iaf_code: '14',
   effective_date: '2026-01-01', approval_status: status, evidence_summary: 'Chứng chỉ và kinh nghiệm', evidence_records: [], action_records: [] });
 
-async function fixture(page, { self = false, subject = 'other', duplicate = false } = {}) {
+async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false } = {}) {
   const session = { access_token: 'controlled-compact-fixture', user: { id: 'actor', username: 'fixture', full_name: 'Tài khoản kiểm thử', roles: [self ? 'AUDITOR' : 'ADMIN'] } };
   const rows = self ? ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED', 'SUSPENDED'].map((status, i) => ({ ...competency('c' + i, status), evidence_records: [{ id: 'ev' + i, title: 'Chứng chỉ ' + i, status: 'ACTIVE' }] }))
     : [{ ...competency('pending', 'PENDING_APPROVAL'), action_records: [{ action_type: 'SUBMIT', actor_id: 'actor' }] },
@@ -15,7 +15,9 @@ async function fixture(page, { self = false, subject = 'other', duplicate = fals
   const expert = { id: 'e1', full_name: 'Nguyễn Minh An', employee_code: 'CG-001', status: 'active', profile_status: 'APPROVED',
     account: { id: subject, username: 'expert', roles: ['AUDITOR'] }, programs: [], industry_codes: [], competencies: rows,
     summary: { approved_competencies: 1, pending_competencies: 1, audit_count: 2, certificate_count: 1 },
-    work_experiences: [], certificates: [], audit_team_members: [] };
+    work_experiences: withDetails ? [{ id: 'work-1', organization: 'Công ty Kiểm định An Bình', position: 'Chuyên gia đánh giá', start_date: '2020-01-01', industry_codes: 'IAF 14', responsibility: 'Đánh giá hệ thống chất lượng' }] : [],
+    certificates: withDetails ? [{ id: 'cert-1', certificate_name: 'Chứng chỉ trưởng đoàn', certificate_number: 'LA-001', issuing_organization: 'Tổ chức đào tạo', standard_code: 'ISO 9001:2015', issue_date: '2024-01-01', expiry_date: '2028-01-01', credential_url: 'https://example.test/certificate' }] : [],
+    audit_team_members: withDetails ? [{ id: 'audit-1', team_role: 'TEAM_LEADER', planned_start_date: '2026-02-01', planned_end_date: '2026-02-03', planned_mandays: 3, scopes: [{ iaf_code: '14', nace_code: '22.19' }], audit_team_appointments: { audit_plans: { id: 'plan-1', plan_code: 'PLAN-001', certification_projects: { project_code: 'PRJ-001', standard_name: 'ISO 9001:2015', certification_applications: { customers: { company_name: 'Khách hàng An Bình' } } } } } }] : [] };
   const requests = [];
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -153,5 +155,45 @@ test('mobile competency cards preserve scope, owner approval guard and review ac
   expect(cardActionBox).not.toBeNull();
   expect(cardActionBox.y).toBeGreaterThan(cardTitleBox.y + cardTitleBox.height - 1);
   await page.screenshot({ path: info.outputPath('expert-competencies-mobile.png') });
+  expect(h.errors).toEqual([]);
+});
+
+test('mobile expert profile shows work, certificate and audit details without wide tables', async ({ page }, info) => {
+  const h = await fixture(page, { withDetails: true });
+  await openAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  const mobileSections = page.getByRole('combobox', { name: 'Mục hồ sơ chuyên gia' });
+  await expect(page.locator('.expert-detail-tabs > .ant-tabs-nav')).toBeHidden();
+  await mobileSections.click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Kinh nghiệm công việc' }).click();
+  await expect(page.locator('.ant-select-dropdown')).toBeHidden();
+  let detail = page.getByRole('tabpanel', { name: /Kinh nghiệm công việc/ }).locator('.expert-detail-responsive');
+  await expect(detail.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(detail.locator('.cmp-responsive-card')).toHaveCount(1);
+  await expect(detail.locator('.cmp-responsive-card').getByText('Đánh giá hệ thống chất lượng')).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByRole('button', { name: 'Sửa kinh nghiệm' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-work-mobile.png') });
+
+  await mobileSections.click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Chứng chỉ (1)' }).click();
+  await expect(page.locator('.ant-select-dropdown')).toBeHidden();
+  detail = page.getByRole('tabpanel', { name: /Chứng chỉ \(/ }).locator('.expert-detail-responsive');
+  await expect(detail.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(detail.locator('.cmp-responsive-card').getByText('LA-001')).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByRole('button', { name: 'Sửa chứng chỉ' })).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByRole('link', { name: 'Mở' })).toHaveAttribute('href', 'https://example.test/certificate');
+  await page.screenshot({ path: info.outputPath('expert-certificate-mobile.png') });
+
+  await mobileSections.click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Nhật ký đánh giá' }).click();
+  await expect(page.locator('.ant-select-dropdown')).toBeHidden();
+  detail = page.getByRole('tabpanel', { name: /Nhật ký đánh giá/ }).locator('.expert-detail-responsive');
+  await expect(detail.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(detail.locator('.cmp-responsive-card').getByText('PLAN-001 · PRJ-001')).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByText('Khách hàng An Bình')).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByText('Trưởng đoàn đánh giá')).toBeVisible();
+  await expect(detail.locator('.cmp-responsive-card').getByText('IAF 14 · NACE 22.19')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-history-mobile.png') });
   expect(h.errors).toEqual([]);
 });
