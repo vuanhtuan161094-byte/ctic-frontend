@@ -176,7 +176,7 @@ export function CustomerCertificatesScreen() {
               </div>
               {certificates.length > 10 ? (
                 <Pagination
-                  className="portal-mobile-pagination"
+                  className="compact-mobile-pagination"
                   current={visibleCertificatePage}
                   onChange={setCertificatePage}
                   pageSize={10}

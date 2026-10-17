@@ -835,7 +835,7 @@ export function ControlledDocumentPanel() {
               })}
             </div>
           ) : <Empty description={kind === "INTERNAL" ? "Chưa có tài liệu nội bộ" : "Chưa có tài liệu bên ngoài"} />}
-          {rows.length > 8 ? <Pagination className="portal-mobile-pagination" current={currentPage} onChange={setLibraryPage} pageSize={8} responsive showSizeChanger={false} showTotal={(total) => `${total} tài liệu`} total={rows.length} /> : null}
+          {rows.length > 8 ? <Pagination className="compact-mobile-pagination" current={currentPage} onChange={setLibraryPage} pageSize={8} responsive showSizeChanger={false} showTotal={(total) => `${total} tài liệu`} total={rows.length} /> : null}
         </>
       ) : (
         <Table

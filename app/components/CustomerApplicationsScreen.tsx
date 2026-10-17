@@ -458,7 +458,7 @@ export function CustomerApplicationsScreen() {
               </div>
               {applications.length > 10 ? (
                 <Pagination
-                  className="portal-mobile-pagination"
+                  className="compact-mobile-pagination"
                   current={visibleApplicationPage}
                   onChange={setApplicationPage}
                   pageSize={10}
