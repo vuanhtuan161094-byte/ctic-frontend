@@ -1976,6 +1976,20 @@ input { font: inherit; }
   gap: 4px;
 }
 
+.resource-expert-link {
+  background: transparent;
+  border: 0;
+  color: #1265c4;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  text-align: left;
+}
+
+.resource-expert-link:hover { text-decoration: underline; }
+.resource-expert-link:focus-visible { border-radius: 2px; outline: 2px solid #1265c4; outline-offset: 2px; }
+
 .schedule-code-cell strong {
   color: #064c9e;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -2164,7 +2178,8 @@ input { font: inherit; }
 }
 .management-kpi-grid .ant-card { border-color: var(--ctic-border); }
 .management-kpi-grid .ant-card-body { display: grid; gap: 8px; }
-.management-mobile-pagination { display: none; }
+.management-mobile-pagination,
+.schedule-mobile-pagination { display: none; }
 .management-detail-grid,
 .commercial-currency-grid {
   display: grid;
@@ -2178,14 +2193,16 @@ input { font: inherit; }
 }
 
 @media (max-width: 768px) {
-  .management-mobile-pagination {
+  .management-mobile-pagination,
+  .schedule-mobile-pagination {
     display: flex;
     justify-content: flex-end;
     margin-top: 12px;
     overflow-x: auto;
     padding-bottom: 2px;
   }
-  .management-mobile-pagination .ant-pagination { white-space: nowrap; }
+  .management-mobile-pagination .ant-pagination,
+  .schedule-mobile-pagination .ant-pagination { white-space: nowrap; }
 }
 
 .reports-screen {

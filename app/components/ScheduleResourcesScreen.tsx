@@ -37,6 +37,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
   Segmented,
@@ -59,6 +60,7 @@ import { api, getErrorMessage } from "../lib/api";
 import { openDocumentFile } from "../lib/document-file-client";
 import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import { IntegratedMandayAllocationPanel } from "./IntegratedMandayAllocationPanel";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 dayjs.locale("vi");
 
@@ -896,6 +898,7 @@ export function ScheduleResourcesScreen({
   const [customerFilter, setCustomerFilter] = useState("all");
   const [auditTypeFilter, setAuditTypeFilter] = useState("all");
   const [workspaceTab, setWorkspaceTab] = useState("calendar");
+  const [expertSchedulePage, setExpertSchedulePage] = useState(1);
   const [calendarMonth, setCalendarMonth] = useState(dayjs().startOf("month"));
   const [calendarMode, setCalendarMode] = useState<"month" | "year">("month");
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
@@ -1185,6 +1188,39 @@ export function ScheduleResourcesScreen({
       };
     });
   }, [activeExperts, appointmentsQuery.data, calendarMonth, plans]);
+
+  const expertSchedulePageSize = 12;
+  const expertSchedulePageCount = Math.max(1, Math.ceil(expertScheduleRows.length / expertSchedulePageSize));
+  const currentExpertSchedulePage = Math.min(expertSchedulePage, expertSchedulePageCount);
+  const visibleExpertScheduleRows = expertScheduleRows.slice(
+    (currentExpertSchedulePage - 1) * expertSchedulePageSize,
+    currentExpertSchedulePage * expertSchedulePageSize,
+  );
+  const openExpertCalendar = (expertId: string) => {
+    setSelectedExpertId(expertId);
+    setWorkspaceTab("experts");
+  };
+  const expertScheduleCards: ResponsiveCardItem[] = visibleExpertScheduleRows.map((row) => ({
+    key: row.expert.id,
+    title: (
+      <button
+        aria-label={`Mở lịch của ${row.expert.full_name ?? "chuyên gia"}`}
+        className="resource-expert-link"
+        onClick={() => openExpertCalendar(row.expert.id)}
+        type="button"
+      >
+        {row.expert.full_name ?? "Chưa cập nhật tên"}
+      </button>
+    ),
+    fields: [
+      { key: "contact", label: "Liên hệ", value: row.expert.email ?? row.expert.phone ?? "Chưa có thông tin liên hệ" },
+      { key: "mandays", label: "MD đã phân", value: formatMandays(row.allocatedMandays) },
+      { key: "audits", label: "Số cuộc", value: row.auditCount },
+      { key: "days", label: "Ngày bận", value: row.occupiedDays },
+      { key: "conflicts", label: "Trùng lịch", value: <Tag color={row.conflicts ? "red" : "green"}>{row.conflicts}</Tag> },
+      { key: "utilization", label: "Mức sử dụng", value: `${row.utilization}%` },
+    ],
+  }));
 
   const selectedExpertSchedule = expertScheduleRows.find((row) => row.expert.id === selectedExpertId) ?? null;
   const selectedExpertPlanRoles = useMemo(() => new Map(
@@ -2400,32 +2436,50 @@ export function ScheduleResourcesScreen({
               label: "Tải nguồn lực",
               children: (
                 <div className="schedule-workspace-panel">
-                  <Table
-                    columns={[
-                      {
-                        key: "expert",
-                        title: "Chuyên gia",
-                        render: (_: unknown, row: (typeof expertScheduleRows)[number]) => (
-                          <div className="schedule-project-cell">
-                            <button className="resource-expert-link" onClick={() => { setSelectedExpertId(row.expert.id); setWorkspaceTab("experts"); }} type="button">
-                              {row.expert.full_name ?? "Chưa cập nhật tên"}
-                            </button>
-                            <span>{row.expert.email ?? row.expert.phone ?? "Chưa có thông tin liên hệ"}</span>
-                          </div>
-                        ),
-                      },
-                      { dataIndex: "allocatedMandays", key: "mandays", title: "MD đã phân", width: 120, render: (value: number) => formatMandays(value) },
-                      { dataIndex: "auditCount", key: "audits", title: "Số cuộc", width: 100 },
-                      { dataIndex: "occupiedDays", key: "days", title: "Ngày bận", width: 100 },
-                      { dataIndex: "conflicts", key: "conflicts", title: "Trùng lịch", width: 110, render: (value: number) => <Tag color={value ? "red" : "green"}>{value}</Tag> },
-                      { dataIndex: "utilization", key: "utilization", title: "Mức sử dụng", width: 130, render: (value: number) => `${value}%` },
-                    ]}
-                    dataSource={expertScheduleRows}
-                    locale={{ emptyText: <Empty description="Chưa có dữ liệu chuyên gia" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-                    pagination={{ pageSize: 12, showSizeChanger: false }}
-                    rowKey={(row) => row.expert.id}
-                    size="small"
+                  <div className="cmp-data-table--responsive">
+                    <Table
+                      columns={[
+                        {
+                          key: "expert",
+                          title: "Chuyên gia",
+                          render: (_: unknown, row: (typeof expertScheduleRows)[number]) => (
+                            <div className="schedule-project-cell">
+                              <button className="resource-expert-link" onClick={() => openExpertCalendar(row.expert.id)} type="button">
+                                {row.expert.full_name ?? "Chưa cập nhật tên"}
+                              </button>
+                              <span>{row.expert.email ?? row.expert.phone ?? "Chưa có thông tin liên hệ"}</span>
+                            </div>
+                          ),
+                        },
+                        { dataIndex: "allocatedMandays", key: "mandays", title: "MD đã phân", width: 120, render: (value: number) => formatMandays(value) },
+                        { dataIndex: "auditCount", key: "audits", title: "Số cuộc", width: 100 },
+                        { dataIndex: "occupiedDays", key: "days", title: "Ngày bận", width: 100 },
+                        { dataIndex: "conflicts", key: "conflicts", title: "Trùng lịch", width: 110, render: (value: number) => <Tag color={value ? "red" : "green"}>{value}</Tag> },
+                        { dataIndex: "utilization", key: "utilization", title: "Mức sử dụng", width: 130, render: (value: number) => `${value}%` },
+                      ]}
+                      dataSource={expertScheduleRows}
+                      locale={{ emptyText: <Empty description="Chưa có dữ liệu chuyên gia" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                      onChange={(pagination) => setExpertSchedulePage(pagination.current ?? 1)}
+                      pagination={{ current: currentExpertSchedulePage, pageSize: expertSchedulePageSize, showSizeChanger: false }}
+                      rowKey={(row) => row.expert.id}
+                      size="small"
+                    />
+                  </div>
+                  <ResponsiveCardList
+                    empty={<Empty description="Chưa có dữ liệu chuyên gia" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                    items={expertScheduleCards}
                   />
+                  {expertScheduleRows.length > expertSchedulePageSize ? (
+                    <div className="schedule-mobile-pagination">
+                      <Pagination
+                        current={currentExpertSchedulePage}
+                        onChange={setExpertSchedulePage}
+                        pageSize={expertSchedulePageSize}
+                        showSizeChanger={false}
+                        total={expertScheduleRows.length}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ),
             },
