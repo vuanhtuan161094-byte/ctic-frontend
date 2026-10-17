@@ -8272,6 +8272,121 @@ input { font: inherit; }
   margin: 10px 0 0 !important;
 }
 
+.document-library-mobile-list {
+  display: grid;
+  gap: 8px;
+}
+
+.document-library-mobile-card {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.document-library-mobile-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.document-library-mobile-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.document-library-mobile-heading strong {
+  color: var(--cmp-text-primary);
+  font-size: 12px;
+}
+
+.document-library-mobile-heading span {
+  color: var(--cmp-text-primary);
+  font-size: 13px;
+  font-weight: var(--cmp-font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.document-library-mobile-heading small,
+.document-library-mobile-meta,
+.document-library-mobile-file > .ant-typography,
+.document-library-mobile-version small {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.document-library-mobile-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.document-library-mobile-meta strong {
+  color: var(--cmp-text-primary);
+  font-weight: var(--cmp-font-weight-medium);
+}
+
+.document-library-mobile-file,
+.document-library-mobile-actions.ant-space,
+.document-library-mobile-version-actions.ant-space {
+  border-top: 1px solid var(--cmp-border-default);
+  padding-top: 8px;
+  width: 100%;
+}
+
+.document-library-mobile-actions.ant-space,
+.document-library-mobile-version-actions.ant-space {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+}
+
+.document-library-mobile-actions > .ant-space-item,
+.document-library-mobile-version-actions > .ant-space-item {
+  min-width: 0;
+}
+
+.document-library-mobile-actions .ant-btn,
+.document-library-mobile-version-actions .ant-btn,
+.document-library-mobile-file .ant-btn {
+  height: auto;
+  min-height: 40px;
+  white-space: normal;
+}
+
+.document-library-mobile-actions .ant-btn,
+.document-library-mobile-version-actions .ant-btn {
+  width: 100%;
+}
+
+.document-library-mobile-history {
+  border-top: 1px solid var(--cmp-border-default);
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.document-library-mobile-version {
+  background: var(--cmp-surface-subtle);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.document-library-mobile-version > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
 @media (max-width: 760px) {
   .projects-screen .project-list-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));

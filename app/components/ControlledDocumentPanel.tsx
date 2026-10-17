@@ -27,8 +27,10 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   Modal,
+  Pagination,
   Select,
   Segmented,
   Space,
@@ -248,6 +250,8 @@ function documentTypeLabel(value: string) {
 
 export function ControlledDocumentPanel() {
   const queryClient = useQueryClient();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactLibraryList = !breakpoints.lg;
   const sessionUser = useMemo(() => currentSessionUser(), []);
   const canManage = sessionUser.roles.some((role) => ["ADMIN", "STAFF"].includes(role));
   const canImportBaseline = sessionUser.roles.includes("ADMIN");
@@ -264,6 +268,7 @@ export function ControlledDocumentPanel() {
   const [templateCreateFile, setTemplateCreateFile] = useState<File | null>(null);
   const [templateRevisionFile, setTemplateRevisionFile] = useState<File | null>(null);
   const [expandedLibraryKeys, setExpandedLibraryKeys] = useState<React.Key[]>([]);
+  const [libraryPage, setLibraryPage] = useState(1);
   const [expandedTemplateKeys, setExpandedTemplateKeys] = useState<React.Key[]>([]);
   const [withdrawTarget, setWithdrawTarget] = useState<{ kind: "LIBRARY" | "TEMPLATE"; id: string; label: string } | null>(null);
   const [fieldDrawerOpen, setFieldDrawerOpen] = useState(false);
@@ -740,6 +745,24 @@ export function ControlledDocumentPanel() {
 
   const renderLibraryTable = (kind: "INTERNAL" | "EXTERNAL") => {
     const rows = (libraryQuery.data ?? []).filter((row) => row.library_kind === kind);
+    const pageCount = Math.max(1, Math.ceil(rows.length / 8));
+    const currentPage = Math.min(libraryPage, pageCount);
+    const visibleRows = rows.slice((currentPage - 1) * 8, currentPage * 8);
+    const renderSeriesActions = (row: LibrarySeries) => {
+      const latest = row.versions[0];
+      const effective = row.versions.find((item) => item.status === "EFFECTIVE");
+      const canCreateNext = !latest || ["EFFECTIVE", "SUPERSEDED", "WITHDRAWN"].includes(latest.status);
+      const expanded = expandedLibraryKeys.includes(row.id);
+      return <Space className={useCompactLibraryList ? "document-library-mobile-actions" : undefined} wrap>
+        <Button aria-expanded={expanded} icon={<HistoryOutlined />} onClick={() => setExpandedLibraryKeys((keys) => expanded ? keys.filter((key) => key !== row.id) : [...keys, row.id])} size="small">{expanded ? "Tutup lịch sử" : `Lịch sử (${row.versions.length})`}</Button>
+        {canManage && canCreateNext ? <Button icon={<PlusOutlined />} onClick={() => {
+          setLibraryRevisionSeries(row);
+          setLibraryRevisionFile(null);
+          libraryRevisionForm.setFieldsValue({ change_note: "Cập nhật nội dung tài liệu" });
+        }} size="small">Cập nhật</Button> : null}
+        {canManage && effective ? <Button danger onClick={() => setWithdrawTarget({ kind: "LIBRARY", id: effective.id, label: `${row.document_code} · ${effective.revision_label}` })} size="small">Hủy bỏ</Button> : null}
+      </Space>;
+    };
     return <Space direction="vertical" size="middle" style={{ width: "100%" }}>
       <Alert
         message={kind === "INTERNAL" ? "Tài liệu nội bộ" : "Tài liệu bên ngoài"}
@@ -765,35 +788,86 @@ export function ControlledDocumentPanel() {
           libraryForm.setFieldsValue({ access_scope: kind === "EXTERNAL" ? "RESTRICTED" : "INTERNAL", revision_label: kind === "INTERNAL" ? "Rev.01" : undefined });
         }} type={kind === "EXTERNAL" ? "primary" : "default"}>{kind === "INTERNAL" ? "Soạn tài liệu mới" : "Thêm tài liệu bên ngoài"}</Button>
       </Space> : null}
-      <Table
-        columns={libraryColumns}
-        dataSource={rows}
-        loading={libraryQuery.isLoading}
-        locale={{ emptyText: <Empty description={kind === "INTERNAL" ? "Chưa có tài liệu nội bộ" : "Chưa có tài liệu bên ngoài"} /> }}
-        rowKey="id"
-        pagination={{ pageSize: 8, showSizeChanger: false }}
-        expandable={{
-          expandedRowKeys: expandedLibraryKeys,
-          showExpandColumn: false,
-          onExpandedRowsChange: (keys) => setExpandedLibraryKeys([...keys]),
-          expandedRowRender: (series) => <Table
-            columns={[
-              { title: "Phiên bản", key: "rev", width: 190, render: (_: unknown, version: LibraryVersion) => <Space>{statusTag(version.status)}<Text strong>{version.revision_label}</Text></Space> },
-              { title: "Ngày", key: "dates", width: 220, render: (_: unknown, version: LibraryVersion) => <Text type="secondary">Ban hành {formatDate(version.issue_date)} · Hiệu lực {formatDate(version.effective_date)}</Text> },
-              { title: "Tệp", key: "file", render: (_: unknown, version: LibraryVersion) => version.file ? <Space wrap>
-                <Button icon={<EyeOutlined />} onClick={() => openFile(version.file)} size="small">Xem</Button>
-                <Button icon={<DownloadOutlined />} onClick={() => downloadFile(version.file)} size="small">Tải</Button>
-                <Text type="secondary">{version.file.original_name} · {formatFileSize(version.file.file_size)}</Text>
-              </Space> : <Tag>Chưa có tệp</Tag> },
-              { title: "Việc cần làm", key: "actions", width: 330, render: (_: unknown, version: LibraryVersion) => <Space wrap>{libraryVersionActions(series, version)}</Space> },
-            ]}
-            dataSource={series.versions}
-            pagination={false}
-            rowKey="id"
-            size="small"
-          />,
-        }}
-      />
+      {useCompactLibraryList ? (
+        <>
+          {visibleRows.length ? (
+            <div aria-label={kind === "INTERNAL" ? "Danh sách tài liệu nội bộ" : "Danh sách tài liệu bên ngoài"} className="document-library-mobile-list">
+              {visibleRows.map((row) => {
+                const effective = row.versions.find((item) => item.status === "EFFECTIVE");
+                const latest = row.versions[0];
+                const current = effective ?? latest;
+                const expanded = expandedLibraryKeys.includes(row.id);
+                return (
+                  <article className="document-library-mobile-card" key={row.id}>
+                    <div className="document-library-mobile-heading">
+                      <div><strong>{row.document_code}</strong><span>{row.title}</span><small>{row.category || "Chưa phân loại"}{row.issuing_body ? ` · ${row.issuing_body}` : ""}</small></div>
+                      {row.access_scope === "RESTRICTED" ? <Tag color="orange">Hạn chế</Tag> : null}
+                    </div>
+                    <div className="document-library-mobile-meta">
+                      <span><strong>Phiên bản:</strong> {current ? `${current.revision_label} · ${statusLabels[current.status] ?? current.status}` : "Chưa có phiên bản"}</span>
+                      {effective && latest?.id !== effective.id ? <span><strong>Bản mới đang xử lý:</strong> {latest.revision_label}</span> : null}
+                    </div>
+                    {current?.file ? (
+                      <Space className="document-library-mobile-file" wrap>
+                        <Button icon={<EyeOutlined />} onClick={() => openFile(current.file)} size="small">Xem tệp</Button>
+                        <Button icon={<DownloadOutlined />} onClick={() => downloadFile(current.file)} size="small">Tải tệp</Button>
+                        <Text type="secondary">{current.file.original_name} · {formatFileSize(current.file.file_size)}</Text>
+                      </Space>
+                    ) : <Tag>Chưa có tệp</Tag>}
+                    {renderSeriesActions(row)}
+                    {expanded ? (
+                      <div className="document-library-mobile-history">
+                        {row.versions.map((version) => (
+                          <section className="document-library-mobile-version" key={version.id}>
+                            <div><Space wrap>{statusTag(version.status)}<Text strong>{version.revision_label}</Text></Space><small>Ban hành {formatDate(version.issue_date)} · Hiệu lực {formatDate(version.effective_date)}</small></div>
+                            {version.file ? <Space wrap>
+                              <Button icon={<EyeOutlined />} onClick={() => openFile(version.file)} size="small">Xem</Button>
+                              <Button icon={<DownloadOutlined />} onClick={() => downloadFile(version.file)} size="small">Tải</Button>
+                              <Text type="secondary">{version.file.original_name} · {formatFileSize(version.file.file_size)}</Text>
+                            </Space> : <Tag>Chưa có tệp</Tag>}
+                            <Space className="document-library-mobile-version-actions" wrap>{libraryVersionActions(row, version)}</Space>
+                          </section>
+                        ))}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : <Empty description={kind === "INTERNAL" ? "Chưa có tài liệu nội bộ" : "Chưa có tài liệu bên ngoài"} />}
+          {rows.length > 8 ? <Pagination className="portal-mobile-pagination" current={currentPage} onChange={setLibraryPage} pageSize={8} responsive showSizeChanger={false} showTotal={(total) => `${total} tài liệu`} total={rows.length} /> : null}
+        </>
+      ) : (
+        <Table
+          columns={libraryColumns}
+          dataSource={rows}
+          loading={libraryQuery.isLoading}
+          locale={{ emptyText: <Empty description={kind === "INTERNAL" ? "Chưa có tài liệu nội bộ" : "Chưa có tài liệu bên ngoài"} /> }}
+          rowKey="id"
+          pagination={{ pageSize: 8, showSizeChanger: false }}
+          expandable={{
+            expandedRowKeys: expandedLibraryKeys,
+            showExpandColumn: false,
+            onExpandedRowsChange: (keys) => setExpandedLibraryKeys([...keys]),
+            expandedRowRender: (series) => <Table
+              columns={[
+                { title: "Phiên bản", key: "rev", width: 190, render: (_: unknown, version: LibraryVersion) => <Space>{statusTag(version.status)}<Text strong>{version.revision_label}</Text></Space> },
+                { title: "Ngày", key: "dates", width: 220, render: (_: unknown, version: LibraryVersion) => <Text type="secondary">Ban hành {formatDate(version.issue_date)} · Hiệu lực {formatDate(version.effective_date)}</Text> },
+                { title: "Tệp", key: "file", render: (_: unknown, version: LibraryVersion) => version.file ? <Space wrap>
+                  <Button icon={<EyeOutlined />} onClick={() => openFile(version.file)} size="small">Xem</Button>
+                  <Button icon={<DownloadOutlined />} onClick={() => downloadFile(version.file)} size="small">Tải</Button>
+                  <Text type="secondary">{version.file.original_name} · {formatFileSize(version.file.file_size)}</Text>
+                </Space> : <Tag>Chưa có tệp</Tag> },
+                { title: "Việc cần làm", key: "actions", width: 330, render: (_: unknown, version: LibraryVersion) => <Space wrap>{libraryVersionActions(series, version)}</Space> },
+              ]}
+              dataSource={series.versions}
+              pagination={false}
+              rowKey="id"
+              size="small"
+            />,
+          }}
+        />
+      )}
     </Space>;
   };
 
