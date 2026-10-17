@@ -956,7 +956,24 @@ input { font: inherit; }
 
 .notifications-screen {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
+  min-width: 0;
+}
+
+.notification-list-card {
+  min-width: 0;
+  width: 100%;
+}
+
+.notification-screen-filters {
+  min-width: 0;
+  width: 100%;
+}
+
+.notification-screen-filters .ant-segmented {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .notification-list-card > .ant-card-body {
@@ -1872,18 +1889,31 @@ input { font: inherit; }
 .schedule-resources-screen {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .resource-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .resource-summary-grid .ant-card {
   border-color: #dce5f0;
-  min-height: 132px;
+  min-height: 96px;
+}
+
+.resource-summary-grid .ant-card-body {
+  padding: 12px 14px;
+}
+
+.resource-summary-grid .ant-statistic-title {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.resource-summary-grid .ant-statistic-content {
+  font-size: 24px;
 }
 
 .resource-summary-grid .ant-statistic-content-prefix {
@@ -2057,7 +2087,10 @@ input { font: inherit; }
 }
 
 @media (max-width: 720px) {
-  .resource-summary-grid,
+  .resource-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .schedule-toolbar {
     grid-template-columns: 1fr;
   }
@@ -7677,4 +7710,79 @@ input { font: inherit; }
 .application-content .ant-table-wrapper .ant-table-tbody > tr > td {
   font-size: 13px;
   line-height: 1.45;
+}
+
+/* Shared title-and-actions row for operational screens. */
+.application-content .screen-heading-row:not(.my-tasks-heading) {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.application-content .screen-heading-row:not(.my-tasks-heading) > div:first-child {
+  display: grid;
+  flex: 1 1 260px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.application-content .screen-heading-row:not(.my-tasks-heading) h1.ant-typography,
+.application-content .screen-heading-row:not(.my-tasks-heading) h2.ant-typography,
+.application-content .screen-heading-row:not(.my-tasks-heading) h3.ant-typography {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.application-content .screen-heading-row:not(.my-tasks-heading) .screen-eyebrow,
+.application-content .screen-heading-row:not(.my-tasks-heading) .page-eyebrow {
+  font-size: 10.5px;
+  letter-spacing: .075em;
+  line-height: 1.2;
+}
+
+.application-content .screen-heading-row:not(.my-tasks-heading) .ant-typography-secondary {
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.application-content .screen-heading-row:not(.my-tasks-heading) > .ant-space {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .application-content .resource-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .application-content .screen-heading-row:not(.my-tasks-heading) {
+    align-items: flex-start;
+  }
+
+  .application-content .screen-heading-row:not(.my-tasks-heading) > .ant-space {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
+  .application-content .expert-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .application-content .resource-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .application-content .expert-kpi-grid {
+    grid-template-columns: 1fr;
+  }
 }
