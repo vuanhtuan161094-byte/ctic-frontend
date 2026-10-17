@@ -8263,7 +8263,7 @@ input { font: inherit; }
   width: 100%;
 }
 
-.portal-mobile-pagination {
+.compact-mobile-pagination {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -8385,6 +8385,89 @@ input { font: inherit; }
 .document-library-mobile-version > div:first-child {
   display: grid;
   gap: 4px;
+}
+
+.expert-mobile-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.expert-mobile-card {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-sm);
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.expert-mobile-card__heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.expert-mobile-card__identity {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.expert-mobile-card__identity strong,
+.expert-mobile-card__competencies > strong {
+  color: var(--cmp-text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.expert-mobile-card__identity small,
+.expert-mobile-card__history {
+  color: var(--cmp-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.expert-mobile-card__status {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.expert-mobile-card__status .ant-tag,
+.expert-mobile-card__competencies .ant-tag {
+  margin: 0;
+}
+
+.expert-mobile-card__competencies {
+  border-top: 1px solid var(--cmp-border-default);
+  display: grid;
+  gap: 5px;
+  padding-top: 8px;
+}
+
+.expert-mobile-card__competencies .ant-space {
+  min-width: 0;
+}
+
+.expert-mobile-card__history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.expert-mobile-card__history small {
+  flex-basis: 100%;
+}
+
+.expert-mobile-card > .ant-btn {
+  height: auto;
+  min-height: 40px;
 }
 
 @media (max-width: 760px) {

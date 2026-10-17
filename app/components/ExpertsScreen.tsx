@@ -31,9 +31,11 @@ import {
   Drawer,
   Empty,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
   Skeleton,
@@ -948,8 +950,11 @@ export function ExpertsScreen({ roles, selfService = false, currentUserId }: Exp
 function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactExpertList = !breakpoints.lg;
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
+  const [expertPage, setExpertPage] = useState(1);
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [profileMode, setProfileMode] = useState<"create" | "edit">("create");
@@ -1963,6 +1968,10 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   ], []);
 
   const selectedCompetency = competencyGovernanceQuery.data;
+  const experts = expertsQuery.data ?? [];
+  const expertPageCount = Math.max(1, Math.ceil(experts.length / 10));
+  const visibleExpertPage = Math.min(expertPage, expertPageCount);
+  const visibleExperts = experts.slice((visibleExpertPage - 1) * 10, visibleExpertPage * 10);
   const accountOptions = (accountOptionsQuery.data ?? []).filter(
     (account) => account.available || account.id === selectedExpert?.user_id,
   ).map((account) => ({
@@ -1999,23 +2008,73 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
           <Text>Thiếu bằng chứng năng lực: {overviewQuery.data?.competencies.evidence_gaps ?? 0}</Text>
         </Space></details>
         <div className="expert-filter-bar">
-          <Input allowClear onChange={(event) => setSearch(event.target.value)} placeholder="Tìm tên, mã chuyên gia, tài khoản, đơn vị..." prefix={<SearchOutlined />} value={search} />
-          <Select onChange={setStatus} options={[
+          <Input allowClear onChange={(event) => { setSearch(event.target.value); setExpertPage(1); }} placeholder="Tìm tên, mã chuyên gia, tài khoản, đơn vị..." prefix={<SearchOutlined />} value={search} />
+          <Select onChange={(value) => { setStatus(value); setExpertPage(1); }} options={[
             { value: "all", label: "Tất cả trạng thái" },
             { value: "active", label: "Đang hoạt động" },
             { value: "inactive", label: "Ngừng hoạt động" },
           ]} value={status} />
         </div>
-        <Table
-          columns={expertColumns}
-          size="small"
-          dataSource={expertsQuery.data ?? []}
-          loading={expertsQuery.isLoading}
-          locale={{ emptyText: <Empty description="Chưa có hồ sơ chuyên gia" /> }}
-          pagination={{ pageSize: 10, showTotal: (total) => `${total} chuyên gia` }}
-          rowKey="id"
-          scroll={{ x: 1180 }}
-        />
+        {useCompactExpertList ? (
+          <>
+            {expertsQuery.isLoading ? <Skeleton active paragraph={{ rows: 6 }} /> : visibleExperts.length ? (
+              <div aria-label="Danh sách chuyên gia" className="expert-mobile-list">
+                {visibleExperts.map((expert) => (
+                  <article className="expert-mobile-card" key={expert.id}>
+                    <div className="expert-mobile-card__heading">
+                      <Avatar icon={<UserOutlined />} />
+                      <div className="expert-mobile-card__identity">
+                        <strong>{expert.full_name}</strong>
+                        <small>{expert.employee_code ? `${expert.employee_code} · ` : ""}{expert.user_account?.username || "Chưa liên kết tài khoản"}</small>
+                        <small>{expert.email || expert.phone || "Chưa có thông tin liên hệ"}</small>
+                      </div>
+                    </div>
+                    <div className="expert-mobile-card__status">
+                      {profileStatusTag(expert.profile_status)}
+                      {activityStatusTag(expert.status)}
+                    </div>
+                    <div className="expert-mobile-card__competencies">
+                      <strong>{expert.competency_summary?.programs ?? 0} chương trình · {expert.competency_summary?.approved ?? 0} phạm vi đã duyệt</strong>
+                      <Space size={[4, 4]} wrap>
+                        {(expert.competency_summary?.industry_codes ?? []).slice(0, 5).map((code) => <Tag key={code}>{code}</Tag>)}
+                        {(expert.competency_summary?.industry_codes?.length ?? 0) > 5 ? <Tag>+{(expert.competency_summary?.industry_codes?.length ?? 0) - 5}</Tag> : null}
+                      </Space>
+                    </div>
+                    <div className="expert-mobile-card__history">
+                      <span>{expert.audit_summary?.total ?? 0} cuộc đánh giá</span>
+                      <span>{expert.certificate_summary?.total ?? 0} chứng chỉ</span>
+                      <small>Gần nhất: {formatDate(expert.audit_summary?.last_audit_date)}</small>
+                    </div>
+                    <Button block onClick={() => setSelectedExpertId(expert.id)} size="small">Mở hồ sơ chuyên gia</Button>
+                  </article>
+                ))}
+              </div>
+            ) : <Empty description="Chưa có hồ sơ chuyên gia" />}
+            {experts.length > 10 ? (
+              <Pagination
+                className="compact-mobile-pagination"
+                current={visibleExpertPage}
+                onChange={setExpertPage}
+                pageSize={10}
+                responsive
+                showSizeChanger={false}
+                showTotal={(total) => `${total} chuyên gia`}
+                total={experts.length}
+              />
+            ) : null}
+          </>
+        ) : (
+          <Table
+            columns={expertColumns}
+            size="small"
+            dataSource={experts}
+            loading={expertsQuery.isLoading}
+            locale={{ emptyText: <Empty description="Chưa có hồ sơ chuyên gia" /> }}
+            pagination={{ pageSize: 10, showTotal: (total) => `${total} chuyên gia` }}
+            rowKey="id"
+            scroll={{ x: 1180 }}
+          />
+        )}
       </Card>
 
       <Drawer
