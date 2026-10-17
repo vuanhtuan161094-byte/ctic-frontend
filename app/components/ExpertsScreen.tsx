@@ -1039,7 +1039,9 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [editingCertificateId, setEditingCertificateId] = useState<string | null>(null);
   const [recommendationModalOpen, setRecommendationModalOpen] = useState(false);
   const [recommendationPlanId, setRecommendationPlanId] = useState<string>();
+  const [recommendationPlanOpen, setRecommendationPlanOpen] = useState(false);
   const [recommendationRole, setRecommendationRole] = useState("TEAM_LEADER");
+  const [recommendationCardPagination, setRecommendationCardPagination] = useState<{ planId?: string; role: string; page: number }>({ role: "TEAM_LEADER", page: 1 });
   const [profileForm] = Form.useForm<ExpertFormValues>();
   const [competencyForm] = Form.useForm<CompetencyFormValues>();
   const [competencyEvidenceForm] = Form.useForm<CompetencyEvidenceFormValues>();
@@ -2142,6 +2144,29 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
     },
   ], []);
 
+  const recommendationRows = recommendationQuery.data?.recommendations ?? [];
+  const recommendationPageSize = 8;
+  const recommendationPageCount = Math.max(1, Math.ceil(recommendationRows.length / recommendationPageSize));
+  const selectedRecommendationPage = recommendationCardPagination.planId === recommendationPlanId && recommendationCardPagination.role === recommendationRole
+    ? recommendationCardPagination.page
+    : 1;
+  const recommendationCardPage = Math.min(selectedRecommendationPage, recommendationPageCount);
+  const recommendationCards: ResponsiveCardItem[] = recommendationRows
+    .slice((recommendationCardPage - 1) * recommendationPageSize, recommendationCardPage * recommendationPageSize)
+    .map((record) => ({
+      key: record.expert.id,
+      title: record.expert.full_name,
+      status: <Tag color={matchColors[record.match_status] ?? "default"}>{matchLabels[record.match_status] ?? record.match_status}</Tag>,
+      fields: [
+        { key: "identity", label: "Mã / tài khoản", value: `${record.expert.employee_code || "—"} · ${record.expert.account?.username || "Chưa có tài khoản"}` },
+        { key: "email", label: "Email", value: record.expert.email || "—" },
+        { key: "reasons", label: "Kết quả", value: record.eligibility_reasons.length ? <Space orientation="vertical" size={4}>{record.eligibility_reasons.map((reason) => <span key={`${reason.code}-${reason.message}`}><Tag color={reason.severity === "BLOCK" ? "red" : "gold"}>{reason.code}</Tag>{reason.message}</span>)}</Space> : record.reasons.join("; ") || "—" },
+        { key: "program", label: "Chương trình / vai trò", value: record.competencies.length ? <Space size={[4, 4]} wrap>{record.competencies.map((item) => <Tag key={item.id}>{item.standard_code} · {roleLabels[normalize(item.competency_role)] ?? item.competency_role}</Tag>)}</Space> : "—" },
+        { key: "coverage", label: `Phạm vi ${record.coverage.covered}/${record.coverage.total}`, value: record.coverage.scopes.length ? <Space size={[4, 4]} wrap>{record.coverage.scopes.map((scope) => <Tag color={scope.qualified ? "green" : "red"} key={`${scope.iaf_code}-${scope.nace_code}`}>IAF {scope.iaf_code} · NACE {scope.nace_code}</Tag>)}</Space> : "—" },
+        { key: "resource", label: "Nguồn lực", value: <Space orientation="vertical" size={2}><Tag color={record.eligible ? "green" : "red"}>{record.eligible ? "Có thể phân công" : "Không thể phân công"}</Tag><span>{record.workload.assigned_mandays} MD · {record.workload.engagement_count} engagement</span>{record.workload.other_commitments ? <span>{record.workload.other_commitments} cam kết khác</span> : null}</Space> },
+      ],
+    }));
+
   const selectedCompetency = competencyGovernanceQuery.data;
   const experts = expertsQuery.data ?? [];
   const expertPageCount = Math.max(1, Math.ceil(experts.length / 10));
@@ -2919,16 +2944,18 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
 
       <Modal
         footer={null}
-        onCancel={() => setRecommendationModalOpen(false)}
+        onCancel={() => { setRecommendationModalOpen(false); setRecommendationPlanOpen(false); }}
         open={recommendationModalOpen}
         title="Đối chiếu chuyên gia theo kế hoạch"
-        width={1200}
+        width={1280}
       >
         <div className="recommendation-filter-grid">
           <Select
             allowClear
             loading={plansQuery.isLoading}
-            onChange={setRecommendationPlanId}
+            onChange={(planId) => { setRecommendationPlanId(planId); setRecommendationPlanOpen(false); }}
+            onOpenChange={setRecommendationPlanOpen}
+            open={recommendationPlanOpen}
             options={(plansQuery.data ?? []).map((plan) => ({
               value: plan.id,
               label: `${plan.plan_code || "Chưa có mã"} · ${plan.certification_projects?.project_code || "—"} · ${plan.certification_projects?.standard_name || "—"}`,
@@ -2946,7 +2973,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
         {recommendationQuery.data ? (
           <div className="recommendation-result">
             <Card size="small">
-              <Descriptions column={3} size="small">
+              <Descriptions column={breakpoints.md ? 3 : 1} size="small">
                 <Descriptions.Item label="Kế hoạch">{recommendationQuery.data.plan.plan_code || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Hồ sơ">{recommendationQuery.data.plan.project_code || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Khách hàng">{recommendationQuery.data.plan.customer_name || "—"}</Descriptions.Item>
@@ -2955,7 +2982,20 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 <Descriptions.Item label="Phạm vi yêu cầu">{recommendationQuery.data.required_scopes.length}</Descriptions.Item>
               </Descriptions>
             </Card>
-            <Table columns={recommendationColumns} dataSource={recommendationQuery.data.recommendations} locale={{ emptyText: <Empty description="Chưa có chuyên gia đang hoạt động để đối chiếu" /> }} pagination={false} rowKey={(record) => record.expert.id} scroll={{ x: 1180 }} />
+            <div className="expert-recommendation-responsive">
+              <div className="cmp-data-table--responsive"><Table columns={recommendationColumns} dataSource={recommendationQuery.data.recommendations} locale={{ emptyText: <Empty description="Chưa có chuyên gia đang hoạt động để đối chiếu" /> }} pagination={false} rowKey={(record) => record.expert.id} scroll={{ x: 1180 }} /></div>
+              <ResponsiveCardList empty={<Empty description="Chưa có chuyên gia đang hoạt động để đối chiếu" />} items={recommendationCards} />
+              {recommendationRows.length > recommendationPageSize ? (
+                <Pagination
+                  className="expert-competency-mobile-pagination"
+                  current={recommendationCardPage}
+                  onChange={(page) => setRecommendationCardPagination({ planId: recommendationPlanId, role: recommendationRole, page })}
+                  pageSize={recommendationPageSize}
+                  showSizeChanger={false}
+                  total={recommendationRows.length}
+                />
+              ) : null}
+            </div>
           </div>
         ) : recommendationPlanId ? null : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chọn kế hoạch để đối chiếu tài khoản, hồ sơ phê duyệt, chương trình, IAF/NACE và lịch chuyên gia" />

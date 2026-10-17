@@ -7,7 +7,7 @@ const competency = (id, status = 'DRAFT') => ({ id, expert_id: 'e1', standard_co
   competency_role: 'AUDITOR', competency_level: 'QUALIFIED', scope_level: 'IAF', iaf_code: '14',
   effective_date: '2026-01-01', approval_status: status, evidence_summary: 'Chứng chỉ và kinh nghiệm', evidence_records: [], action_records: [] });
 
-async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false } = {}) {
+async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false, withRecommendations = false } = {}) {
   const session = { access_token: 'controlled-compact-fixture', user: { id: 'actor', username: 'fixture', full_name: 'Tài khoản kiểm thử', roles: [self ? 'AUDITOR' : 'ADMIN'] } };
   const rows = self ? ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED', 'SUSPENDED'].map((status, i) => ({ ...competency('c' + i, status), evidence_records: [{ id: 'ev' + i, title: 'Chứng chỉ ' + i, status: 'ACTIVE' }] }))
     : [{ ...competency('pending', 'PENDING_APPROVAL'), action_records: [{ action_type: 'SUBMIT', actor_id: 'actor' }] },
@@ -31,6 +31,15 @@ async function fixture(page, { self = false, subject = 'other', duplicate = fals
     if (path === '/platform-branding') return json({});
     if (path === '/me/workspace') return json({ work_summary: { open: 0, in_progress: 0, overdue: 0, due_soon: 0, high_priority: 0 }, priority_work_items: [], recent_records: [], role_kpis: [] });
     if (path === '/experts/overview') return json({ experts: { total: 2 }, competencies: { approved: 3, expiring_90_days: 1, review_overdue: 1 }, certificates: {} });
+    if (path === '/audit-plans') return json(withRecommendations ? [{ id: 'plan-1', plan_code: 'PLAN-001', certification_projects: { project_code: 'PRJ-001', standard_name: 'ISO 9001:2015' } }] : []);
+    if (path === '/experts/recommendations') return json({
+      plan: { id: 'plan-1', plan_code: 'PLAN-001', project_code: 'PRJ-001', customer_name: 'Khách hàng An Bình', standard_code: 'ISO 9001:2015' },
+      required_scopes: [{ iaf_code: '14', nace_code: '22.19' }],
+      recommendations: withRecommendations ? [
+        { expert: { id: 'candidate-1', full_name: 'Nguyễn Minh An', employee_code: 'CG-001', email: 'an@example.test', account: { username: 'expert-an' } }, eligible: true, match_status: 'ELIGIBLE', reasons: [], eligibility_reasons: [], competencies: [competency('match-1')], coverage: { covered: 1, total: 1, scopes: [{ iaf_code: '14', nace_code: '22.19', qualified: true }] }, workload: { assigned_mandays: 2, engagement_count: 1, other_commitments: 0 } },
+        { expert: { id: 'candidate-2', full_name: 'Trần Thanh Bình', employee_code: 'CG-002' }, eligible: false, match_status: 'INSUFFICIENT_SCOPE', reasons: [], eligibility_reasons: [{ code: 'SCOPE_GAP', message: 'Thiếu phạm vi IAF 14', severity: 'BLOCK' }], competencies: [], coverage: { covered: 0, total: 1, scopes: [{ iaf_code: '14', nace_code: '22.19', qualified: false }] }, workload: { assigned_mandays: 8, engagement_count: 3, other_commitments: 1 } },
+      ] : [],
+    });
     if (path === '/experts') return json([expert]);
     if (path === '/experts/e1') return json(expert);
     if (path.endsWith('/iaf-scopes')) return json(catalog);
@@ -195,5 +204,47 @@ test('mobile expert profile shows work, certificate and audit details without wi
   await expect(detail.locator('.cmp-responsive-card').getByText('Trưởng đoàn đánh giá')).toBeVisible();
   await expect(detail.locator('.cmp-responsive-card').getByText('IAF 14 · NACE 22.19')).toBeVisible();
   await page.screenshot({ path: info.outputPath('expert-history-mobile.png') });
+  expect(h.errors).toEqual([]);
+});
+
+test('mobile expert recommendation shows eligibility and scope in cards', async ({ page }, info) => {
+  const h = await fixture(page, { withRecommendations: true });
+  await page.goto('/resources/experts');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: /Đối chiếu chuyên gia/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Đối chiếu chuyên gia theo kế hoạch' });
+  await dialog.locator('.recommendation-filter-grid .ant-select').first().click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'PLAN-001' }).click();
+  await expect(page.locator('.ant-select-dropdown')).toBeHidden();
+
+  const results = dialog.locator('.expert-recommendation-responsive');
+  await expect(results.locator('.cmp-data-table--responsive')).toBeHidden();
+  const cards = results.locator('.cmp-responsive-card');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0).getByText('Nguyễn Minh An')).toBeVisible();
+  await expect(cards.nth(0).getByText('Có thể phân công')).toBeVisible();
+  await expect(cards.nth(0).getByText('IAF 14 · NACE 22.19')).toBeVisible();
+  await expect(cards.nth(1).getByText('Thiếu phạm vi IAF 14')).toBeVisible();
+  await expect(cards.nth(1).getByText('Không thể phân công')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-recommendations-mobile.png') });
+  expect(h.errors).toEqual([]);
+});
+
+test('desktop expert recommendation keeps the comparison table', async ({ page }, info) => {
+  const h = await fixture(page, { withRecommendations: true });
+  await page.goto('/resources/experts');
+  await page.getByRole('button', { name: /Đối chiếu chuyên gia/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Đối chiếu chuyên gia theo kế hoạch' });
+  await dialog.locator('.recommendation-filter-grid .ant-select').first().click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'PLAN-001' }).click();
+  const results = dialog.locator('.expert-recommendation-responsive');
+
+  for (const width of [1440, 1366]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 768 });
+    await expect(results.locator('.cmp-data-table--responsive')).toBeVisible();
+    await expect(results.locator('.cmp-responsive-card-list')).toBeHidden();
+    await expect(results.locator('tr[data-row-key="candidate-1"]')).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`expert-recommendations-${width}.png`) });
+  }
   expect(h.errors).toEqual([]);
 });

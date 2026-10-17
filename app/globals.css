@@ -8694,7 +8694,10 @@ input { font: inherit; }
   .expert-competency-responsive .cmp-responsive-card,
   .expert-competency-responsive .cmp-responsive-card *,
   .expert-detail-responsive .cmp-responsive-card,
-  .expert-detail-responsive .cmp-responsive-card * { min-width: 0; overflow-wrap: anywhere; }
+  .expert-detail-responsive .cmp-responsive-card *,
+  .expert-recommendation-responsive .cmp-responsive-card,
+  .expert-recommendation-responsive .cmp-responsive-card * { min-width: 0; overflow-wrap: anywhere; }
+  .expert-recommendation-responsive .ant-tag { max-width: 100%; white-space: normal; }
 }
 
 @media (max-width: 680px) {
