@@ -19,6 +19,7 @@ import {
   Descriptions,
   Empty,
   Form,
+  Grid,
   Input,
   List,
   Modal,
@@ -173,6 +174,8 @@ function changedFields(request: OrganizationChangeRequest) {
 }
 
 export function CustomerProfileScreen() {
+  const breakpoints = Grid.useBreakpoint();
+  const useCompactLayout = !breakpoints.lg;
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<ChangeRequestFormValues>();
@@ -323,11 +326,16 @@ export function CustomerProfileScreen() {
 
       {profiles.length ? profiles.map((profile) => (
         <Card
-          extra={<Button icon={<EditOutlined />} onClick={() => openRequestModal(profile)}>Yêu cầu thay đổi</Button>}
+          extra={useCompactLayout ? null : <Button icon={<EditOutlined />} onClick={() => openRequestModal(profile)}>Yêu cầu thay đổi</Button>}
           key={profile.id}
           style={{ marginBottom: 16 }}
-          title={<Space><BankOutlined /><span>{profile.company_name}</span><Tag>{profile.customer_code}</Tag></Space>}
+          title={<Space wrap><BankOutlined /><span>{profile.company_name}</span><Tag>{profile.customer_code}</Tag></Space>}
         >
+          {useCompactLayout ? (
+            <Button className="customer-profile__mobile-edit" icon={<EditOutlined />} onClick={() => openRequestModal(profile)}>
+              Yêu cầu thay đổi
+            </Button>
+          ) : null}
           <Descriptions bordered column={{ xs: 1, md: 2 }} size="small">
             <Descriptions.Item label="Quốc gia">{profile.country_name ?? profile.country_code}</Descriptions.Item>
             <Descriptions.Item label="Mã số thuế / Business ID">{profile.tax_code ?? "—"}</Descriptions.Item>
@@ -431,7 +439,7 @@ export function CustomerProfileScreen() {
           </Form.Item>
           <Form.Item label="Tên tổ chức" name="company_name"><Input /></Form.Item>
           <Form.Item label="Địa chỉ" name="address"><TextArea rows={2} /></Form.Item>
-          <Space align="start" size={16} style={{ width: "100%" }} wrap>
+          <Space className="customer-profile__form-fields" align="start" size={16} style={{ width: "100%" }} wrap>
             <Form.Item label="Mã số thuế / Business ID" name="tax_code"><Input style={{ width: 240 }} /></Form.Item>
             <Form.Item label="Điện thoại" name="phone"><Input style={{ width: 220 }} /></Form.Item>
             <Form.Item label="Email" name="email" rules={[{ type: "email", message: "Email không hợp lệ" }]}><Input style={{ width: 280 }} /></Form.Item>
@@ -447,7 +455,7 @@ export function CustomerProfileScreen() {
             />
           </Form.Item>
           {selectedContact ? <Text type="secondary">Đang chỉnh: {selectedContact.full_name}</Text> : null}
-          <Space align="start" size={16} style={{ width: "100%" }} wrap>
+          <Space className="customer-profile__form-fields" align="start" size={16} style={{ width: "100%" }} wrap>
             <Form.Item label="Họ và tên" name="contact_full_name"><Input style={{ width: 240 }} /></Form.Item>
             <Form.Item label="Chức vụ" name="contact_position"><Input style={{ width: 220 }} /></Form.Item>
             <Form.Item label="Điện thoại" name="contact_phone"><Input style={{ width: 200 }} /></Form.Item>

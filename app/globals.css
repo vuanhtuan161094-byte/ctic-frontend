@@ -8279,6 +8279,14 @@ input { font: inherit; }
   width: 100%;
 }
 
+.customer-profile__mobile-edit.ant-btn {
+  height: auto;
+  margin-bottom: 12px;
+  min-height: 40px;
+  white-space: normal;
+  width: 100%;
+}
+
 .customer-user-requests__toolbar.ant-space {
   align-items: stretch;
 }
@@ -8332,6 +8340,20 @@ input { font: inherit; }
 
   .customer-change-requests__toolbar .ant-btn {
     width: 100%;
+  }
+}
+
+@media (max-width: 600px) {
+  .customer-profile__form-fields.ant-space {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .customer-profile__form-fields.ant-space > .ant-space-item,
+  .customer-profile__form-fields .ant-form-item,
+  .customer-profile__form-fields .ant-input {
+    width: 100% !important;
   }
 }
 
