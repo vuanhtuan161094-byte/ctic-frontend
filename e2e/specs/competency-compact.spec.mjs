@@ -7,7 +7,7 @@ const competency = (id, status = 'DRAFT') => ({ id, expert_id: 'e1', standard_co
   competency_role: 'AUDITOR', competency_level: 'QUALIFIED', scope_level: 'IAF', iaf_code: '14',
   effective_date: '2026-01-01', approval_status: status, evidence_summary: 'Chứng chỉ và kinh nghiệm', evidence_records: [], action_records: [] });
 
-async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false, withRecommendations = false } = {}) {
+async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false, withRecommendations = false, withDevelopment = false } = {}) {
   const session = { access_token: 'controlled-compact-fixture', user: { id: 'actor', username: 'fixture', full_name: 'Tài khoản kiểm thử', roles: [self ? 'AUDITOR' : 'ADMIN'] } };
   const rows = self ? ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED', 'SUSPENDED'].map((status, i) => ({ ...competency('c' + i, status), evidence_records: [{ id: 'ev' + i, title: 'Chứng chỉ ' + i, status: 'ACTIVE' }] }))
     : [{ ...competency('pending', 'PENDING_APPROVAL'), action_records: [{ action_type: 'SUBMIT', actor_id: 'actor' }] },
@@ -39,6 +39,12 @@ async function fixture(page, { self = false, subject = 'other', duplicate = fals
         { expert: { id: 'candidate-1', full_name: 'Nguyễn Minh An', employee_code: 'CG-001', email: 'an@example.test', account: { username: 'expert-an' } }, eligible: true, match_status: 'ELIGIBLE', reasons: [], eligibility_reasons: [], competencies: [competency('match-1')], coverage: { covered: 1, total: 1, scopes: [{ iaf_code: '14', nace_code: '22.19', qualified: true }] }, workload: { assigned_mandays: 2, engagement_count: 1, other_commitments: 0 } },
         { expert: { id: 'candidate-2', full_name: 'Trần Thanh Bình', employee_code: 'CG-002' }, eligible: false, match_status: 'INSUFFICIENT_SCOPE', reasons: [], eligibility_reasons: [{ code: 'SCOPE_GAP', message: 'Thiếu phạm vi IAF 14', severity: 'BLOCK' }], competencies: [], coverage: { covered: 0, total: 1, scopes: [{ iaf_code: '14', nace_code: '22.19', qualified: false }] }, workload: { assigned_mandays: 8, engagement_count: 3, other_commitments: 1 } },
       ] : [],
+    });
+    if (path === '/experts/e1/development') return json({
+      expert: { id: 'e1', full_name: 'Nguyễn Minh An', profile_status: 'APPROVED' },
+      competencies: [], audit_plan_options: [], governance: null,
+      trainings: withDevelopment ? [{ id: 'training-1', training_type: 'INTERNAL', title: 'Đào tạo ISO 9001', provider: 'CTIC', standard_code: 'ISO 9001:2015', start_date: '2026-01-10', status: 'PLANNED', attachments: [] }] : [],
+      monitoring: withDevelopment ? [{ id: 'monitoring-1', monitoring_method: 'WITNESS', monitoring_content: 'Chứng kiến đánh giá tại nhà máy', plan_type: 'SCHEDULED', planned_date: '2026-03-10', status: 'PLANNED', witness_items: [{ criterion_code: 'F09-1', criterion_label: 'Chuẩn bị đánh giá', rating: '4' }], attachments: [] }] : [],
     });
     if (path === '/experts') return json([expert]);
     if (path === '/experts/e1') return json(expert);
@@ -246,5 +252,50 @@ test('desktop expert recommendation keeps the comparison table', async ({ page }
     await expect(results.locator('tr[data-row-key="candidate-1"]')).toBeVisible();
     await page.screenshot({ path: info.outputPath(`expert-recommendations-${width}.png`) });
   }
+  expect(h.errors).toEqual([]);
+});
+
+test('mobile expert development cards keep training and monitoring actions', async ({ page }, info) => {
+  const h = await fixture(page, { withDevelopment: true });
+  await openAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('combobox', { name: 'Mục hồ sơ chuyên gia' }).click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Đào tạo & giám sát' }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+
+  const development = page.locator('.expert-development-stack');
+  await expect(development.locator('.expert-development-tabs > .ant-tabs-nav')).toBeHidden();
+  const training = development.getByRole('tabpanel', { name: /Đào tạo \(/ }).locator('.expert-development-responsive');
+  await expect(training.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(training.locator('.cmp-responsive-card').getByText('Đào tạo ISO 9001')).toBeVisible();
+  await expect(training.locator('.cmp-responsive-card').getByRole('button', { name: 'Đánh giá hiệu quả' })).toBeVisible();
+  await expect(training.locator('.cmp-responsive-card').getByRole('button', { name: 'Hủy' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-training-mobile.png') });
+
+  await page.getByRole('combobox', { name: 'Mục đào tạo và giám sát' }).click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Giám sát F.12' }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+  const monitoring = development.getByRole('tabpanel', { name: /Giám sát F.12/ }).locator('.expert-development-responsive');
+  await expect(monitoring.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(monitoring.locator('.cmp-responsive-card').getByText('Chứng kiến đánh giá tại nhà máy')).toBeVisible();
+  await expect(monitoring.locator('.cmp-responsive-card').getByRole('button', { name: 'Hoàn tất' })).toBeVisible();
+  await expect(monitoring.locator('.cmp-responsive-card').getByRole('button', { name: 'Hủy' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-monitoring-mobile.png') });
+  expect(h.errors).toEqual([]);
+});
+
+test('desktop expert development keeps training and monitoring tables', async ({ page }) => {
+  const h = await fixture(page, { withDevelopment: true });
+  await openAdmin(page);
+  await page.getByRole('tab', { name: /Đào tạo & giám sát/ }).click();
+  const development = page.locator('.expert-development-stack');
+  for (const width of [1440, 1366]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 768 });
+    await expect(development.locator('.expert-development-tabs > .ant-tabs-nav')).toBeVisible();
+    await expect(development.locator('.cmp-data-table--responsive').first()).toBeVisible();
+    await expect(development.locator('.cmp-responsive-card-list').first()).toBeHidden();
+  }
+  await development.getByRole('tab', { name: /Giám sát F.12/ }).click();
+  await expect(development.getByRole('tabpanel', { name: /Giám sát F.12/ }).locator('tr[data-row-key="monitoring-1"]')).toBeVisible();
   expect(h.errors).toEqual([]);
 });

@@ -23,6 +23,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Pagination,
   Select,
   Space,
   Statistic,
@@ -37,6 +38,7 @@ import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { documentRequestFromFile, openDocumentFile } from "../lib/document-file-client";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 const { Text } = Typography;
 
@@ -329,6 +331,9 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
   const [monitoringCompleteId, setMonitoringCompleteId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ type: "training" | "monitoring"; id: string } | null>(null);
   const [witnessValues, setWitnessValues] = useState<Record<string, { rating?: string; comment?: string }>>({});
+  const [mobilePage, setMobilePage] = useState<{ tab: string; page: number }>({ tab: "training", page: 1 });
+  const [activeDevelopmentTab, setActiveDevelopmentTab] = useState("training");
+  const [mobileDevelopmentOpen, setMobileDevelopmentOpen] = useState(false);
 
   const developmentQuery = useQuery({
     queryKey: ["experts", "development", expertId],
@@ -548,6 +553,20 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
     </Space>
   ) : <Text type="secondary">—</Text>;
 
+  const trainingActionNode = (row: TrainingRecord) => canManage ? (
+    <Space wrap>
+      {row.status !== "CANCELLED" && !row.effectiveness_result ? (
+        <Button icon={<CheckCircleOutlined />} onClick={() => {
+          setTrainingEvaluationId(row.id);
+          trainingEvaluationForm.setFieldsValue({ method: "TEST", result: "SATISFACTORY" });
+        }} size="small">Đánh giá hiệu quả</Button>
+      ) : null}
+      {row.status === "PLANNED" ? (
+        <Button danger icon={<StopOutlined />} onClick={() => setCancelTarget({ type: "training", id: row.id })} size="small">Hủy</Button>
+      ) : null}
+    </Space>
+  ) : null;
+
   const trainingColumns: TableColumnsType<TrainingRecord> = [
     {
       title: "Thời gian",
@@ -586,21 +605,20 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
       title: "Thao tác",
       width: 190,
       fixed: "right",
-      render: (_, row) => canManage ? (
-        <Space wrap>
-          {row.status !== "CANCELLED" && !row.effectiveness_result ? (
-            <Button icon={<CheckCircleOutlined />} onClick={() => {
-              setTrainingEvaluationId(row.id);
-              trainingEvaluationForm.setFieldsValue({ method: "TEST", result: "SATISFACTORY" });
-            }} size="small">Đánh giá hiệu quả</Button>
-          ) : null}
-          {row.status === "PLANNED" ? (
-            <Button danger icon={<StopOutlined />} onClick={() => setCancelTarget({ type: "training", id: row.id })} size="small">Hủy</Button>
-          ) : null}
-        </Space>
-      ) : "—",
+      render: (_, row) => trainingActionNode(row) ?? "—",
     },
   ];
+
+  const monitoringActionNode = (row: MonitoringRecord) => canManage && row.status === "PLANNED" ? (
+    <Space wrap>
+      <Button icon={<FileSearchOutlined />} onClick={() => {
+        setMonitoringCompleteId(row.id);
+        setWitnessValues({});
+        monitoringCompleteForm.setFieldsValue({ performed_date: dayjs(), result: "SATISFACTORY" });
+      }} size="small">Hoàn tất</Button>
+      <Button danger icon={<StopOutlined />} onClick={() => setCancelTarget({ type: "monitoring", id: row.id })} size="small">Hủy</Button>
+    </Space>
+  ) : null;
 
   const monitoringColumns: TableColumnsType<MonitoringRecord> = [
     {
@@ -646,18 +664,47 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
       title: "Thao tác",
       width: 175,
       fixed: "right",
-      render: (_, row) => canManage && row.status === "PLANNED" ? (
-        <Space wrap>
-          <Button icon={<FileSearchOutlined />} onClick={() => {
-            setMonitoringCompleteId(row.id);
-            setWitnessValues({});
-            monitoringCompleteForm.setFieldsValue({ performed_date: dayjs(), result: "SATISFACTORY" });
-          }} size="small">Hoàn tất</Button>
-          <Button danger icon={<StopOutlined />} onClick={() => setCancelTarget({ type: "monitoring", id: row.id })} size="small">Hủy</Button>
-        </Space>
-      ) : "—",
+      render: (_, row) => monitoringActionNode(row) ?? "—",
     },
   ];
+
+  const trainingCards: ResponsiveCardItem[] = (developmentQuery.data?.trainings ?? []).map((row) => ({
+    key: row.id,
+    title: row.title,
+    status: statusTag(row.status),
+    fields: [
+      { key: "type", label: "Loại / đơn vị", value: `${trainingTypeLabels[row.training_type] || row.training_type}${row.provider ? ` · ${row.provider}` : ""}` },
+      { key: "standard", label: "Tiêu chuẩn", value: row.standard_code || row.competency?.standard_code || "—" },
+      { key: "dates", label: "Thời gian", value: `${formatDate(row.start_date)}${row.end_date ? ` – ${formatDate(row.end_date)}` : ""}` },
+      { key: "effectiveness", label: "Hiệu quả", value: row.effectiveness_result ? <Space orientation="vertical" size={2}>{resultTag(row.effectiveness_result)}<span>{effectivenessMethodLabels[row.effectiveness_method || ""] || row.effectiveness_method || "—"}{row.effectiveness_score != null ? ` · Điểm: ${row.effectiveness_score}` : ""}</span>{row.effectiveness_comment ? <span>{row.effectiveness_comment}</span> : null}</Space> : "Chưa đánh giá hiệu quả" },
+      { key: "attachments", label: "Minh chứng", value: attachmentButtons(row.attachments) },
+    ],
+    actions: trainingActionNode(row),
+  }));
+  const monitoringCards: ResponsiveCardItem[] = (developmentQuery.data?.monitoring ?? []).map((row) => ({
+    key: row.id,
+    title: monitoringMethodLabels[row.monitoring_method] || row.monitoring_method,
+    status: statusTag(row.status),
+    fields: [
+      { key: "content", label: "Nội dung", value: row.monitoring_content },
+      { key: "plan", label: "Kế hoạch", value: row.audit_plan?.plan_code || "—" },
+      { key: "dates", label: "Thời gian", value: `Kế hoạch ${formatDate(row.planned_date)} · Hạn ${formatDate(row.due_date || row.planned_date)} · Thực hiện ${formatDate(row.performed_date)}` },
+      { key: "result", label: "Kết quả", value: <Space wrap>{resultTag(row.result)}{row.score != null ? <Tag>{row.score}/100</Tag> : null}</Space> },
+      { key: "finding", label: "Phát hiện / hành động", value: <Space orientation="vertical" size={2}><span>{row.finding || row.summary || "—"}</span>{row.required_action ? <span>Hành động: {row.required_action}</span> : null}{row.next_monitoring_date ? <span>Tiếp theo: {formatDate(row.next_monitoring_date)}</span> : null}</Space> },
+      ...(row.monitoring_method === "WITNESS" && row.witness_items.length ? [{ key: "witness", label: "Tiêu chí F.09", value: <Space orientation="vertical" size={2}>{row.witness_items.map((item) => <span key={item.id || item.criterion_code}>{item.criterion_label}: {item.rating}{item.comment ? ` · ${item.comment}` : ""}</span>)}</Space> }] : []),
+      { key: "attachments", label: "Minh chứng", value: attachmentButtons(row.attachments) },
+    ],
+    actions: monitoringActionNode(row),
+  }));
+  const renderMobileCards = (tab: string, cards: ResponsiveCardItem[], empty: string) => {
+    const pageSize = 8;
+    const pageCount = Math.max(1, Math.ceil(cards.length / pageSize));
+    const page = Math.min(mobilePage.tab === tab ? mobilePage.page : 1, pageCount);
+    return <>
+      <ResponsiveCardList empty={<Empty description={empty} />} items={cards.slice((page - 1) * pageSize, page * pageSize)} />
+      {cards.length > pageSize ? <Pagination className="expert-development-mobile-pagination" current={page} onChange={(nextPage) => setMobilePage({ tab, page: nextPage })} pageSize={pageSize} showSizeChanger={false} total={cards.length} /> : null}
+    </>;
+  };
 
   const selectedMonitoring = developmentQuery.data?.monitoring.find((item) => item.id === monitoringCompleteId);
   const governance = developmentQuery.data?.governance;
@@ -702,12 +749,25 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
         ) : null}
       </Card>
 
-      <Tabs items={[
+      <Select
+        aria-label="Mục đào tạo và giám sát"
+        className="expert-development-mobile-select"
+        onChange={(tab) => { setActiveDevelopmentTab(tab); setMobileDevelopmentOpen(false); }}
+        onOpenChange={setMobileDevelopmentOpen}
+        open={mobileDevelopmentOpen}
+        options={[
+          { value: "training", label: `Đào tạo (${developmentQuery.data?.trainings.length ?? 0})` },
+          { value: "monitoring", label: `Giám sát F.12 (${developmentQuery.data?.monitoring.length ?? 0})` },
+        ]}
+        value={activeDevelopmentTab}
+      />
+      <Tabs activeKey={activeDevelopmentTab} className="expert-development-tabs" onChange={setActiveDevelopmentTab} items={[
         {
           key: "training",
           label: <span><BookOutlined /> Đào tạo ({developmentQuery.data?.trainings.length ?? 0})</span>,
           children: (
             <Card
+              className="expert-competency-tab-card"
               title="Kế hoạch, hồ sơ đào tạo và đánh giá hiệu quả sau đào tạo"
               extra={canManage ? (
                 <Button icon={<PlusOutlined />} onClick={() => {
@@ -722,7 +782,8 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
                 }} type="primary">Thêm đào tạo</Button>
               ) : null}
             >
-              <Table
+              <div className="expert-development-responsive">
+              <div className="cmp-data-table--responsive"><Table
                 columns={trainingColumns}
                 dataSource={developmentQuery.data?.trainings ?? []}
                 loading={developmentQuery.isLoading}
@@ -730,7 +791,9 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
                 pagination={{ pageSize: 8 }}
                 rowKey="id"
                 scroll={{ x: 1280 }}
-              />
+              /></div>
+              {renderMobileCards("training", trainingCards, "Chưa có hồ sơ đào tạo chuyên gia")}
+              </div>
             </Card>
           ),
         },
@@ -739,6 +802,7 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
           label: <span><AuditOutlined /> Giám sát F.12 ({developmentQuery.data?.monitoring.length ?? 0})</span>,
           children: (
             <Card
+              className="expert-competency-tab-card"
               title="Kế hoạch giám sát năng lực, witness F.09, review báo cáo và feedback"
               extra={canManage ? (
                 <Button icon={<PlusOutlined />} onClick={() => {
@@ -752,7 +816,8 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
                 }} type="primary">Lập kế hoạch giám sát</Button>
               ) : null}
             >
-              <Table
+              <div className="expert-development-responsive">
+              <div className="cmp-data-table--responsive"><Table
                 columns={monitoringColumns}
                 dataSource={developmentQuery.data?.monitoring ?? []}
                 expandable={{
@@ -776,7 +841,9 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
                 pagination={{ pageSize: 8 }}
                 rowKey="id"
                 scroll={{ x: 1400 }}
-              />
+              /></div>
+              {renderMobileCards("monitoring", monitoringCards, "Chưa có kế hoạch giám sát năng lực")}
+              </div>
             </Card>
           ),
         },
