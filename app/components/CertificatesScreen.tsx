@@ -24,6 +24,7 @@ import {
   Empty,
   Input,
   List,
+  Pagination,
   Select,
   Skeleton,
   Space,
@@ -39,6 +40,7 @@ import { useCallback, useMemo, useState } from "react";
 import { api, getErrorMessage } from "../lib/api";
 import { buildPublicApiUrl } from "../lib/deployment-config";
 import { previewDocumentFile } from "../lib/document-file-client";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 const { Text, Title } = Typography;
 
@@ -242,6 +244,7 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [standardFilter, setStandardFilter] = useState("all");
+  const [certificatePage, setCertificatePage] = useState(1);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [documentError, setDocumentError] = useState<string | null>(null);
 
@@ -302,6 +305,13 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
       return matchesKeyword && matchesStatus && matchesStandard;
     });
   }, [certificates, searchTerm, standardFilter, statusFilter]);
+  const certificatePageSize = 10;
+  const certificatePageCount = Math.max(1, Math.ceil(filteredCertificates.length / certificatePageSize));
+  const currentCertificatePage = Math.min(certificatePage, certificatePageCount);
+  const pageCertificates = filteredCertificates.slice(
+    (currentCertificatePage - 1) * certificatePageSize,
+    currentCertificatePage * certificatePageSize,
+  );
 
   const activeCount = certificates.filter((certificate) => normalize(certificate.status) === "active").length;
   const expiringCount = certificates.filter((certificate) => {
@@ -397,6 +407,56 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
     },
   ], [setSelectedCertificateId, onOpenPath]);
 
+  const responsiveCertificateCards: ResponsiveCardItem[] = pageCertificates.map((record) => ({
+    key: record.id,
+    title: (
+      <Button
+        className="certificate-code-button"
+        onClick={() => record.certificate_series?.project_id && onOpenPath
+          ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`)
+          : setSelectedCertificateId(record.id)}
+        type="link"
+      >
+        {record.cert_number}
+      </Button>
+    ),
+    status: <CertificateStatusTag status={record.status} />,
+    fields: [
+      {
+        key: "organization",
+        label: "Tổ chức",
+        value: (
+          <div className="certificate-primary-cell">
+            <strong>{certificateOrganization(record)}</strong>
+            <span>{record.organization_address ?? record.technical_reviews?.certification_decision?.organization_address ?? "Chưa cập nhật địa chỉ"}</span>
+          </div>
+        ),
+      },
+      { key: "standard", label: "Tiêu chuẩn", value: certificateStandard(record) },
+      {
+        key: "version",
+        label: "Phiên bản",
+        value: (
+          <Space size={6}>
+            <span>v{record.version_no ?? 1}</span>
+            {normalize(record.status) === "replaced" ? <Tag>Lịch sử</Tag> : <Tag color="blue">Hiện hành</Tag>}
+          </Space>
+        ),
+      },
+      {
+        key: "validity",
+        label: "Hiệu lực",
+        value: (
+          <div className="certificate-validity-cell">
+            <span>{formatDate(record.issue_date)} – {formatDate(record.expire_date)}</span>
+            {normalize(record.status) === "active" ? <small>{Math.max(daysUntil(record.expire_date) ?? 0, 0)} ngày còn lại</small> : null}
+          </div>
+        ),
+      },
+    ],
+    actions: <Button icon={<EyeOutlined />} onClick={() => setSelectedCertificateId(record.id)} size="small">Chi tiết</Button>,
+  }));
+
   const decision = selectedCertificate?.technical_reviews?.certification_decision;
   const notification = selectedCertificate?.technical_reviews?.audit_result_notification;
   const report = selectedCertificate?.technical_reviews?.reports;
@@ -432,16 +492,16 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
 
       <Card className="certificates-list-card">
         <div className="certificate-filter-bar">
-          <Input allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm số chứng chỉ, tổ chức, mã xác minh..." prefix={<SearchOutlined />} value={searchTerm} />
+          <Input allowClear onChange={(event) => { setSearchTerm(event.target.value); setCertificatePage(1); }} placeholder="Tìm số chứng chỉ, tổ chức, mã xác minh..." prefix={<SearchOutlined />} value={searchTerm} />
           <Select
             aria-label="Lọc trạng thái chứng chỉ"
-            onChange={setStatusFilter}
+            onChange={(value) => { setStatusFilter(value); setCertificatePage(1); }}
             options={[{ value: "all", label: "Tất cả trạng thái" }, ...statuses.map((status) => ({ value: status, label: statusLabel(status) }))]}
             value={statusFilter}
           />
           <Select
             aria-label="Lọc tiêu chuẩn chứng chỉ"
-            onChange={setStandardFilter}
+            onChange={(value) => { setStandardFilter(value); setCertificatePage(1); }}
             options={[{ value: "all", label: "Tất cả tiêu chuẩn" }, ...standards.map((standard) => ({ value: standard, label: standard }))]}
             value={standardFilter}
           />
@@ -458,14 +518,35 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
           />
         ) : null}
         {certificatesQuery.isSuccess ? (
-          <Table
-            columns={columns}
-            dataSource={filteredCertificates}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có chứng chỉ phù hợp" /> }}
-            pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} chứng chỉ` }}
-            rowKey="id"
-            scroll={{ x: 980 }}
-          />
+          <>
+            <div className="cmp-data-table--responsive">
+              <Table
+                columns={columns}
+                dataSource={filteredCertificates}
+                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có chứng chỉ phù hợp" /> }}
+                onChange={(pagination) => setCertificatePage(pagination.current ?? 1)}
+                pagination={{ current: currentCertificatePage, pageSize: certificatePageSize, showSizeChanger: false, showTotal: (total) => `${total} chứng chỉ` }}
+                rowKey="id"
+                scroll={{ x: 980 }}
+              />
+            </div>
+            <ResponsiveCardList
+              empty={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có chứng chỉ phù hợp" />}
+              items={responsiveCertificateCards}
+            />
+            {filteredCertificates.length > certificatePageSize ? (
+              <div className="certificate-mobile-pagination">
+                <Pagination
+                  current={currentCertificatePage}
+                  onChange={setCertificatePage}
+                  pageSize={certificatePageSize}
+                  showSizeChanger={false}
+                  showTotal={(total, range) => `${range[0]}–${range[1]} / ${total}`}
+                  total={filteredCertificates.length}
+                />
+              </div>
+            ) : null}
+          </>
         ) : null}
       </Card>
 

@@ -1399,6 +1399,8 @@ input { font: inherit; }
 .certificate-primary-cell strong { color: #1b2d47; font-size: 13px; }
 .certificate-primary-cell span,
 .certificate-validity-cell small { color: #8491a3; font-size: 11px; }
+.certificate-mobile-pagination { display: none; }
+.cmp-responsive-card .certificate-code-button { max-width: 100%; overflow-wrap: anywhere; text-align: left; white-space: normal; }
 .certificate-drawer-title { display: flex; flex-direction: column; gap: 3px; }
 .certificate-drawer-title span { color: #77869b; font-size: 12px; font-weight: 400; }
 .certificate-drawer-title strong { color: #123e76; font-family: "Cascadia Code", Consolas, monospace; }
@@ -1444,7 +1446,7 @@ input { font: inherit; }
   .project-file-item { align-items: flex-start; flex-wrap: wrap; }
   .project-file-item > .ant-btn { margin-left: 31px; }
   .certificates-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
-  .certificate-summary-grid { grid-template-columns: 1fr; }
+  .certificate-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .certificate-filter-bar { grid-template-columns: 1fr; }
   .certificate-filter-bar > :last-child { grid-column: auto; }
   .certificate-actions-card { align-items: flex-start; flex-direction: column; }
@@ -1453,6 +1455,17 @@ input { font: inherit; }
   .certificate-detail-drawer .ant-drawer-body { padding: 14px; }
   .completion-card { grid-column: auto; }
   .project-detail-footer { text-align: left; }
+}
+
+@media (max-width: 768px) {
+  .certificate-mobile-pagination {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .certificate-mobile-pagination .ant-pagination { white-space: nowrap; }
 }
 
 /* Central document workspace */
