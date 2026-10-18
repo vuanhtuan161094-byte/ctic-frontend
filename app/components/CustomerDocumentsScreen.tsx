@@ -214,11 +214,11 @@ export function CustomerDocumentsScreen() {
   };
 
   const renderRequestDetails = (item: PortalRequest) => (
-    <Space direction="vertical" style={{ width: "100%" }}>
-      {item.description ? <Alert description={item.description} message="Nội dung yêu cầu" showIcon type="info" /> : null}
-      {item.review_comment ? <Alert description={item.review_comment} message="Ý kiến xem xét gần nhất" showIcon type={item.status === "REVISION_REQUIRED" ? "warning" : "success"} /> : null}
+    <Space orientation="vertical" style={{ width: "100%" }}>
+      {item.description ? <Alert description={item.description} title="Nội dung yêu cầu" showIcon type="info" /> : null}
+      {item.review_comment ? <Alert description={item.review_comment} title="Ý kiến xem xét gần nhất" showIcon type={item.status === "REVISION_REQUIRED" ? "warning" : "success"} /> : null}
       {item.documents.length ? (
-        <Space className="portal-mobile-card__documents" direction="vertical" style={{ width: "100%" }}>
+        <Space className="portal-mobile-card__documents" orientation="vertical" style={{ width: "100%" }}>
           {item.documents.map((file) => (
             <Button key={file.id} loading={openingFileId === file.id} onClick={() => void openFile(file)} size="small">
               {file.original_name} · v{file.version_no} · {formatSize(file.file_size)}
@@ -234,11 +234,13 @@ export function CustomerDocumentsScreen() {
       title: "Yêu cầu",
       key: "request",
       render: (_, item) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{item.request_code}</Text>
+        <div style={{ display: "grid", rowGap: 2 }}>
+          <Space size={8} wrap>
+            <Text strong>{item.request_code}</Text>
+            <Text type="secondary">{item.application.application_code} · {categoryLabels[item.category]}</Text>
+          </Space>
           <Text>{item.title}</Text>
-          <Text type="secondary">{item.application.application_code} · {categoryLabels[item.category]}</Text>
-        </Space>
+        </div>
       ),
     },
     { title: "Hạn", dataIndex: "due_date", key: "due_date", width: 120, render: formatDate },
@@ -287,8 +289,18 @@ export function CustomerDocumentsScreen() {
         </div>
       </div>
 
-      {query.isError ? <Alert description={getErrorMessage(query.error)} message="Không tải được tài liệu Portal" showIcon type="error" /> : null}
-
+      {query.isLoading ? (
+        <Card><Alert showIcon title="Đang tải tài liệu Portal..." type="info" /></Card>
+      ) : query.isError ? (
+        <Alert
+          action={<Button onClick={() => void query.refetch()}>Thử lại</Button>}
+          description={getErrorMessage(query.error)}
+          showIcon
+          title="Không tải được tài liệu Portal"
+          type="error"
+        />
+      ) : (
+      <>
       <Card style={{ marginBottom: 16 }} title={<Space><FileSearchOutlined />Yêu cầu bổ sung tài liệu</Space>}>
         {useCompactPortalList ? (
           requests.length ? (
@@ -366,6 +378,7 @@ export function CustomerDocumentsScreen() {
             locale={{ emptyText: <Empty description="Không có yêu cầu bổ sung tài liệu" /> }}
             pagination={{ pageSize: 10 }}
             rowKey="id"
+            size="small"
             expandable={{ expandedRowRender: renderRequestDetails }}
           />
         )}
@@ -392,7 +405,7 @@ export function CustomerDocumentsScreen() {
                 </Button>
               ),
               children: application.documents.length ? (
-                <Space direction="vertical" style={{ width: "100%" }}>
+                <Space orientation="vertical" style={{ width: "100%" }}>
                   {application.documents.map((file) => (
                     <Button key={file.id} loading={openingFileId === file.id} onClick={() => void openFile(file)}>
                       {categoryLabels[file.category ?? "OTHER"]} · {file.original_name} · v{file.version_no}{file.is_current ? " · hiện hành" : ""}
@@ -404,9 +417,11 @@ export function CustomerDocumentsScreen() {
           />
         ) : <Empty description="Chưa có đơn đăng ký" />}
       </Card>
+      </>
+      )}
 
       <Modal
-        okButtonProps={{ loading: uploadApplicationMutation.isPending }}
+        okButtonProps={{ disabled: applicationFiles.length === 0, loading: uploadApplicationMutation.isPending }}
         okText="Tải lên"
         onCancel={() => setApplicationModal(null)}
         onOk={() => uploadApplicationMutation.mutate()}
@@ -423,6 +438,7 @@ export function CustomerDocumentsScreen() {
           </Form.Item>
           <Form.Item label="Tệp">
             <Upload
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
               beforeUpload={() => false}
               fileList={applicationFiles}
               maxCount={1}
@@ -435,14 +451,14 @@ export function CustomerDocumentsScreen() {
       </Modal>
 
       <Modal
-        okButtonProps={{ loading: submitResponseMutation.isPending }}
+        okButtonProps={{ disabled: requestFiles.length === 0, loading: submitResponseMutation.isPending }}
         okText="Tải và gửi phản hồi"
         onCancel={() => setRequestModal(null)}
         onOk={() => submitResponseMutation.mutate()}
         open={Boolean(requestModal)}
         title={requestModal ? `${requestModal.request_code} · Gửi tài liệu phản hồi` : "Gửi tài liệu phản hồi"}
       >
-        {requestModal?.review_comment ? <Alert description={requestModal.review_comment} message="Ý kiến cần xử lý" showIcon style={{ marginBottom: 16 }} type="warning" /> : null}
+        {requestModal?.review_comment ? <Alert description={requestModal.review_comment} title="Ý kiến cần xử lý" showIcon style={{ marginBottom: 16 }} type="warning" /> : null}
         <Form layout="vertical">
           <Form.Item label="Tài liệu phản hồi" required>
             <Upload
