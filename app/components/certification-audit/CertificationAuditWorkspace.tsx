@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Alert, Button, Card, List, Space, Tag, Typography, message } from "antd";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api, getErrorMessage } from "../../lib/api";
 import { downloadDocumentFile } from "../../lib/document-file-client";
@@ -231,6 +231,7 @@ export function CertificationAuditWorkspaceView({
   onOpenDocument,
   onLoadMoreActivity,
 }: CertificationAuditWorkspaceViewProps) {
+  const sectionNavigationRef = useRef<HTMLElement | null>(null);
   const plan = workspace.plan;
   const appointment = workspace.appointment;
   const reports = workspace.reports;
@@ -243,6 +244,16 @@ export function CertificationAuditWorkspaceView({
     ["team_leader", "lead_auditor"].includes(normalize(member.team_role)),
   );
   const currentReport = reports[0] ?? null;
+
+  useEffect(() => {
+    const navigation = sectionNavigationRef.current;
+    if (!navigation || navigation.scrollWidth <= navigation.clientWidth) return;
+    navigation.querySelector<HTMLButtonElement>('[aria-current="page"]')?.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [section]);
+
   const primaryAction: ProjectedAction | null = serverAction && !["execution", "findings"].includes(section)
     ? {
         code: serverAction.code,
@@ -426,7 +437,7 @@ export function CertificationAuditWorkspaceView({
         )}
       />
 
-      <nav className="cmp-audit-secondary-nav" aria-label="Khu vực cuộc đánh giá">
+      <nav ref={sectionNavigationRef} className="cmp-audit-secondary-nav" aria-label="Khu vực cuộc đánh giá">
         {sections.map((item) => (
           <button key={item} type="button" aria-current={section === item ? "page" : undefined} onClick={() => onNavigateSection(item)}>
             {sectionLabels[item]}

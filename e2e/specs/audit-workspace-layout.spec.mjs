@@ -36,6 +36,19 @@ for (const section of sections) {
     for (const size of sizes) {
       await page.setViewportSize(size);
       await expectNoHorizontalOverflow(page);
+      const sectionTop = await page.locator(".cmp-audit-section").evaluate((element) => element.getBoundingClientRect().top);
+      if (size.width >= 1280) {
+        expect(sectionTop, "Audit content should start early enough to use the desktop viewport").toBeLessThan(420);
+      }
+      if (size.width <= 767) {
+        const navigation = page.getByRole("navigation", { name: "Khu vực cuộc đánh giá" });
+        const selectedTab = navigation.locator('[aria-current="page"]');
+        const [navigationBox, selectedBox] = await Promise.all([navigation.boundingBox(), selectedTab.boundingBox()]);
+        expect(navigationBox).not.toBeNull();
+        expect(selectedBox).not.toBeNull();
+        expect(selectedBox.x).toBeGreaterThanOrEqual(navigationBox.x - 1);
+        expect(selectedBox.x + selectedBox.width).toBeLessThanOrEqual(navigationBox.x + navigationBox.width + 1);
+      }
       await captureVisualBaseline(page, testInfo, `audit-${section.key}-${size.width}`);
     }
 

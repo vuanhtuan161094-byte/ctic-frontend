@@ -7,21 +7,25 @@
 }
 
 .cmp-audit-page .cmp-page-header {
-  align-items: stretch;
-  flex-direction: column;
-  margin-top: 8px;
+  align-items: flex-start;
+  flex-direction: row;
+  gap: 16px;
+  margin-top: 4px;
 }
 
+.cmp-audit-page .cmp-page-header__body { flex: 1 1 0%; }
+
 .cmp-audit-page .cmp-page-header__actions {
-  width: 100%;
-  align-items: flex-start;
+  width: auto;
+  align-items: flex-end;
+  flex-direction: column;
   justify-content: flex-start;
 }
 
 .cmp-audit-page .cmp-next-action-bar {
-  box-sizing: border-box;
-  flex: 1 1 620px;
-  min-width: min(520px, 100%);
+  flex: 0 1 auto;
+  min-width: 0;
+  width: min(460px, 100%);
   max-width: 100%;
 }
 
@@ -32,9 +36,9 @@
 
 .cmp-audit-secondary-nav {
   display: flex;
-  gap: 4px;
-  margin: 12px 0 0;
-  padding: 5px;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 4px;
   overflow-x: auto;
   border: 1px solid var(--cmp-color-border, #d8e1eb);
   border-radius: 12px;
@@ -45,8 +49,8 @@
 }
 
 .cmp-audit-secondary-nav button {
-  min-height: 40px;
-  padding: 8px 14px;
+  min-height: 36px;
+  padding: 6px 12px;
   white-space: nowrap;
   color: #425466;
   border: 0;
@@ -69,9 +73,9 @@
 .cmp-audit-context-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 10px 0 14px;
-  padding: 8px 12px;
+  gap: 6px 12px;
+  margin: 6px 0 8px;
+  padding: 6px 10px;
   color: #526579;
   border-bottom: 1px solid #dfe7ef;
 }
@@ -150,14 +154,23 @@
 }
 
 @media (max-width: 1024px) {
+  .cmp-audit-page .cmp-page-header {
+    align-items: stretch;
+    flex-direction: column;
+    margin-top: 8px;
+  }
+
   .cmp-audit-page .cmp-page-header__actions {
     width: 100%;
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .cmp-audit-page .cmp-next-action-bar {
     width: 100%;
     min-width: 0;
-    flex-basis: 100%;
+    flex: 1 1 100%;
   }
 
   .cmp-audit-route-content .cmp-audit-execution-metrics {
@@ -205,5 +218,16 @@
   .cmp-audit-route-content .ant-space,
   .cmp-audit-route-content .ant-space-item {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .cmp-audit-page .cmp-page-header__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cmp-audit-page .cmp-page-header__actions > * {
+    width: 100%;
   }
 }
