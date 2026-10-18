@@ -2996,21 +2996,49 @@ input { font: inherit; }
 }
 
 /* Audit team appointment form */
+.appointment-editor-modal .ant-modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+.appointment-editor-modal .ant-modal-header,
+.appointment-editor-modal .ant-modal-footer {
+  flex: 0 0 auto;
+}
+
+.appointment-editor-modal .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .appointment-form {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .appointment-form-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.6fr);
-  gap: 16px;
+  gap: 12px;
+}
+
+.appointment-form-grid .ant-form-item {
+  margin-bottom: 0;
+}
+
+.appointment-form > .ant-form-item {
+  margin-bottom: 12px;
 }
 
 .appointment-members-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  margin: 8px 0 12px;
+  margin: 6px 0 8px;
 }
 
 .appointment-members-heading > div {
@@ -3022,8 +3050,8 @@ input { font: inherit; }
 .appointment-member-form-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .appointment-member-form {
@@ -3074,6 +3102,25 @@ input { font: inherit; }
   .appointment-member-form {
     grid-template-columns: 32px minmax(0, 1fr) 32px;
     padding: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .appointment-editor-modal .ant-modal-container {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .appointment-editor-modal .ant-modal-header {
+    padding: 12px 16px;
+  }
+
+  .appointment-editor-modal .ant-modal-body {
+    padding: 12px 16px;
+  }
+
+  .appointment-editor-modal .ant-modal-footer {
+    padding: 8px 12px;
   }
 }
 
@@ -4364,7 +4411,7 @@ input { font: inherit; }
 
 /* Patch 30 — project-level team designation and busy calendar */
 .appointment-team-coverage-alert {
-  margin: 12px 0 16px;
+  margin: 8px 0 10px;
   border-radius: 12px;
 }
 
@@ -4434,6 +4481,14 @@ input { font: inherit; }
 .appointment-modal-project-brief .ant-card-body {
   display: grid;
   gap: 12px;
+}
+
+.appointment-modal-project-brief .ant-card-body {
+  gap: 8px;
+}
+
+.appointment-modal-project-brief .ant-descriptions-item {
+  padding-bottom: 6px;
 }
 
 .project-assignment-scope-tags {

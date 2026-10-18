@@ -2210,7 +2210,7 @@ export function ScheduleResourcesScreen({
   if (loading) {
     if (appointmentEditorOnly) {
       return (
-        <Modal footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+        <Modal centered className="appointment-editor-modal" footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
           <Skeleton active paragraph={{ rows: 8 }} />
         </Modal>
       );
@@ -2220,7 +2220,7 @@ export function ScheduleResourcesScreen({
 
   if (appointmentEditorOnly && (error || projectContextQuery.isError)) {
     return (
-      <Modal footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+      <Modal centered className="appointment-editor-modal" footer={null} onCancel={onEditorClose} open title="Chỉ định đoàn đánh giá F.04" width={920}>
         <Alert
           action={<Button onClick={() => void refresh()}>Thử lại</Button>}
           description={getErrorMessage(error ?? projectContextQuery.error)}
@@ -2907,7 +2907,9 @@ export function ScheduleResourcesScreen({
       </Modal>
 
       <Modal
+        centered
         cancelText="Hủy"
+        className="appointment-editor-modal"
         destroyOnHidden
         footer={selectedAppointmentLocked ? null : undefined}
         maskClosable={false}
@@ -3047,11 +3049,11 @@ export function ScheduleResourcesScreen({
         ) : null}
         {selectedIsProjectContext ? <Card className="appointment-modal-project-brief" size="small" title="Hồ sơ cần chỉ định đoàn">
           {projectBriefQuery.isLoading ? <Skeleton active paragraph={{ rows: 3 }} /> : projectBriefApplication ? <>
-            <Descriptions column={2} size="small">
+            <Descriptions column={{ xs: 1, sm: 2 }} size="small">
               <Descriptions.Item label="Khách hàng">{projectBriefApplication.customers?.company_name ?? "—"}</Descriptions.Item>
               <Descriptions.Item label="Mã hồ sơ">{selectedDisplayCode ?? "—"}</Descriptions.Item>
-              <Descriptions.Item label="Tiêu chuẩn" span={2}>{projectBriefApplication.standard_name ?? "—"}</Descriptions.Item>
-              <Descriptions.Item label="Phạm vi" span={2}>{projectBriefApplication.certification_scope ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Tiêu chuẩn" span="filled">{projectBriefApplication.standard_name ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Phạm vi" span="filled">{projectBriefApplication.certification_scope ?? "—"}</Descriptions.Item>
               <Descriptions.Item label="Nhân sự / địa điểm">{projectBriefReview?.effective_personnel ?? projectBriefApplication.employee_count ?? "—"} / {projectBriefApplication.site_count ?? projectBriefApplication.sites?.length ?? 0}</Descriptions.Item>
               <Descriptions.Item label="MD lần đầu">{projectBriefManday?.final_mandays ?? projectBriefReview?.final_mandays ?? "Chưa có"}</Descriptions.Item>
             </Descriptions>
@@ -3218,7 +3220,7 @@ export function ScheduleResourcesScreen({
           </div>
 
           <Form.Item label="Ghi chú" name="note">
-            <Input.TextArea maxLength={1000} placeholder="Ghi chú về phạm vi, yêu cầu hoặc điều kiện phân công" rows={2} showCount />
+            <Input.TextArea maxLength={1000} placeholder="Ghi chú về phạm vi, yêu cầu hoặc điều kiện phân công" rows={selectedIsProjectContext ? 1 : 2} showCount />
           </Form.Item>
 
           {!selectedIsProjectContext ? (
@@ -3285,27 +3287,7 @@ export function ScheduleResourcesScreen({
             </div>
           </div>
 
-          {selectedIsProjectContext ? (
-            <Alert
-              className="appointment-team-coverage-alert"
-              description={teamCoverage.missingScopes.length
-                ? `Còn thiếu: ${teamCoverage.missingScopes
-                  .map((scope) => `${scope.standard_code ?? "Tiêu chuẩn"} · IAF ${scope.iaf?.code ?? "—"} · NACE ${scope.nace?.code ?? "—"}`)
-                  .join("; ")}`
-                : !teamCoverage.leaderSelected
-                  ? "Chưa chọn đúng 01 Trưởng đoàn đánh giá. Hãy đổi vai trò của một chuyên gia có nhãn ‘Có thể làm trưởng đoàn’."
-                  : !teamCoverage.leaderQualified
-                    ? "Trưởng đoàn đã chọn chưa có năng lực LEAD_AUDITOR phù hợp với ít nhất một tiêu chuẩn/phạm vi của hồ sơ."
-                    : "Các phạm vi được bao phủ bởi ít nhất một thành viên phù hợp; không yêu cầu mọi thành viên phải có đủ toàn bộ IAF/NACE."}
-              message={projectExpertSuitabilityQuery.isLoading
-                ? "Đang đối chiếu năng lực chuyên gia..."
-                : projectExpertSuitabilityQuery.isError
-                  ? `Không tải được ma trận năng lực: ${getErrorMessage(projectExpertSuitabilityQuery.error)}`
-                  : `Độ bao phủ tổng thể đoàn: ${teamCoverage.covered}/${teamCoverage.required} phạm vi`}
-              showIcon
-              type={teamCoverage.sufficient ? "success" : projectExpertSuitabilityQuery.isError ? "error" : "warning"}
-            />
-          ) : (
+          {!selectedIsProjectContext ? (
             <Alert
               className="appointment-team-coverage-alert"
               description={planTeamPrerequisiteBlocked
@@ -3331,7 +3313,7 @@ export function ScheduleResourcesScreen({
               showIcon
               type={planProgramCoverage.sufficient ? "success" : "warning"}
             />
-          )}
+          ) : null}
 
           <Form.List name="members" rules={[{
             validator: async (_, members: AppointmentFormMember[] | undefined) => {
@@ -3675,6 +3657,28 @@ export function ScheduleResourcesScreen({
               </>
             )}
           </Form.List>
+
+          {selectedIsProjectContext ? (
+            <Alert
+              className="appointment-team-coverage-alert"
+              description={teamCoverage.missingScopes.length
+                ? `Còn thiếu: ${teamCoverage.missingScopes
+                  .map((scope) => `${scope.standard_code ?? "Tiêu chuẩn"} · IAF ${scope.iaf?.code ?? "—"} · NACE ${scope.nace?.code ?? "—"}`)
+                  .join("; ")}`
+                : !teamCoverage.leaderSelected
+                  ? "Chưa chọn đúng 01 Trưởng đoàn đánh giá. Hãy đổi vai trò của một chuyên gia có nhãn ‘Có thể làm trưởng đoàn’."
+                  : !teamCoverage.leaderQualified
+                    ? "Trưởng đoàn đã chọn chưa có năng lực LEAD_AUDITOR phù hợp với ít nhất một tiêu chuẩn/phạm vi của hồ sơ."
+                    : "Các phạm vi được bao phủ bởi ít nhất một thành viên phù hợp; không yêu cầu mọi thành viên phải có đủ toàn bộ IAF/NACE."}
+              message={projectExpertSuitabilityQuery.isLoading
+                ? "Đang đối chiếu năng lực chuyên gia..."
+                : projectExpertSuitabilityQuery.isError
+                  ? `Không tải được ma trận năng lực: ${getErrorMessage(projectExpertSuitabilityQuery.error)}`
+                  : `Độ bao phủ tổng thể đoàn: ${teamCoverage.covered}/${teamCoverage.required} phạm vi`}
+              showIcon
+              type={teamCoverage.sufficient ? "success" : projectExpertSuitabilityQuery.isError ? "error" : "warning"}
+            />
+          ) : null}
 
           {!selectedIsProjectContext && !selectedIsStage1 && selectedAppointment ? (
             <IntegratedMandayAllocationPanel
