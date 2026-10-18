@@ -7,7 +7,7 @@ const competency = (id, status = 'DRAFT') => ({ id, expert_id: 'e1', standard_co
   competency_role: 'AUDITOR', competency_level: 'QUALIFIED', scope_level: 'IAF', iaf_code: '14',
   effective_date: '2026-01-01', approval_status: status, evidence_summary: 'Chứng chỉ và kinh nghiệm', evidence_records: [], action_records: [] });
 
-async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false, withRecommendations = false, withDevelopment = false } = {}) {
+async function fixture(page, { self = false, subject = 'other', duplicate = false, withDetails = false, withRecommendations = false, withDevelopment = false, withResources = false } = {}) {
   const session = { access_token: 'controlled-compact-fixture', user: { id: 'actor', username: 'fixture', full_name: 'Tài khoản kiểm thử', roles: [self ? 'AUDITOR' : 'ADMIN'] } };
   const rows = self ? ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED', 'SUSPENDED'].map((status, i) => ({ ...competency('c' + i, status), evidence_records: [{ id: 'ev' + i, title: 'Chứng chỉ ' + i, status: 'ACTIVE' }] }))
     : [{ ...competency('pending', 'PENDING_APPROVAL'), action_records: [{ action_type: 'SUBMIT', actor_id: 'actor' }] },
@@ -45,6 +45,14 @@ async function fixture(page, { self = false, subject = 'other', duplicate = fals
       competencies: [], audit_plan_options: [], governance: null,
       trainings: withDevelopment ? [{ id: 'training-1', training_type: 'INTERNAL', title: 'Đào tạo ISO 9001', provider: 'CTIC', standard_code: 'ISO 9001:2015', start_date: '2026-01-10', status: 'PLANNED', attachments: [] }] : [],
       monitoring: withDevelopment ? [{ id: 'monitoring-1', monitoring_method: 'WITNESS', monitoring_content: 'Chứng kiến đánh giá tại nhà máy', plan_type: 'SCHEDULED', planned_date: '2026-03-10', status: 'PLANNED', witness_items: [{ criterion_code: 'F09-1', criterion_label: 'Chuẩn bị đánh giá', rating: '4' }], attachments: [] }] : [],
+    });
+    if (path === '/experts/e1/resource-governance') return json({
+      requested_period: { start_datetime: '2026-01-01', end_datetime: '2026-12-31' },
+      workload: { assigned_mandays: 2, engagement_count: 1, occupied_days: 3, other_commitments: 0 },
+      workload_assignments: withResources ? [{ id: 'assignment-1', plan_code: 'PLAN-001', audit_type: 'STAGE_1', start_date: '2026-03-10', end_date: '2026-03-12', planned_mandays: 2, workload_type: 'OCCUPIED' }] : [],
+      action_history: withResources ? [{ id: 'action-1', action_type: 'AVAILABILITY_CREATED', created_at: '2026-01-01T09:00:00', actor: { full_name: 'Quản trị viên' }, reason: 'Cập nhật lịch nguồn lực' }] : [],
+      availability_periods: withResources ? [{ id: 'availability-1', availability_type: 'LEAVE', start_datetime: '2026-03-01', end_datetime: '2026-03-03', reason: 'Nghỉ phép năm', status: 'ACTIVE', created_at: '2026-01-01' }] : [],
+      independence_conflicts: withResources ? [{ id: 'conflict-1', customer_id: 'customer-1', customer: { customer_code: 'KH-001', company_name: 'Khách hàng An Bình' }, conflict_type: 'CONSULTANCY', description: 'Đã tư vấn quy trình', valid_from: '2026-01-01', declaration_status: 'ACTIVE', independence_status: 'OPEN', review_note: 'Chưa review', declared_at: '2026-01-01' }] : [],
     });
     if (path === '/experts') return json([expert]);
     if (path === '/experts/e1') return json(expert);
@@ -297,5 +305,63 @@ test('desktop expert development keeps training and monitoring tables', async ({
   }
   await development.getByRole('tab', { name: /Giám sát F.12/ }).click();
   await expect(development.getByRole('tabpanel', { name: /Giám sát F.12/ }).locator('tr[data-row-key="monitoring-1"]')).toBeVisible();
+  expect(h.errors).toEqual([]);
+});
+
+test('mobile expert resource cards keep availability and independence actions', async ({ page }, info) => {
+  const h = await fixture(page, { withResources: true });
+  await openAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('combobox', { name: 'Mục hồ sơ chuyên gia' }).click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Nguồn lực & độc lập' }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+
+  const resources = page.locator('.expert-resource-tabs');
+  await expect(resources.locator('> .ant-tabs-nav')).toBeHidden();
+  const availability = resources.getByRole('tabpanel', { name: /Availability/ }).locator('.expert-resource-responsive');
+  await expect(availability.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(availability.locator('.cmp-responsive-card').getByText('Nghỉ phép năm')).toBeVisible();
+  await expect(availability.locator('.cmp-responsive-card').getByRole('button', { name: 'Hủy' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-availability-mobile.png') });
+
+  await page.getByRole('combobox', { name: 'Mục nguồn lực và độc lập' }).click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Independence' }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+  const independence = resources.getByRole('tabpanel', { name: /Independence/ }).locator('.expert-resource-responsive');
+  await expect(independence.locator('.cmp-data-table--responsive')).toBeHidden();
+  await expect(independence.locator('.cmp-responsive-card').getByText('KH-001 · Khách hàng An Bình')).toBeVisible();
+  await expect(independence.locator('.cmp-responsive-card').getByText('Đã tư vấn quy trình')).toBeVisible();
+  await expect(independence.locator('.cmp-responsive-card').getByRole('button', { name: 'Review' })).toBeVisible();
+  await expect(independence.locator('.cmp-responsive-card').getByRole('button', { name: 'Hủy' })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('expert-independence-mobile.png') });
+
+  await page.getByRole('combobox', { name: 'Mục nguồn lực và độc lập' }).click();
+  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Resource overview' }).click();
+  await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
+  const overview = resources.getByRole('tabpanel', { name: /Resource overview/ });
+  await expect(overview.locator('.cmp-data-table--responsive')).toHaveCount(2);
+  await expect(overview.locator('.cmp-data-table--responsive').first()).toBeHidden();
+  await expect(overview.locator('.cmp-responsive-card').filter({ hasText: 'PLAN-001' })).toBeVisible();
+  await expect(overview.locator('.cmp-responsive-card').filter({ hasText: 'AVAILABILITY_CREATED' })).toBeVisible();
+  expect(h.errors).toEqual([]);
+});
+
+test('desktop expert resources keep availability and independence tables', async ({ page }) => {
+  const h = await fixture(page, { withResources: true });
+  await openAdmin(page);
+  await page.getByRole('tab', { name: /Nguồn lực & độc lập/ }).click();
+  const resources = page.locator('.expert-resource-tabs');
+  for (const width of [1440, 1366]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 768 });
+    await expect(resources.locator('> .ant-tabs-nav')).toBeVisible();
+    await expect(resources.locator('.cmp-data-table--responsive').first()).toBeVisible();
+    await expect(resources.locator('.cmp-responsive-card-list').first()).toBeHidden();
+  }
+  await resources.getByRole('tab', { name: /Independence/ }).click();
+  await expect(resources.getByRole('tabpanel', { name: /Independence/ }).locator('tr[data-row-key="conflict-1"]')).toBeVisible();
+  await resources.getByRole('tab', { name: /Resource overview/ }).click();
+  const overview = resources.getByRole('tabpanel', { name: /Resource overview/ });
+  await expect(overview.locator('.cmp-data-table--responsive').first()).toBeVisible();
+  await expect(overview.locator('.cmp-responsive-card-list').first()).toBeHidden();
   expect(h.errors).toEqual([]);
 });

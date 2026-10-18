@@ -17,6 +17,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Statistic,
@@ -30,6 +31,7 @@ import dayjs from "dayjs";
 import { useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 
 const { Text } = Typography;
 
@@ -201,6 +203,9 @@ export default function ExpertResourceGovernancePanel({
     kind: "availability" | "conflict";
     id: string;
   } | null>(null);
+  const [activeResourceTab, setActiveResourceTab] = useState("availability");
+  const [mobileResourceOpen, setMobileResourceOpen] = useState(false);
+  const [mobilePage, setMobilePage] = useState<{ tab: string; page: number }>({ tab: "availability", page: 1 });
   const [availabilityForm] = Form.useForm<AvailabilityFormValues>();
   const [conflictForm] = Form.useForm<ConflictFormValues>();
   const [reviewForm] = Form.useForm<ReviewFormValues>();
@@ -308,6 +313,23 @@ export default function ExpertResourceGovernancePanel({
     onError: (error) => message.error(getErrorMessage(error)),
   });
 
+  const availabilityActionNode = (row: AvailabilityPeriod) => canManage && row.status === "ACTIVE" ? (
+    <Button danger onClick={() => setCancelTarget({ kind: "availability", id: row.id })} size="small" type="text">Hủy</Button>
+  ) : null;
+  const conflictActionNode = (row: IndependenceConflict) => canManage && row.declaration_status === "ACTIVE" ? (
+    <Space>
+      <Button size="small" onClick={() => {
+        reviewForm.setFieldsValue({
+          independence_status: row.independence_status === "OPEN" ? "CLEARED" : row.independence_status,
+          review_note: row.review_note ?? undefined,
+          mitigation_justification: row.mitigation_justification ?? undefined,
+        });
+        setReviewTarget(row);
+      }}>Review</Button>
+      <Button danger onClick={() => setCancelTarget({ kind: "conflict", id: row.id })} size="small" type="text">Hủy</Button>
+    </Space>
+  ) : null;
+
   const availabilityColumns: TableColumnsType<AvailabilityPeriod> = [
     {
       title: "Loại lịch",
@@ -335,9 +357,7 @@ export default function ExpertResourceGovernancePanel({
     ...(canManage ? [{
       title: "",
       width: 90,
-      render: (_: unknown, row: AvailabilityPeriod) => row.status === "ACTIVE" ? (
-        <Button danger onClick={() => setCancelTarget({ kind: "availability", id: row.id })} size="small" type="text">Hủy</Button>
-      ) : null,
+      render: (_: unknown, row: AvailabilityPeriod) => availabilityActionNode(row),
     }] : []),
   ];
 
@@ -384,23 +404,64 @@ export default function ExpertResourceGovernancePanel({
       title: "Thao tác",
       width: 160,
       fixed: "right" as const,
-      render: (_: unknown, row: IndependenceConflict) => row.declaration_status === "ACTIVE" ? (
-        <Space>
-          <Button size="small" onClick={() => {
-            reviewForm.setFieldsValue({
-              independence_status: row.independence_status === "OPEN" ? "CLEARED" : row.independence_status,
-              review_note: row.review_note ?? undefined,
-              mitigation_justification: row.mitigation_justification ?? undefined,
-            });
-            setReviewTarget(row);
-          }}>Review</Button>
-          <Button danger onClick={() => setCancelTarget({ kind: "conflict", id: row.id })} size="small" type="text">Hủy</Button>
-        </Space>
-      ) : null,
+      render: (_: unknown, row: IndependenceConflict) => conflictActionNode(row),
     }] : []),
   ];
 
   const overview = resourceQuery.data;
+  const availabilityCards: ResponsiveCardItem[] = (overview?.availability_periods ?? []).map((row) => ({
+    key: row.id,
+    title: availabilityLabels[row.availability_type] ?? row.availability_type,
+    status: <Tag color={row.status === "ACTIVE" ? "blue" : "default"}>{row.status === "ACTIVE" ? "Hiệu lực" : "Đã hủy"}</Tag>,
+    fields: [
+      { key: "dates", label: "Thời gian", value: `${formatDate(row.start_datetime)} – ${formatDate(row.end_datetime)}` },
+      { key: "reason", label: "Lý do", value: row.reason || "—" },
+      { key: "note", label: "Ghi chú", value: row.note || "—" },
+    ],
+    actions: availabilityActionNode(row),
+  }));
+  const conflictCards: ResponsiveCardItem[] = (overview?.independence_conflicts ?? []).map((row) => ({
+    key: row.id,
+    title: row.customer ? `${row.customer.customer_code} · ${row.customer.company_name}` : row.customer_id,
+    status: decisionTag(row.independence_status),
+    fields: [
+      ...(canManage ? [
+        { key: "type", label: "Conflict", value: conflictLabels[row.conflict_type || ""] ?? row.conflict_type ?? "—" },
+        { key: "description", label: "Mô tả", value: row.description || "—" },
+      ] : []),
+      { key: "dates", label: "Hiệu lực", value: `${formatDate(row.valid_from)} – ${row.valid_to ? formatDate(row.valid_to) : "Không giới hạn"}` },
+      ...(canManage ? [{ key: "review", label: "Review / mitigation", value: <Space orientation="vertical" size={2}><span>{row.review_note || "Chưa review"}</span>{row.mitigation_justification ? <span>{row.mitigation_justification}</span> : null}</Space> }] : []),
+    ],
+    actions: conflictActionNode(row),
+  }));
+  const assignmentCards: ResponsiveCardItem[] = (overview?.workload_assignments ?? []).map((row) => ({
+    key: row.id,
+    title: row.plan_code || "Chưa có mã kế hoạch",
+    status: <Tag color={row.workload_type === "OCCUPIED" ? "red" : "gold"}>{row.workload_type === "OCCUPIED" ? "Occupied" : "Remote warning"}</Tag>,
+    fields: [
+      { key: "type", label: "Loại", value: row.audit_type || "—" },
+      { key: "dates", label: "Thời gian", value: `${formatDate(row.start_date)} – ${formatDate(row.end_date)}` },
+      { key: "mandays", label: "MD", value: row.planned_mandays ?? "Derived theo ngày" },
+    ],
+  }));
+  const actionCards: ResponsiveCardItem[] = (overview?.action_history ?? []).map((row) => ({
+    key: row.id,
+    title: row.action_type,
+    fields: [
+      { key: "date", label: "Thời điểm", value: dayjs(row.created_at).format("DD/MM/YYYY HH:mm") },
+      { key: "actor", label: "Người thực hiện", value: actorName(row.actor) },
+      { key: "reason", label: "Lý do / kết quả", value: row.reason || "—" },
+    ],
+  }));
+  const renderMobileCards = (tab: string, cards: ResponsiveCardItem[], empty: string) => {
+    const pageSize = 8;
+    const pageCount = Math.max(1, Math.ceil(cards.length / pageSize));
+    const page = Math.min(mobilePage.tab === tab ? mobilePage.page : 1, pageCount);
+    return <>
+      <ResponsiveCardList empty={<Empty description={empty} />} items={cards.slice((page - 1) * pageSize, page * pageSize)} />
+      {cards.length > pageSize ? <Pagination className="expert-resource-mobile-pagination" current={page} onChange={(nextPage) => setMobilePage({ tab, page: nextPage })} pageSize={pageSize} showSizeChanger={false} total={cards.length} /> : null}
+    </>;
+  };
 
   return (
     <div className="expert-detail-stack">
@@ -426,12 +487,26 @@ export default function ExpertResourceGovernancePanel({
         <Card size="small"><Statistic title="Other commitments" value={overview?.workload.other_commitments ?? 0} /></Card>
       </div>
 
-      <Tabs items={[
+      <Select
+        aria-label="Mục nguồn lực và độc lập"
+        className="expert-resource-mobile-select"
+        onChange={(tab) => { setActiveResourceTab(tab); setMobileResourceOpen(false); }}
+        onOpenChange={setMobileResourceOpen}
+        open={mobileResourceOpen}
+        options={[
+          { value: "availability", label: "Availability" },
+          { value: "independence", label: "Independence" },
+          { value: "resource-overview", label: "Resource overview" },
+        ]}
+        value={activeResourceTab}
+      />
+      <Tabs activeKey={activeResourceTab} className="expert-resource-tabs" onChange={setActiveResourceTab} items={[
         {
           key: "availability",
           label: <span><CalendarOutlined /> Availability</span>,
           children: (
             <Card
+              className="expert-competency-tab-card"
               extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => {
                 availabilityForm.setFieldsValue({
                   availability_type: "UNAVAILABLE",
@@ -441,7 +516,8 @@ export default function ExpertResourceGovernancePanel({
               }} type="primary">Thêm lịch</Button> : null}
               title="Lịch unavailable, nghỉ phép và cam kết khác"
             >
-              <Table
+              <div className="expert-resource-responsive">
+              <div className="cmp-data-table--responsive"><Table
                 columns={availabilityColumns}
                 dataSource={overview?.availability_periods ?? []}
                 loading={resourceQuery.isLoading}
@@ -449,7 +525,9 @@ export default function ExpertResourceGovernancePanel({
                 pagination={{ pageSize: 8 }}
                 rowKey="id"
                 scroll={{ x: 1100 }}
-              />
+              /></div>
+              {renderMobileCards("availability", availabilityCards, "Chưa có lịch nguồn lực")}
+              </div>
             </Card>
           ),
         },
@@ -458,6 +536,7 @@ export default function ExpertResourceGovernancePanel({
           label: <span><SafetyCertificateOutlined /> Independence</span>,
           children: (
             <Card
+              className="expert-competency-tab-card"
               extra={canManage ? <Button icon={<PlusOutlined />} onClick={() => {
                 conflictForm.setFieldsValue({
                   conflict_type: "PRIOR_INVOLVEMENT",
@@ -468,7 +547,8 @@ export default function ExpertResourceGovernancePanel({
               }} type="primary">Khai báo conflict</Button> : null}
               title="Conflict declaration và independence decision theo khách hàng"
             >
-              <Table
+              <div className="expert-resource-responsive">
+              <div className="cmp-data-table--responsive"><Table
                 columns={conflictColumns}
                 dataSource={overview?.independence_conflicts ?? []}
                 loading={resourceQuery.isLoading}
@@ -476,7 +556,9 @@ export default function ExpertResourceGovernancePanel({
                 pagination={{ pageSize: 8 }}
                 rowKey="id"
                 scroll={{ x: 1450 }}
-              />
+              /></div>
+              {renderMobileCards("independence", conflictCards, "Chưa có khai báo independence")}
+              </div>
             </Card>
           ),
         },
@@ -486,7 +568,8 @@ export default function ExpertResourceGovernancePanel({
           children: (
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <Card title="Assignments và workload sắp tới">
-                <Table
+                <div className="expert-resource-responsive">
+                <div className="cmp-data-table--responsive"><Table
                   dataSource={overview?.workload_assignments ?? []}
                   columns={[
                     { title: "Audit plan", dataIndex: "plan_code", render: (value?: string | null) => value || "—" },
@@ -498,10 +581,13 @@ export default function ExpertResourceGovernancePanel({
                   locale={{ emptyText: <Empty description="Không có assignment trong khoảng xem" /> }}
                   pagination={false}
                   rowKey="id"
-                />
+                /></div>
+                {renderMobileCards("assignments", assignmentCards, "Không có assignment trong khoảng xem")}
+                </div>
               </Card>
               <Card title="Lịch sử resource & independence">
-                <Table
+                <div className="expert-resource-responsive">
+                <div className="cmp-data-table--responsive"><Table
                   dataSource={overview?.action_history ?? []}
                   columns={[
                     { title: "Thời điểm", dataIndex: "created_at", width: 170, render: (value: string) => dayjs(value).format("DD/MM/YYYY HH:mm") },
@@ -512,7 +598,9 @@ export default function ExpertResourceGovernancePanel({
                   locale={{ emptyText: <Empty description="Chưa có lịch sử resource governance" /> }}
                   pagination={{ pageSize: 10 }}
                   rowKey="id"
-                />
+                /></div>
+                {renderMobileCards("history", actionCards, "Chưa có lịch sử resource governance")}
+                </div>
               </Card>
             </Space>
           ),
