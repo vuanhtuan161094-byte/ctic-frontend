@@ -493,6 +493,51 @@ const statusLabels: Record<string, string> = {
   pending: "Chờ xử lý",
 };
 
+const auditCalendarStatusMeta: Record<string, { label: string; tone: string }> = {
+  cancelled: { label: statusLabels.cancelled, tone: "inactive" },
+  completed: { label: statusLabels.completed, tone: "positive" },
+  draft: { label: statusLabels.draft, tone: "info" },
+  in_progress: { label: statusLabels.in_progress, tone: "attention" },
+  planned: { label: statusLabels.planned, tone: "info" },
+};
+
+const auditCalendarShortStatus: Record<string, string> = {
+  cancelled: "Đã hủy",
+  completed: "Hoàn thành",
+  draft: "Bản nháp",
+  in_progress: "Đang làm",
+  planned: "Đã lập KH",
+};
+
+function normalizedAuditPlanStatus(status: string | null | undefined) {
+  const value = normalize(status);
+  return value === "canceled" ? "cancelled" : value;
+}
+
+function indexAuditPlansByDate(plans: AuditPlan[], month: Dayjs) {
+  const plansByDate = new Map<string, AuditPlan[]>();
+  const firstOfMonth = month.startOf("month");
+  const visibleStart = firstOfMonth.subtract((firstOfMonth.day() + 6) % 7, "day");
+  const visibleEnd = visibleStart.add(41, "day");
+
+  for (const plan of plans) {
+    if (!plan.planned_start_date) continue;
+    const planStart = dayjs(plan.planned_start_date).startOf("day");
+    const planEnd = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
+    if (!planStart.isValid() || !planEnd.isValid()) continue;
+    const start = planStart.isBefore(visibleStart) ? visibleStart : planStart;
+    const end = planEnd.isAfter(visibleEnd) ? visibleEnd : planEnd;
+    if (end.isBefore(start)) continue;
+
+    for (let date = start; !date.isAfter(end); date = date.add(1, "day")) {
+      const key = date.format("YYYY-MM-DD");
+      plansByDate.set(key, [...(plansByDate.get(key) ?? []), plan]);
+    }
+  }
+
+  return plansByDate;
+}
+
 const roleLabels: Record<string, string> = {
   team_leader: "Trưởng đoàn đánh giá",
   lead_auditor: "Trưởng đoàn đánh giá",
@@ -1027,10 +1072,7 @@ export function ScheduleResourcesScreen({
   }, [appointmentsQuery.data]);
 
   const plans = useMemo(() => {
-    const candidates = allPlans.filter((plan) => (
-      normalize(plan.audit_type) !== "project_team"
-      && !["cancelled", "canceled"].includes(normalize(plan.status))
-    ));
+    const candidates = allPlans.filter((plan) => normalize(plan.audit_type) !== "project_team");
     const byBusinessEvent = new Map<string, AuditPlan[]>();
     for (const plan of candidates) {
       const businessKey = plan.audit_event_id ?? plan.id;
@@ -1115,7 +1157,7 @@ export function ScheduleResourcesScreen({
       const customerValue = customer?.id ?? customer?.company_name ?? "";
       const matchesCustomer = customerFilter === "all" || customerValue === customerFilter;
       const matchesAuditType = auditTypeFilter === "all" || normalize(plan.audit_type) === auditTypeFilter;
-      const matchesStatus = statusFilter === "all" || normalize(plan.status) === statusFilter;
+      const matchesStatus = statusFilter === "all" || normalizedAuditPlanStatus(plan.status) === statusFilter;
       const start = plan.planned_start_date ? dayjs(plan.planned_start_date) : null;
       const status = normalize(plan.status);
       const matchesPeriod = periodFilter === "all"
@@ -2234,16 +2276,17 @@ export function ScheduleResourcesScreen({
 
   const calendarFilters = (
     <div className="schedule-toolbar schedule-calendar-filters">
-      <Select onChange={setCustomerFilter} options={customerOptions} showSearch value={customerFilter} />
-      <Select onChange={setAuditTypeFilter} options={auditTypeOptions} value={auditTypeFilter} />
-      <Select onChange={setStatusFilter} options={[
+      <Select aria-label="Lọc khách hàng" onChange={setCustomerFilter} options={customerOptions} showSearch value={customerFilter} />
+      <Select aria-label="Lọc loại đánh giá" onChange={setAuditTypeFilter} options={auditTypeOptions} value={auditTypeFilter} />
+      <Select aria-label="Lọc trạng thái" onChange={setStatusFilter} options={[
         { label: "Tất cả trạng thái", value: "all" },
-        { label: "Bản nháp", value: "draft" },
-        { label: "Đã lập kế hoạch", value: "planned" },
-        { label: "Đang thực hiện", value: "in_progress" },
-        { label: "Hoàn thành", value: "completed" },
+        { label: auditCalendarStatusMeta.draft.label, value: "draft" },
+        { label: auditCalendarStatusMeta.planned.label, value: "planned" },
+        { label: auditCalendarStatusMeta.in_progress.label, value: "in_progress" },
+        { label: auditCalendarStatusMeta.completed.label, value: "completed" },
+        { label: auditCalendarStatusMeta.cancelled.label, value: "cancelled" },
       ]} value={statusFilter} />
-      <Select onChange={setPeriodFilter} options={[
+      <Select aria-label="Lọc kỳ" onChange={setPeriodFilter} options={[
         { label: "Tất cả thời gian", value: "all" },
         { label: "Lịch sắp tới", value: "upcoming" },
         { label: "Đã hoàn thành", value: "completed" },
@@ -2255,27 +2298,117 @@ export function ScheduleResourcesScreen({
   const renderAuditCalendar = (
     calendarPlans: AuditPlan[],
     roleByPlan: Map<string, string> = new Map(),
-  ) => (
-    <div aria-label={`Lịch theo tuần ${vietnameseWeekdayLabels.join(" ")}`} className="resource-month-calendar">
+  ) => {
+    const plansByDate = indexAuditPlansByDate(calendarPlans, calendarMonth);
+    const sortedPlans = [...calendarPlans].sort((left, right) => (
+      dayjs(left.planned_start_date).valueOf() - dayjs(right.planned_start_date).valueOf()
+      || String(left.plan_code ?? left.id).localeCompare(String(right.plan_code ?? right.id), "vi")
+    ));
+    const renderPlanEvent = (plan: AuditPlan, inPopover = false) => {
+      const customerName = plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng";
+      const auditType = labelFromMap(plan.audit_type, auditTypeLabels);
+      const planCode = plan.plan_code || plan.certification_projects?.project_code || "Đợt đánh giá";
+      const status = normalizedAuditPlanStatus(plan.status) || "draft";
+      const statusLabel = auditCalendarStatusMeta[status]?.label ?? labelFromMap(status, statusLabels);
+      const startDate = plan.planned_start_date ? dayjs(plan.planned_start_date).format("DD/MM/YYYY") : "Chưa xếp lịch";
+      const endDate = plan.planned_end_date ? dayjs(plan.planned_end_date).format("DD/MM/YYYY") : null;
+      const dateLabel = endDate && endDate !== startDate ? `${startDate} – ${endDate}` : startDate;
+      return (
+        <button
+          aria-label={`${customerName} · ${auditType} · ${planCode} · ${statusLabel} · ${dateLabel}`}
+          className={`resource-calendar-event${inPopover ? " resource-calendar-event--popover" : ""} status-${status}`}
+          key={plan.id}
+          title={`${customerName} · ${auditType} · ${planCode} · ${statusLabel} · ${dateLabel}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenProject(plan.project_id, dossierKeyForAuditPlan(plan));
+          }}
+          type="button"
+        >
+          <strong>{customerName}</strong>
+          <div className="resource-calendar-event-meta">
+            <span>{auditType}{roleByPlan.get(plan.id) ? ` · ${roleByPlan.get(plan.id)}` : ""}</span>
+            <small className={`resource-calendar-event-status status-${status}`}>{auditCalendarShortStatus[status] ?? statusLabel}</small>
+          </div>
+          {inPopover ? <small>{planCode} · {statusLabel} · {dateLabel}</small> : null}
+        </button>
+      );
+    };
+    const monthLabel = calendarMonth.locale("vi").format("[tháng] M [năm] YYYY");
+    const mobileMonthCounts = Array.from({ length: 12 }, (_, index) => {
+      const monthStart = calendarMonth.month(index).startOf("month");
+      const monthEnd = monthStart.endOf("month");
+      const count = filteredPlans.filter((plan) => {
+        if (!plan.planned_start_date) return false;
+        const start = dayjs(plan.planned_start_date).startOf("day");
+        const end = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
+        return !end.isBefore(monthStart) && !start.isAfter(monthEnd);
+      }).length;
+      return { count, date: monthStart, label: monthStart.format("[Tháng] M") };
+    });
+
+    return (
+    <div aria-label={`Lịch tháng ${calendarMonth.locale("vi").format("M YYYY")}`} className="resource-month-calendar">
       <div className="resource-calendar-header">
-        <div>
-          <Text strong>{calendarPlans.length} đợt đánh giá trong {calendarMonth.locale("vi").format("[tháng] M [năm] YYYY")}</Text>
-          <Text type="secondary">Bấm vào đợt đánh giá để mở đúng hồ sơ chứng nhận và chu kỳ.</Text>
+        <div className="resource-calendar-summary">
+          <Text strong>{calendarPlans.length} đợt đánh giá trong {monthLabel}</Text>
+          <Text aria-live="polite" role={calendarPlans.length === 0 ? "status" : undefined} type="secondary">
+            {calendarPlans.length === 0
+              ? `Chưa có đợt đánh giá. Thử đổi bộ lọc hoặc chuyển tháng.`
+              : "Chọn đợt để mở đúng hồ sơ và chu kỳ."}
+          </Text>
         </div>
-        <Space wrap>
-          <Tag color="blue">Dự kiến/bản nháp</Tag>
-          <Tag color="gold">Đang thực hiện</Tag>
-          <Tag color="green">Hoàn thành</Tag>
+        <Space className="resource-calendar-legend" size={[4, 4]} wrap>
+          {Object.entries(auditCalendarStatusMeta).map(([status, meta]) => (
+            <span className={`resource-calendar-status status-${status}`} key={status}>{meta.label}</span>
+          ))}
           {roleByPlan.size ? <Tag color="red">Trùng lịch được đánh dấu trong tổng hợp</Tag> : null}
         </Space>
       </div>
+      <div className="resource-calendar-mobile-view">
+        <div className="resource-calendar-mobile-toolbar">
+          <Space size={4}>
+            <Button aria-label="Tháng trước" icon={<LeftOutlined />} onClick={() => setCalendarMonth(calendarMonth.subtract(1, "month"))} />
+            <Button onClick={() => setCalendarMonth(dayjs().startOf("month"))}>Hôm nay</Button>
+            <Button aria-label="Tháng sau" icon={<RightOutlined />} onClick={() => setCalendarMonth(calendarMonth.add(1, "month"))} />
+          </Space>
+          <Segmented
+            onChange={(nextMode) => setCalendarMode(nextMode as "month" | "year")}
+            options={[{ label: "Tháng", value: "month" }, { label: "Năm", value: "year" }]}
+            value={calendarMode}
+          />
+        </div>
+        <Text className="resource-calendar-mobile-title" strong>{calendarMode === "year" ? calendarMonth.format("[Năm] YYYY") : monthLabel}</Text>
+        {calendarMode === "year" ? (
+          <div className="resource-calendar-mobile-months">
+            {mobileMonthCounts.map(({ count, date, label }) => (
+              <Button
+                aria-label={`${label}, ${count} đợt đánh giá`}
+                className="resource-calendar-mobile-month"
+                key={date.format("YYYY-MM")}
+                onClick={() => {
+                  setCalendarMonth(date);
+                  setCalendarMode("month");
+                }}
+              >
+                <span>{label}</span><small>{count} đợt</small>
+              </Button>
+            ))}
+          </div>
+        ) : calendarPlans.length ? (
+          <div aria-label={`Danh sách đợt đánh giá tháng ${monthLabel}`} className="resource-calendar-mobile-list">
+            {sortedPlans.map((plan) => renderPlanEvent(plan))}
+          </div>
+        ) : null}
+      </div>
+      <div className="resource-calendar-desktop">
       <ConfigProvider locale={viVN}>
         <Calendar
           headerRender={({ value, type, onChange, onTypeChange }) => (
             <div className="resource-calendar-toolbar">
-              <Space>
+              <Space size={6}>
                 <Button
-                  aria-label="Tháng hoặc năm trước"
+                  aria-label={type === "year" ? "Năm trước" : "Tháng trước"}
                   icon={<LeftOutlined />}
                   onClick={() => {
                     const nextValue = value.subtract(1, type === "year" ? "year" : "month");
@@ -2289,7 +2422,7 @@ export function ScheduleResourcesScreen({
                   onChange(current);
                 }}>Hôm nay</Button>
                 <Button
-                  aria-label="Tháng hoặc năm sau"
+                  aria-label={type === "year" ? "Năm sau" : "Tháng sau"}
                   icon={<RightOutlined />}
                   onClick={() => {
                     const nextValue = value.add(1, type === "year" ? "year" : "month");
@@ -2298,7 +2431,7 @@ export function ScheduleResourcesScreen({
                   }}
                 />
               </Space>
-              <Text strong>{value.locale("vi").format(type === "year" ? "[Năm] YYYY" : "[Tháng] M [năm] YYYY")}</Text>
+              <Text className="resource-calendar-toolbar-title" strong>{value.locale("vi").format(type === "year" ? "[Năm] YYYY" : "[Tháng] M [năm] YYYY")}</Text>
               <Segmented
                 onChange={(nextMode) => {
                   const mode = nextMode as "month" | "year";
@@ -2315,37 +2448,14 @@ export function ScheduleResourcesScreen({
           )}
           cellRender={(current, info) => {
             if (info.type !== "date") return info.originNode;
-            const dayPlans = calendarPlans.filter((plan) => {
-              if (!plan.planned_start_date) return false;
-              const start = dayjs(plan.planned_start_date).startOf("day");
-              const endDate = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
-              return !current.startOf("day").isBefore(start) && !current.startOf("day").isAfter(endDate);
-            });
-            const renderPlanEvent = (plan: AuditPlan, inPopover = false) => {
-              const customerName = plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng";
-              const auditType = labelFromMap(plan.audit_type, auditTypeLabels);
-              const planCode = plan.plan_code || plan.certification_projects?.project_code || "Đợt đánh giá";
-              return (
-                <button
-                  aria-label={`${customerName} · ${auditType} · ${planCode}`}
-                  className={`resource-calendar-event${inPopover ? " resource-calendar-event--popover" : ""} status-${normalize(plan.status) || "draft"}`}
-                  key={plan.id}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onOpenProject(plan.project_id, dossierKeyForAuditPlan(plan));
-                  }}
-                  type="button"
-                >
-                  <strong>{customerName}</strong>
-                  <span>{auditType}{roleByPlan.get(plan.id) ? ` · ${roleByPlan.get(plan.id)}` : ""}</span>
-                  <small>{planCode}</small>
-                </button>
-              );
-            };
+            const dayPlans = plansByDate.get(current.format("YYYY-MM-DD")) ?? [];
             const otherPlans = dayPlans.slice(1);
             return (
-              <div className={`resource-calendar-cell${otherPlans.length ? " has-more-events" : ""}`} data-event-count={dayPlans.length}>
-                {info.originNode}
+              <div
+                className={`resource-calendar-cell${otherPlans.length ? " has-more-events" : ""}`}
+                data-date={current.format("YYYY-MM-DD")}
+                data-event-count={dayPlans.length}
+              >
                 <div className="resource-calendar-events">
                   {dayPlans.slice(0, 1).map((plan) => renderPlanEvent(plan))}
                   {otherPlans.length ? (
@@ -2382,8 +2492,10 @@ export function ScheduleResourcesScreen({
           value={calendarMonth}
         />
       </ConfigProvider>
+      </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="schedule-resources-screen">
@@ -2412,7 +2524,7 @@ export function ScheduleResourcesScreen({
         <Card><Statistic prefix={<CalendarOutlined />} title="Đợt đánh giá" value={plans.length} /></Card>
         <Card><Statistic prefix={<WarningOutlined />} title="Đợt chưa có đoàn" value={unassignedPlans.length} /></Card>
         <Card><Statistic prefix={<ClockCircleOutlined />} title="Kế hoạch sắp tới" value={upcomingPlans.length} /></Card>
-        <Card><Statistic prefix={<UserOutlined />} title={canReadExperts ? "Chuyên gia đang hoạt động" : "Chuyên gia đã phân công"} value={activeExperts.length} /></Card>
+        <Card><Statistic prefix={<UserOutlined />} title={canReadExperts ? "Chuyên gia hoạt động" : "Chuyên gia phân công"} value={activeExperts.length} /></Card>
       </section>
 
       <Card className="schedule-workspace-card">
@@ -2462,7 +2574,7 @@ export function ScheduleResourcesScreen({
             },
             {
               key: "load",
-              label: "Tải nguồn lực",
+              label: "Nguồn lực",
               children: (
                 <div className="schedule-workspace-panel">
                   <div className="cmp-data-table--responsive">
@@ -2527,7 +2639,7 @@ export function ScheduleResourcesScreen({
           : selectedIsFormalEventAppointment
             ? "Chỉ định đoàn theo đợt đánh giá"
             : "Điều phối đợt đánh giá"}</Text><div className="drawer-code-title">{selectedDisplayCode}</div></div>}
-        width={760}
+        size={760}
       >
         {selectedPlan ? (
           <div className="schedule-detail-content">
@@ -2912,7 +3024,7 @@ export function ScheduleResourcesScreen({
         className="appointment-editor-modal"
         destroyOnHidden
         footer={selectedAppointmentLocked ? null : undefined}
-        maskClosable={false}
+        mask={{ closable: false }}
         okButtonProps={{
           disabled: scopePrerequisiteBlocked
             || planTeamPrerequisiteBlocked

@@ -4,6 +4,7 @@ import {
   captureVisualBaseline,
   expectNoHorizontalOverflow,
 } from "../helpers/quality.mjs";
+import { CMP_DEMO_DATA } from "../fixtures/cmp-demo-3year.mjs";
 
 const session = {
   access_token: "browser-fixture-not-a-credential",
@@ -16,22 +17,22 @@ const session = {
   },
 };
 
-const customers = Array.from({ length: 12 }, (_, index) => ({
-  id: `customer-${index + 1}`,
-  customer_code: `KH-2026-${String(index + 1).padStart(4, "0")}`,
-  company_name: `Công ty Cổ phần Giải pháp Công nghiệp và Chuỗi Cung ứng Miền Đông Nam Bộ ${index + 1}`,
-  country_code: "VN",
-  tax_code: `0312345${String(index + 1).padStart(3, "0")}`,
-  address: "Thành phố Hồ Chí Minh",
-  phone: `09000000${String(index + 1).padStart(2, "0")}`,
-  email: `customer-${index + 1}@example.invalid`,
-  status: index < 10 ? "active" : "inactive",
-  created_at: "2026-10-10T09:00:00Z",
-  updated_at: "2026-10-10T09:00:00Z",
+const customers = CMP_DEMO_DATA.customers;
+const projects = CMP_DEMO_DATA.cases.map((record) => ({
+  id: record.id,
+  project_code: record.project_code,
+  standard_name: record.standard_name,
+  status: record.status,
+  updated_at: record.updated_at,
+  certification_applications: {
+    application_code: record.application.application_code,
+    customers: { id: record.customer.id },
+  },
 }));
 
 async function openCustomerList(page) {
   const sessionErrors = [];
+  const writes = [];
   page.on("pageerror", (error) => sessionErrors.push(`pageerror: ${error.message}`));
   page.on("requestfailed", (request) => sessionErrors.push(`requestfailed: ${request.method()} ${request.url()}`));
   page.on("response", (response) => {
@@ -51,6 +52,7 @@ async function openCustomerList(page) {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (request.method() !== "GET") {
+      writes.push(`${request.method()} ${path}`);
       await route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ message: "Controlled fixture is read-only" }) });
       return;
     }
@@ -72,7 +74,7 @@ async function openCustomerList(page) {
     } else if (path === "/customers") {
       body = customers;
     } else if (path === "/certification-projects") {
-      body = [];
+      body = projects;
     }
 
     await route.fulfill({ status: 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
@@ -81,7 +83,9 @@ async function openCustomerList(page) {
   await page.goto("/customers");
   await expect(page.getByRole("heading", { name: "Khách hàng" })).toBeVisible();
   await expect(page.locator(".customer-mobile-card, .customers-list-card .ant-table-tbody tr:not(.ant-table-measure-row)").first()).toBeVisible();
-  return sessionErrors;
+  await expect(page.locator(".customer-summary-strip")).toContainText("20");
+  await expect(page.getByText("20 khách hàng", { exact: true })).toBeVisible();
+  return { sessionErrors, writes };
 }
 
 async function expectToolbarFits(page, testInfo, errors) {
@@ -115,17 +119,65 @@ async function expectToolbarFits(page, testInfo, errors) {
 
   await expectNoHorizontalOverflow(page);
   expect(errors, "Unexpected customer screen browser/runtime errors").toEqual([]);
-  await captureVisualBaseline(page, testInfo, `customer-toolbar-${viewport?.width ?? "unknown"}`);
+  await captureVisualBaseline(page, testInfo, `customer-toolbar-${viewport?.width ?? "unknown"}`, { fullPage: false });
 }
 
 test("customer search and status filters fit at desktop and mobile widths", async ({ page }, testInfo) => {
-  const errors = await openCustomerList(page);
+  const { sessionErrors, writes } = await openCustomerList(page);
   const sizes = testInfo.project.name === "desktop-1440x900"
     ? [{ width: 1440, height: 900 }, { width: 1366, height: 768 }]
     : [{ width: 390, height: 844 }];
 
   for (const size of sizes) {
     await page.setViewportSize(size);
-    await expectToolbarFits(page, testInfo, errors);
+    await expectToolbarFits(page, testInfo, sessionErrors);
   }
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Thêm khách hàng" }).click();
+  const customerForm = page.getByRole("dialog");
+  await expect(customerForm).toBeVisible();
+  await page.waitForTimeout(350);
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await expectNoHorizontalOverflow(page);
+    const formBounds = await customerForm.boundingBox();
+    expect(formBounds).not.toBeNull();
+    expect(formBounds.y).toBeGreaterThanOrEqual(0);
+    const submitButton = customerForm.getByRole("button", { name: "Tạo khách hàng" });
+    const submitBounds = await submitButton.boundingBox();
+    expect(submitBounds).not.toBeNull();
+    const formGeometry = await customerForm.evaluate((dialog) => {
+      const box = (selector) => {
+        const element = dialog.querySelector(selector);
+        const rect = element?.getBoundingClientRect();
+        return rect ? { top: rect.top, bottom: rect.bottom, height: rect.height, clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, overflowY: getComputedStyle(element).overflowY } : null;
+      };
+      return { viewportHeight: window.innerHeight, container: box(".ant-modal-container"), body: box(".ant-modal-body"), footer: box(".ant-modal-footer") };
+    });
+    expect(formGeometry.container).not.toBeNull();
+    expect(formGeometry.container.top).toBeGreaterThanOrEqual(0);
+    expect(formGeometry.container.bottom).toBeLessThanOrEqual(size.height + 1);
+    expect(formGeometry.footer).not.toBeNull();
+    expect(formGeometry.footer.bottom).toBeLessThanOrEqual(size.height + 1);
+    expect(submitBounds.y).toBeGreaterThanOrEqual(0);
+    expect(submitBounds.y + submitBounds.height).toBeLessThanOrEqual(size.height + 1);
+    await testInfo.attach(`customer-form-geometry-${size.width}`, {
+      body: Buffer.from(JSON.stringify({ formBounds, submitBounds, formGeometry }, null, 2)),
+      contentType: "application/json",
+    });
+    await captureVisualBaseline(page, testInfo, `customer-create-form-${size.width}`, { fullPage: false });
+  }
+  await customerForm.getByRole("button", { name: "Tạo khách hàng" }).click();
+  await expect(customerForm.getByText("Nhập mã khách hàng", { exact: true })).toBeVisible();
+  await expect(customerForm.getByText("Nhập tên tổ chức", { exact: true })).toBeVisible();
+  expect(writes, "Invalid customer form must not send a mutation").toEqual([]);
+  await customerForm.getByRole("button", { name: "Hủy" }).click();
+
+  await page.getByRole("button", { name: "Chi tiết" }).first().click();
+  const detailDrawer = page.locator(".customer-detail-drawer");
+  await expect(detailDrawer).toBeVisible();
+  await expect(detailDrawer.locator(".customer-projects-card")).toContainText("2 hồ sơ");
+  await expect(detailDrawer.locator(".customer-projects-card .ant-list-item")).toHaveCount(2);
+  expect(sessionErrors).toEqual([]);
 });

@@ -8,7 +8,7 @@ import {
   ReloadOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Empty, List, Skeleton, Space, Statistic, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Skeleton, Space, Statistic, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 
 import { getErrorMessage } from "../lib/api";
@@ -156,46 +156,37 @@ export function PersonalDashboardScreen({
           extra={<Button onClick={onViewAllWork} type="link">Xem tất cả công việc</Button>}
           title={<Space><CheckCircleOutlined />Công việc ưu tiên</Space>}
         >
-          <List
-            dataSource={workspace.priority_work_items}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hiện không có công việc cần xử lý." />,
-            }}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
+          {workspace.priority_work_items.length ? (
+            <ul aria-label="Công việc ưu tiên" className="personal-dashboard-list">
+              {workspace.priority_work_items.map((item) => (
+                <li className={`personal-dashboard-list-item personal-work-row${item.is_overdue ? " is-overdue" : ""}`} key={item.id}>
+                  <div className="personal-dashboard-list-copy">
+                    <div className="personal-dashboard-list-title">
+                      <Text strong>{taskTitle(item.title, item.work_type)}</Text>
+                      <Tag color={priorityMeta[item.priority].color}>{priorityMeta[item.priority].label}</Tag>
+                    </div>
+                    <div className="personal-dashboard-list-description">
+                      <Space size={[6, 4]} wrap>
+                        <Tag>{item.project_code ?? "Chưa tạo hồ sơ"}</Tag>
+                        <span>{item.organization_name ?? workTypeLabel(item.work_type)}</span>
+                        <span className={item.is_overdue ? "metric-danger" : ""}>
+                          {item.is_overdue ? <WarningOutlined /> : <ClockCircleOutlined />} {formatDate(item.due_at)}
+                        </span>
+                      </Space>
+                    </div>
+                  </div>
                   <Button
                     disabled={!item.can_execute}
-                    key="open"
                     onClick={() => onOpenPath(item.destination_path, item.context)}
                     size="small"
                     type="primary"
                   >
                     Mở
-                  </Button>,
-                ]}
-                className={item.is_overdue ? "personal-work-row is-overdue" : "personal-work-row"}
-              >
-                <List.Item.Meta
-                  description={(
-                    <Space size={[6, 4]} wrap>
-                      <Tag>{item.project_code ?? "Chưa tạo hồ sơ"}</Tag>
-                      <span>{item.organization_name ?? workTypeLabel(item.work_type)}</span>
-                      <span className={item.is_overdue ? "metric-danger" : ""}>
-                        {item.is_overdue ? <WarningOutlined /> : <ClockCircleOutlined />} {formatDate(item.due_at)}
-                      </span>
-                    </Space>
-                  )}
-                  title={(
-                    <Space wrap>
-                      <Text strong>{taskTitle(item.title, item.work_type)}</Text>
-                      <Tag color={priorityMeta[item.priority].color}>{priorityMeta[item.priority].label}</Tag>
-                    </Space>
-                  )}
-                />
-              </List.Item>
-            )}
-          />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hiện không có công việc cần xử lý." />}
         </Card>
 
         <Card
@@ -203,57 +194,67 @@ export function PersonalDashboardScreen({
           extra={<Button onClick={onViewCalendar} type="link">Mở lịch</Button>}
           title={<Space><CalendarOutlined />Lịch sắp tới</Space>}
         >
-          <List
-            dataSource={workspace.calendar_items.slice(0, 6)}
-            locale={{
-              emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lịch đánh giá sắp tới." />,
-            }}
-            renderItem={(item) => (
-              <List.Item
-                actions={[
-                  <Button key="open" onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>,
-                ]}
-              >
-                <div className="personal-calendar-preview-date">
-                  <strong>{dayjs(item.start).format("DD")}</strong>
-                  <span>{dayjs(item.start).format("MM/YYYY")}</span>
-                </div>
-                <List.Item.Meta
-                  description={`${item.project_code ?? "—"} · ${item.organization_name ?? calendarTypeLabel(item.type)}`}
-                  title={<Space wrap><Tag color={item.type === "AUDIT" ? "green" : "blue"}>{calendarTypeLabel(item.type)}</Tag><Text strong>{item.title}</Text></Space>}
-                />
-              </List.Item>
-            )}
-          />
+          {workspace.calendar_items.length ? (
+            <ul aria-label="Lịch sắp tới" className="personal-dashboard-list">
+              {workspace.calendar_items.slice(0, 6).map((item) => (
+                <li className="personal-dashboard-list-item personal-calendar-row" key={item.id}>
+                  <div className="personal-calendar-preview-date">
+                    <strong>{dayjs(item.start).format("DD")}</strong>
+                    <span>{dayjs(item.start).format("MM/YYYY")}</span>
+                  </div>
+                  <div className="personal-dashboard-list-copy">
+                    <div className="personal-dashboard-list-title">
+                      <Tag color={item.type === "AUDIT" ? "green" : "blue"}>{calendarTypeLabel(item.type)}</Tag>
+                      <Text strong>{item.title}</Text>
+                    </div>
+                    <div className="personal-dashboard-list-description">
+                      {item.project_code ?? "—"} · {item.organization_name ?? calendarTypeLabel(item.type)}
+                    </div>
+                  </div>
+                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lịch đánh giá sắp tới." />}
         </Card>
       </section>
 
       <section className="personal-dashboard-secondary-grid">
         <Card className="dashboard-card" title={<Space><WarningOutlined />Ngoại lệ cần chú ý</Space>}>
-          <List
-            dataSource={workspace.exceptions}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc quá hạn." /> }}
-            renderItem={(item) => (
-              <List.Item actions={[<Button key="open" onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Xử lý</Button>]}>
-                <List.Item.Meta description={`${item.message} · Hạn ${formatDate(item.due_at)}`} title={<Text type="danger">{item.title}</Text>} />
-              </List.Item>
-            )}
-          />
+          {workspace.exceptions.length ? (
+            <ul aria-label="Ngoại lệ cần chú ý" className="personal-dashboard-list">
+              {workspace.exceptions.map((item) => (
+                <li className="personal-dashboard-list-item" key={item.id}>
+                  <div className="personal-dashboard-list-copy">
+                    <Text className="personal-dashboard-list-danger" type="danger">{item.title}</Text>
+                    <div className="personal-dashboard-list-description">{item.message} · Hạn {formatDate(item.due_at)}</div>
+                  </div>
+                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Xử lý</Button>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc quá hạn." />}
         </Card>
 
         <Card className="dashboard-card" title={<Space><FolderOpenOutlined />Hồ sơ gần đây</Space>}>
-          <List
-            dataSource={workspace.recent_records.slice(0, 6)}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ nghiệp vụ gần đây." /> }}
-            renderItem={(item) => (
-              <List.Item actions={[<Button key="open" onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>]}>
-                <List.Item.Meta
-                  description={`${item.project_code ?? "—"} · ${dayjs(item.occurred_at).format("DD/MM/YYYY HH:mm")}`}
-                  title={<Space><CheckCircleOutlined /><Text>{item.title}</Text></Space>}
-                />
-              </List.Item>
-            )}
-          />
+          {workspace.recent_records.length ? (
+            <ul aria-label="Hồ sơ gần đây" className="personal-dashboard-list">
+              {workspace.recent_records.slice(0, 6).map((item) => (
+                <li className="personal-dashboard-list-item" key={item.id}>
+                  <div className="personal-dashboard-list-copy">
+                    <div className="personal-dashboard-list-title">
+                      <CheckCircleOutlined />
+                      <Text>{item.title}</Text>
+                    </div>
+                    <div className="personal-dashboard-list-description">
+                      {item.project_code ?? "—"} · {dayjs(item.occurred_at).format("DD/MM/YYYY HH:mm")}
+                    </div>
+                  </div>
+                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ nghiệp vụ gần đây." />}
         </Card>
       </section>
 

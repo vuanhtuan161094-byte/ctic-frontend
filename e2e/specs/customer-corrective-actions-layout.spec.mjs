@@ -127,6 +127,7 @@ async function routePortal(page) {
 }
 
 test("customer NC/CAP workspace keeps findings and response actions usable at all target sizes", async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const runtime = watchRuntimeIssues(page);
   const unexpectedWrites = await routePortal(page);
   await usePortalSession(page);

@@ -418,7 +418,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         render: (value: string | null, item) => {
           const due = getDueMeta(value);
           return (
-            <Space direction="vertical" size={2}>
+            <Space orientation="vertical" size={2}>
               <span className={due.className}>{item.sla_label || due.label}</span>
               {item.escalation_level ? (
                 <Tag color={item.escalation_level === 3 ? "red" : "orange"}>
@@ -509,7 +509,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
             prefix={<WarningOutlined />}
             title="Đã quá hạn"
             value={summary.overdue}
-            valueStyle={summary.overdue ? { color: "#cf1322" } : undefined}
+            styles={summary.overdue ? { content: { color: "#cf1322" } } : undefined}
           />
         </Card>
         <Card

@@ -922,7 +922,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (hasPermission("audit_plans.read", "audit_teams.read", "experts.read", "competencies.read")) operations.push({ key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" });
     if (hasRole("ADMIN") && hasPermission("experts.read")) operations.push({ key: "experts", icon: <TeamOutlined />, label: "Chuyên gia & năng lực" });
     if (hasPermission("documents.read")) operations.push({ key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu" });
-    if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị" });
+    if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị", title: "Thay đổi, khiếu nại & kháng nghị" });
     if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });
 
     const administration: NonNullable<MenuProps["items"]> = [];
@@ -1056,7 +1056,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     <>
       <div className="side-brand">
         <span className="side-brand-mark">{branding.shortName}</span>
-        <span className="side-brand-copy"><strong>{branding.organizationName}</strong><small>{branding.platformName}</small></span>
+        <span className="side-brand-copy"><strong title={branding.organizationName}>{branding.organizationName}</strong><small title={branding.platformName}>{branding.platformName}</small></span>
       </div>
       <Menu
         className="main-menu main-menu-v2"
@@ -1189,6 +1189,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         <Select
           aria-label="Chọn phân hệ nghiệp vụ"
           defaultValue="management-systems"
+          title="Chứng nhận hệ thống quản lý"
           options={[
             { value: "management-systems", label: "Chứng nhận hệ thống quản lý" },
             { value: "products", label: "Chứng nhận sản phẩm", disabled: true },

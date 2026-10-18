@@ -100,7 +100,7 @@ test("Schedule & Resources is read-focused and opens work in the project dossier
     scheduleSource.indexOf("<Drawer", workspaceStart),
   );
   assert.match(scheduleSource, /THEO DÕI LỊCH VÀ KHẢ DỤNG/);
-  assert.match(workspace, /Tải nguồn lực/);
+  assert.match(workspace, /Nguồn lực/);
   assert.match(workspace, /Lịch tổng hợp/);
   assert.match(workspace, /Lịch chuyên gia/);
   assert.doesNotMatch(workspace, /Theo hồ sơ chứng nhận|Lập chỉ định đoàn|Sửa dự thảo/);

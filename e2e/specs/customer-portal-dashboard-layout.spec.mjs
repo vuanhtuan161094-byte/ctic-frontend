@@ -106,7 +106,7 @@ test("customer portal dashboard fits dense data and supports keyboard shortcuts"
     } else {
       expect(geometry.rows).toBe(3);
     }
-    await captureVisualBaseline(page, testInfo, `customer-portal-dashboard-${size.width}`);
+    await captureVisualBaseline(page, testInfo, `customer-portal-dashboard-${size.width}`, { fullPage: false });
   }
 
   const applicationsShortcut = page.getByRole("button", { name: "Đơn đăng ký: 3", exact: true });

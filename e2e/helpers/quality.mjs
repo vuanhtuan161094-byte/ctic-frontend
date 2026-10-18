@@ -97,12 +97,12 @@ export async function runAxeBaseline(page, testInfo) {
   return result;
 }
 
-export async function captureVisualBaseline(page, testInfo, name) {
+export async function captureVisualBaseline(page, testInfo, name, { fullPage = true } = {}) {
   await stabilizeVisualState(page);
   const path = testInfo.outputPath(`${name}.png`);
   await page.screenshot({
     path,
-    fullPage: true,
+    fullPage,
     animations: "disabled",
     caret: "hide",
   });

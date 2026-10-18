@@ -720,13 +720,14 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       />
 
       <Modal
+        centered={breakpoints.xs}
         className="customer-form-modal"
         cancelText="Hủy"
         confirmLoading={saveMutation.isPending}
         destroyOnHidden
         okText={editingCustomer ? "Lưu thay đổi" : "Tạo khách hàng"}
         onCancel={() => { setFormOpen(false); setEditingCustomer(null); form.resetFields(); }}
-        onOk={() => void form.validateFields().then((values) => saveMutation.mutate(values))}
+        onOk={() => form.validateFields().then((values) => saveMutation.mutate(values)).catch(() => undefined)}
         open={formOpen}
         title={editingCustomer ? "Cập nhật khách hàng" : "Thêm khách hàng"}
         width={760}
