@@ -754,7 +754,7 @@ export default function CertificationResultWorkspaceModal({
                   <Descriptions.Item label="Nhận xét" span={2}>{workspace.technical_review?.recommendation_comment || "—"}</Descriptions.Item>
                 </Descriptions>
               </Card>
-              <Card title="Chứng chỉ hiện hành">
+              <Card className={currentCertificate ? undefined : "cmp-compact-empty-card"} title="Chứng chỉ hiện hành">
                   {currentCertificate ? (
                     <Space direction="vertical" size={12} style={{ width: "100%" }}>
                       {normalize(currentCertificate.status) === "suspended" ? <Alert showIcon type="warning" message="Chứng chỉ hiện đang bị đình chỉ." /> : null}

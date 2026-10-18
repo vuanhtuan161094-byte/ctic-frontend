@@ -485,7 +485,7 @@ export default function CertificateIssuanceWorkspaceModal({
               </Descriptions>
             </Card>
 
-            <Card title="Chứng chỉ hiện hành" size="small">
+            <Card className={currentCertificate ? undefined : "cmp-compact-empty-card"} title="Chứng chỉ hiện hành" size="small">
               {currentCertificate ? (
                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
                   {normalize(currentCertificate.status) === "suspended" ? <Alert showIcon type="warning" message="Chứng chỉ hiện đang bị đình chỉ." /> : null}
