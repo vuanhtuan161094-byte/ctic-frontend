@@ -1496,7 +1496,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       <Modal footer={null} onCancel={() => { setSearchOpen(false); setSearchTerm(""); }} open={searchOpen} title="Tìm kiếm nhanh" width={680} afterOpenChange={(open) => { if (open) window.setTimeout(() => searchInputRef.current?.focus(), 50); }}>
         <Input ref={searchInputRef} allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Nhập mã hồ sơ, khách hàng, chứng chỉ hoặc NC/CAP..." prefix={<SearchOutlined />} size="large" value={searchTerm} />
         <div className="search-result-area">
-          {searchTerm.trim().length < 2 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm trong dữ liệu Dashboard" /> : <List dataSource={searchResults} locale={{ emptyText: "Không tìm thấy kết quả phù hợp" }} renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />}
+          {searchTerm.trim().length < 2 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm khách hàng, hồ sơ hoặc công việc" /> : <List dataSource={searchResults} locale={{ emptyText: "Không tìm thấy kết quả phù hợp" }} renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />}
         </div>
       </Modal>
     </Layout>

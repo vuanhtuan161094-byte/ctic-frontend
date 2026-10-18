@@ -28,7 +28,7 @@ interface PersonalDashboardScreenProps {
 }
 
 const personaLabels: Record<string, string> = {
-  ADMIN: "Quản trị vận hành",
+  ADMIN: "Quản trị hệ thống",
   SALES: "Kinh doanh",
   STAFF: "Nghiệp vụ chứng nhận",
   COORDINATOR: "Điều phối chứng nhận",
@@ -108,7 +108,7 @@ export function PersonalDashboardScreen({
       <Alert
         action={<Button onClick={onRefresh}>Thử lại</Button>}
         description={getErrorMessage(error)}
-        message="Không thể tải tổng quan vận hành"
+        message="Không tải được trang tổng quan"
         showIcon
         type="error"
       />
@@ -130,8 +130,8 @@ export function PersonalDashboardScreen({
     <div className="personal-dashboard">
       <div className="page-heading page-heading-v2 personal-dashboard-heading">
         <div>
-          <span className="eyebrow">TỔNG QUAN VẬN HÀNH</span>
-          <Title level={2}>Tổng quan vận hành</Title>
+          <span className="eyebrow">CÔNG VIỆC VÀ LỊCH</span>
+          <Title level={2}>Tổng quan</Title>
           <Text type="secondary">{personaText} · {dayjs().format("DD/MM/YYYY")}</Text>
         </div>
         <Button icon={<ReloadOutlined />} loading={refreshing} onClick={onRefresh}>Làm mới</Button>
@@ -154,10 +154,10 @@ export function PersonalDashboardScreen({
         <Card
           className="dashboard-card"
           extra={<Button onClick={onViewAllWork} type="link">Xem tất cả công việc</Button>}
-          title={<Space><CheckCircleOutlined />Công việc ưu tiên</Space>}
+          title={<Space><CheckCircleOutlined />Việc cần xử lý</Space>}
         >
           {workspace.priority_work_items.length ? (
-            <ul aria-label="Công việc ưu tiên" className="personal-dashboard-list">
+            <ul aria-label="Việc cần xử lý" className="personal-dashboard-list">
               {workspace.priority_work_items.map((item) => (
                 <li className={`personal-dashboard-list-item personal-work-row${item.is_overdue ? " is-overdue" : ""}`} key={item.id}>
                   <div className="personal-dashboard-list-copy">
@@ -220,9 +220,9 @@ export function PersonalDashboardScreen({
       </section>
 
       <section className="personal-dashboard-secondary-grid">
-        <Card className="dashboard-card" title={<Space><WarningOutlined />Ngoại lệ cần chú ý</Space>}>
+        <Card className="dashboard-card" title={<Space><WarningOutlined />Việc cần lưu ý</Space>}>
           {workspace.exceptions.length ? (
-            <ul aria-label="Ngoại lệ cần chú ý" className="personal-dashboard-list">
+            <ul aria-label="Việc cần lưu ý" className="personal-dashboard-list">
               {workspace.exceptions.map((item) => (
                 <li className="personal-dashboard-list-item" key={item.id}>
                   <div className="personal-dashboard-list-copy">
@@ -236,9 +236,9 @@ export function PersonalDashboardScreen({
           ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc quá hạn." />}
         </Card>
 
-        <Card className="dashboard-card" title={<Space><FolderOpenOutlined />Hồ sơ gần đây</Space>}>
+        <Card className="dashboard-card" title={<Space><FolderOpenOutlined />Hồ sơ vừa cập nhật</Space>}>
           {workspace.recent_records.length ? (
-            <ul aria-label="Hồ sơ gần đây" className="personal-dashboard-list">
+            <ul aria-label="Hồ sơ vừa cập nhật" className="personal-dashboard-list">
               {workspace.recent_records.slice(0, 6).map((item) => (
                 <li className="personal-dashboard-list-item" key={item.id}>
                   <div className="personal-dashboard-list-copy">

@@ -15,7 +15,7 @@
   --cmp-neutral-900: #17233b;
 
   /* Typography. */
-  --cmp-font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --cmp-font-family: "Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif;
   --cmp-font-size-xs: 12px;
   --cmp-font-size-sm: 13px;
   --cmp-font-size-md: 14px;
