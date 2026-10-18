@@ -9327,6 +9327,18 @@ input { font: inherit; }
   padding-block: 10px;
 }
 
+.system-admin-mobile-pagination {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .system-admin-mobile-pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 12px;
+  }
+}
+
 @media (max-width: 680px) {
   .customer-records-toolbar {
     grid-template-columns: minmax(0, 1fr);

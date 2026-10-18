@@ -21,6 +21,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Select,
   Space,
   Tabs,
@@ -466,6 +467,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
   const [statusFilter, setStatusFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
   const [audienceFilter, setAudienceFilter] = useState("all");
+  const [accountPage, setAccountPage] = useState(1);
   const [createChoiceOpen, setCreateChoiceOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
@@ -578,10 +580,6 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
 
   useEffect(() => {
     if (!selectedUser) {
-      editForm.resetFields();
-      rolesForm.resetFields();
-      permissionForm.resetFields();
-      passwordForm.resetFields();
       return;
     }
 
@@ -596,12 +594,10 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       role_names: selectedUser.roles.map((role) => role.role_name),
     });
 
-    passwordForm.resetFields();
-  }, [editForm, passwordForm, permissionForm, rolesForm, selectedUser]);
+  }, [editForm, rolesForm, selectedUser]);
 
   useEffect(() => {
     if (!permissionProfile) {
-      permissionForm.resetFields();
       return;
     }
 
@@ -725,6 +721,8 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
     }),
     [users],
   );
+  const visibleAccountPage = Math.min(accountPage, Math.max(1, Math.ceil(filteredUsers.length / 10)));
+  const visibleMobileUsers = filteredUsers.slice((visibleAccountPage - 1) * 10, visibleAccountPage * 10);
 
   const roleFilterOptions = availableRoles.map((role) => ({
     value: role.role_name,
@@ -743,7 +741,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
     {
       title: "Tài khoản",
       key: "account",
-      width: 280,
+      width: 220,
       render: (_, record) => (
         <button
           className="system-user-name-button"
@@ -762,18 +760,18 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       title: "Thư điện tử",
       dataIndex: "email",
       key: "email",
-      width: 240,
+      width: 230,
     },
     {
       title: "Nhóm",
       key: "audience",
-      width: 115,
+      width: 90,
       render: (_, record) => <UserAudienceTag user={record} />,
     },
     {
       title: "Vai trò",
       key: "roles",
-      width: 210,
+      width: 170,
       render: (_, record) => {
         const roleNames = record.roles.map((role) => getRoleLabel(role.role_name));
         const visibleRoles = roleNames.slice(0, 1);
@@ -799,20 +797,20 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 140,
+      width: 120,
       render: (status: string) => <UserStatusTag status={status} />,
     },
     {
       title: "Ngày tạo",
       dataIndex: "created_at",
       key: "created_at",
-      width: 120,
+      width: 100,
       render: (value: string) => dayjs(value).format("DD/MM/YYYY"),
     },
     {
       title: "Thao tác",
       key: "action",
-      width: 105,
+      width: 90,
       fixed: "right",
       render: (_, record) => (
         <Button
@@ -872,11 +870,11 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
         <SearchToolbar
           placeholder="Tìm theo tên, tên đăng nhập hoặc thư điện tử..."
           query={search}
-          onQueryChange={setSearch}
+          onQueryChange={(value) => { setSearch(value); setAccountPage(1); }}
           filterControl={<Space wrap>
             <Select
               aria-label="Lọc theo trạng thái"
-              onChange={setStatusFilter}
+              onChange={(value) => { setStatusFilter(value); setAccountPage(1); }}
               options={[
                 { value: "all", label: "Tất cả trạng thái" },
                 { value: "active", label: "Đang hoạt động" },
@@ -887,14 +885,14 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             />
             <Select
               aria-label="Lọc theo vai trò"
-              onChange={setRoleFilter}
+              onChange={(value) => { setRoleFilter(value); setAccountPage(1); }}
               options={[{ value: "all", label: "Tất cả vai trò" }, ...roleFilterOptions]}
               showSearch
               value={roleFilter}
             />
             <Select
               aria-label="Lọc theo nhóm tài khoản"
-              onChange={setAudienceFilter}
+              onChange={(value) => { setAudienceFilter(value); setAccountPage(1); }}
               options={[
                 { value: "all", label: "Nội bộ & khách hàng" },
                 { value: "internal", label: "Tài khoản nội bộ" },
@@ -910,10 +908,10 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
           dataSource={filteredUsers}
           loading={usersQuery.isLoading}
           locale={{ emptyText: usersQuery.isError ? getErrorMessage(usersQuery.error) : "Không có tài khoản phù hợp" }}
-          pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total) => `${total} tài khoản` }}
+          pagination={{ pageSize: 10, current: visibleAccountPage, onChange: setAccountPage, showSizeChanger: false, showTotal: (total) => `${total} tài khoản` }}
           rowKey="id"
-          scroll={{ x: 1080 }}
-          responsiveCards={filteredUsers.map((user) => ({
+          scroll={{ x: 1020 }}
+          responsiveCards={visibleMobileUsers.map((user) => ({
             key: user.id,
             title: user.full_name || user.username,
             status: <UserStatusTag status={user.status} />,
@@ -925,6 +923,18 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             actions: <Space><Button size="small" onClick={() => openUser(user.id)}>Mở tài khoản</Button>{routeMode ? <Button size="small" onClick={() => openUserEditor(user.id)}>Chỉnh sửa</Button> : null}</Space>,
           }))}
         />
+        {filteredUsers.length > 10 ? (
+          <Pagination
+            className="system-admin-mobile-pagination"
+            current={visibleAccountPage}
+            onChange={setAccountPage}
+            pageSize={10}
+            responsive
+            showSizeChanger={false}
+            showTotal={(total) => `${total} tài khoản`}
+            total={filteredUsers.length}
+          />
+        ) : null}
       </Card>
 
       <Modal
@@ -969,7 +979,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
           className="system-account-create-note"
           showIcon
           type="info"
-          message="Hai loại tài khoản dùng hai cơ chế cấp quyền riêng"
+          title="Hai loại tài khoản dùng hai cơ chế cấp quyền riêng"
           description="Tài khoản nội bộ nhận vai trò nghiệp vụ. Tài khoản khách hàng luôn nhận vai trò CUSTOMER và phải liên kết với một tổ chức khách hàng."
         />
       </Modal>
@@ -1021,7 +1031,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             </Form.Item>
           </div>
           <Alert
-            message="Tài khoản nội bộ chỉ nhận các vai trò nghiệp vụ nội bộ."
+            title="Tài khoản nội bộ chỉ nhận các vai trò nghiệp vụ nội bộ."
             description="Tài khoản khách hàng được tạo bằng flow riêng để luôn liên kết đúng với tổ chức khách hàng và quyền Portal."
             showIcon
             type="info"
@@ -1089,13 +1099,13 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
             </div>
           ) : null
         }
-        width={860}
+        size="min(860px, 100vw)"
       >
         {selectedUser ? (
           <div className="system-user-detail-stack">
             {selectedUser.id === currentUserId ? (
               <Alert
-                message="Đây là tài khoản đang đăng nhập. Hệ thống không cho phép tự khóa, ngừng hoạt động hoặc tự thu hồi vai trò Quản trị viên."
+                title="Đây là tài khoản đang đăng nhập. Hệ thống không cho phép tự khóa, ngừng hoạt động hoặc tự thu hồi vai trò Quản trị viên."
                 showIcon
                 type="info"
               />
@@ -1147,7 +1157,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                         </Form.Item>
                       </div>
                       <Alert
-                        message="Khi tài khoản đã liên kết với hồ sơ chuyên gia, họ tên và email sẽ được đồng bộ sang hồ sơ chuyên gia."
+                        title="Khi tài khoản đã liên kết với hồ sơ chuyên gia, họ tên và email sẽ được đồng bộ sang hồ sơ chuyên gia."
                         showIcon
                         type="warning"
                       />
@@ -1191,7 +1201,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
 
                         {selectedUser.id === currentUserId ? (
                           <Alert
-                            message="Không thể thay đổi vai trò của tài khoản đang đăng nhập."
+                            title="Không thể thay đổi vai trò của tài khoản đang đăng nhập."
                             description="Quy tắc này giúp tránh tự thu hồi quyền quản trị hoặc thay đổi quyền của chính phiên đang sử dụng."
                             showIcon
                             type="info"
@@ -1199,7 +1209,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                         ) : null}
                         {isCustomerAccount(selectedUser) ? (
                           <Alert
-                            message="Vai trò CUSTOMER được quản lý bởi flow tài khoản khách hàng"
+                            title="Vai trò CUSTOMER được quản lý bởi flow tài khoản khách hàng"
                             description="Không chuyển CUSTOMER sang vai trò nội bộ tại đây. Liên kết tổ chức và quyền Portal được quản lý theo customer access để giữ đúng phạm vi dữ liệu khách hàng."
                             showIcon
                             type="info"
@@ -1263,7 +1273,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                         ) : permissionProfile?.can_override ? (
                           <div className="system-user-permission-override-body">
                             <Alert
-                              message="Vai trò xác định phạm vi công việc; quyền riêng chỉ tinh chỉnh trong phạm vi đó."
+                              title="Vai trò xác định phạm vi công việc; quyền riêng chỉ tinh chỉnh trong phạm vi đó."
                               description={permissionProfile.role_scope_note}
                               showIcon
                               type="info"
@@ -1314,7 +1324,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                           </div>
                         ) : (
                           <Alert
-                            message="Không áp dụng quyền riêng cho tài khoản này"
+                            title="Không áp dụng quyền riêng cho tài khoản này"
                             description={permissionProfile?.restriction_reason ?? "Hồ sơ quyền chưa sẵn sàng."}
                             showIcon
                             type="info"
@@ -1339,7 +1349,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                       >
                         <Alert
                           className="system-permission-info"
-                          message={
+                          title={
                             roleSelectionChanged
                               ? "Đây là bản xem trước quyền theo các vai trò đang chọn và các ngoại lệ quyền riêng đã lưu. Quyền vai trò chỉ có hiệu lực sau khi bấm Lưu vai trò."
                               : allowOverrideNames.length > 0 || denyOverrideNames.length > 0
@@ -1392,12 +1402,13 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
                   label: "Đặt lại mật khẩu",
                   children: (
                     <Form<ResetPasswordValues>
+                      clearOnDestroy
                       form={passwordForm}
                       layout="vertical"
                       onFinish={(values) => passwordMutation.mutate(values)}
                     >
                       <Alert
-                        message="Sau khi đặt lại mật khẩu, tất cả phiên đăng nhập cũ của tài khoản sẽ bị thu hồi."
+                        title="Sau khi đặt lại mật khẩu, tất cả phiên đăng nhập cũ của tài khoản sẽ bị thu hồi."
                         showIcon
                         type="warning"
                       />
@@ -1461,7 +1472,7 @@ export function SystemAdminScreen({ currentUserId, roles, routeMode = false, onO
         >
           <Alert
             className="system-permission-override-modal-alert"
-            message="Giữ nguyên vai trò, chỉ tạo ngoại lệ cho tài khoản này"
+            title="Giữ nguyên vai trò, chỉ tạo ngoại lệ cho tài khoản này"
             description="Cấp thêm dùng cho quyền chưa có trong vai trò. Thu hồi dùng để chặn một quyền vốn có từ vai trò. Quyền riêng không vượt qua các ràng buộc vai trò hoặc phân tách nhiệm vụ của quy trình."
             showIcon
             type="info"
