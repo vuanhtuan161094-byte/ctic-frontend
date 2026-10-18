@@ -29,6 +29,16 @@ test.describe("controlled certification browser baseline", () => {
     await expect(registry).toContainText("HS-MAU-2026-0042");
     await expect(registry.getByRole("button", { name: "Mở hồ sơ" }).first()).toBeVisible();
 
+    if ((page.viewportSize()?.width ?? 0) >= 1280) {
+      const firstRow = registry.getByRole("row").nth(1);
+      const status = firstRow.locator('[data-status-domain="case"]');
+      const action = firstRow.getByRole("button", { name: /Mở hồ sơ/ });
+      const [statusBox, actionBox] = await Promise.all([status.boundingBox(), action.boundingBox()]);
+      expect(statusBox, "Expected the case status badge to have desktop bounds").not.toBeNull();
+      expect(actionBox, "Expected the case action to have desktop bounds").not.toBeNull();
+      expect(statusBox.x + statusBox.width).toBeLessThanOrEqual(actionBox.x + 1);
+    }
+
     await assertControlledScreenQuality(page, testInfo, "certification-registry");
     runtime.assertClean();
   });
@@ -40,6 +50,20 @@ test.describe("controlled certification browser baseline", () => {
     await page.getByRole("button", { name: /Mở hồ sơ/ }).first().click();
     await expect(page).toHaveURL(/view=overview/);
     await expect(page.getByText("HS-MAU-2026-0042").first()).toBeVisible();
+
+    if ((page.viewportSize()?.width ?? 0) >= 1280) {
+      const identityRow = page.locator(".cmp-case-identity-block dl > div").first();
+      await expect(identityRow).toHaveCount(1);
+      const display = await identityRow.evaluate((element) => getComputedStyle(element).display);
+      expect(display).toBe("grid");
+      const [labelBox, valueBox] = await Promise.all([
+        identityRow.locator("dt").boundingBox(),
+        identityRow.locator("dd").boundingBox(),
+      ]);
+      expect(labelBox).not.toBeNull();
+      expect(valueBox).not.toBeNull();
+      expect(valueBox.x).toBeGreaterThan(labelBox.x + labelBox.width);
+    }
 
     await assertControlledScreenQuality(page, testInfo, "certification-case-overview");
     runtime.assertClean();

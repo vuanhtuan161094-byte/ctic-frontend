@@ -19,6 +19,7 @@ import {
   PageHeader,
   SearchToolbar,
 } from "../design-system";
+import "./certification-case.css";
 import { caseCustomer, caseScope, normalizeCaseValue } from "./case-model";
 import type { CertificationCaseRecord } from "./types";
 

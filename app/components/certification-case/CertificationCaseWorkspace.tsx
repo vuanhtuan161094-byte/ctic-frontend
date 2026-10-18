@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { api, getErrorMessage } from "../../lib/api";
 import { isPdfDocument, openDocumentFile, previewDocumentFile } from "../../lib/document-file-client";
 import { CycleSelector, EmptyState, ErrorState, ForbiddenState, LoadingSkeleton } from "../design-system";
+import "./certification-case.css";
 import { CertificationCaseActivity } from "./CertificationCaseActivity";
 import { CertificationCaseDocuments } from "./CertificationCaseDocuments";
 import { CertificationCaseHeader } from "./CertificationCaseHeader";
