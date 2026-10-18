@@ -23,6 +23,7 @@ import {
   Input,
   List,
   Modal,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -241,6 +242,7 @@ export function CustomerProfileScreen() {
   const openRequestModal = (profile: CustomerProfile) => {
     setSelectedProfile(profile);
     setFileList([]);
+    form.resetFields();
     form.setFieldsValue({
       reason: "",
       company_name: profile.company_name,
@@ -301,13 +303,13 @@ export function CustomerProfileScreen() {
     }
   };
 
-  if (profileQuery.isLoading) return <Card><Alert message="Đang tải hồ sơ tổ chức..." type="info" /></Card>;
+  if (profileQuery.isLoading) return <Card><Alert title="Đang tải hồ sơ tổ chức..." type="info" /></Card>;
   if (profileQuery.isError) {
     return (
       <Alert
         action={<Button onClick={() => void profileQuery.refetch()}>Thử lại</Button>}
         description={getErrorMessage(profileQuery.error)}
-        message="Không tải được hồ sơ tổ chức"
+        title="Không tải được hồ sơ tổ chức"
         showIcon
         type="error"
       />
@@ -336,10 +338,10 @@ export function CustomerProfileScreen() {
               Yêu cầu thay đổi
             </Button>
           ) : null}
-          <Descriptions bordered column={{ xs: 1, md: 2 }} size="small">
+          <Descriptions bordered column={useCompactLayout ? 1 : 2} size="small">
             <Descriptions.Item label="Quốc gia">{profile.country_name ?? profile.country_code}</Descriptions.Item>
             <Descriptions.Item label="Mã số thuế / Business ID">{profile.tax_code ?? "—"}</Descriptions.Item>
-            <Descriptions.Item label="Địa chỉ" span={2}>{profile.address ?? "—"}</Descriptions.Item>
+            <Descriptions.Item label="Địa chỉ" span={useCompactLayout ? 1 : 2}>{profile.address ?? "—"}</Descriptions.Item>
             <Descriptions.Item label="Điện thoại">{profile.phone ?? "—"}</Descriptions.Item>
             <Descriptions.Item label="Email">{profile.email ?? "—"}</Descriptions.Item>
           </Descriptions>
@@ -368,13 +370,19 @@ export function CustomerProfileScreen() {
         </Card>
       )) : <Empty description="Tài khoản chưa được gán cho tổ chức khách hàng" />}
 
-      <Card title="Lịch sử yêu cầu thay đổi">
+      <Card className="customer-profile-history" title="Lịch sử yêu cầu thay đổi">
         {changeRequestsQuery.isError ? (
-          <Alert description={getErrorMessage(changeRequestsQuery.error)} message="Không tải được lịch sử yêu cầu" showIcon type="error" />
+          <Alert description={getErrorMessage(changeRequestsQuery.error)} title="Không tải được lịch sử yêu cầu" showIcon type="error" />
         ) : (
           <List
             dataSource={changeRequests}
             locale={{ emptyText: "Chưa có yêu cầu thay đổi hồ sơ" }}
+            pagination={{
+              pageSize: 6,
+              responsive: true,
+              showSizeChanger: false,
+              showTotal: (total) => `${total} yêu cầu`,
+            }}
             renderItem={(request) => {
               const meta = statusMeta[request.status];
               const changes = changedFields(request);
@@ -382,7 +390,7 @@ export function CustomerProfileScreen() {
                 <List.Item>
                   <List.Item.Meta
                     description={(
-                      <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                      <Space orientation="vertical" size={4} style={{ width: "100%" }}>
                         <Text type="secondary">Gửi {formatDateTime(request.submitted_at)} · {request.reason}</Text>
                         {changes.map((change) => (
                           <Text key={change.label}>
@@ -417,7 +425,9 @@ export function CustomerProfileScreen() {
       </Card>
 
       <Modal
-        destroyOnHidden
+        centered
+        className="customer-profile-change-modal"
+        forceRender
         okButtonProps={{ loading: createMutation.isPending }}
         okText="Gửi yêu cầu"
         onCancel={() => setModalOpen(false)}
@@ -428,7 +438,7 @@ export function CustomerProfileScreen() {
       >
         <Alert
           description="Thông tin chính thức chỉ được cập nhật sau khi Điều phối viên của tổ chức chứng nhận xem xét và chấp thuận. Hệ thống lưu snapshot trước/sau để bảo đảm audit trail."
-          message="Quy trình thay đổi có kiểm soát"
+          title="Quy trình thay đổi có kiểm soát"
           showIcon
           style={{ marginBottom: 16 }}
           type="info"
