@@ -20,6 +20,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import type { KeyboardEvent, ReactNode } from "react";
 import dayjs from "dayjs";
 
 import { api, getErrorMessage } from "../lib/api";
@@ -73,6 +74,34 @@ function formatDateRange(start?: string | null, end?: string | null) {
   return `${startDate.format("DD/MM/YYYY")} – ${endDate.format("DD/MM/YYYY")}`;
 }
 
+interface PortalSummaryCardProps {
+  title: string;
+  value: number;
+  prefix: ReactNode;
+  onActivate: () => void;
+}
+
+function PortalSummaryCard({ title, value, prefix, onActivate }: PortalSummaryCardProps) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onActivate();
+  };
+
+  return (
+    <Card
+      aria-label={`${title}: ${value}`}
+      className="clickable-summary-card"
+      onClick={onActivate}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+    >
+      <Statistic prefix={prefix} title={title} value={value} />
+    </Card>
+  );
+}
+
 export function CustomerPortalDashboardScreen({
   onOpenApplications,
   onOpenCertifications,
@@ -124,21 +153,11 @@ export function CustomerPortalDashboardScreen({
       </div>
 
       <section className="project-summary-grid" aria-label="Tổng hợp cổng khách hàng">
-        <Card onClick={onOpenApplications} className="clickable-summary-card">
-          <Statistic prefix={<FileTextOutlined />} title="Đơn đăng ký" value={data.summary.applications} />
-        </Card>
-        <Card onClick={onOpenCertifications} className="clickable-summary-card">
-          <Statistic prefix={<FolderOpenOutlined />} title="Hồ sơ đang hoạt động" value={data.summary.active_projects} />
-        </Card>
-        <Card onClick={onOpenCorrectiveActions} className="clickable-summary-card">
-          <Statistic prefix={<AuditOutlined />} title="NC/CAP đang xử lý" value={data.summary.open_corrective_actions} />
-        </Card>
-        <Card onClick={onOpenCertificates} className="clickable-summary-card">
-          <Statistic prefix={<SafetyCertificateOutlined />} title="Chứng chỉ hiệu lực" value={data.summary.active_certificates} />
-        </Card>
-        <Card onClick={onOpenNotifications} className="clickable-summary-card">
-          <Statistic prefix={<BellOutlined />} title="Thông báo chưa đọc" value={data.summary.unread_notifications} />
-        </Card>
+        <PortalSummaryCard onActivate={onOpenApplications} prefix={<FileTextOutlined />} title="Đơn đăng ký" value={data.summary.applications} />
+        <PortalSummaryCard onActivate={onOpenCertifications} prefix={<FolderOpenOutlined />} title="Hồ sơ đang hoạt động" value={data.summary.active_projects} />
+        <PortalSummaryCard onActivate={onOpenCorrectiveActions} prefix={<AuditOutlined />} title="NC/CAP đang xử lý" value={data.summary.open_corrective_actions} />
+        <PortalSummaryCard onActivate={onOpenCertificates} prefix={<SafetyCertificateOutlined />} title="Chứng chỉ hiệu lực" value={data.summary.active_certificates} />
+        <PortalSummaryCard onActivate={onOpenNotifications} prefix={<BellOutlined />} title="Thông báo chưa đọc" value={data.summary.unread_notifications} />
       </section>
 
       <Card
