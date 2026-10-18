@@ -13,6 +13,7 @@ import dayjs from "dayjs";
 
 import { getErrorMessage } from "../lib/api";
 import type { PersonalWorkspace } from "../types/personal-workspace";
+import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 
 const { Text, Title } = Typography;
 
@@ -186,7 +187,7 @@ export function PersonalDashboardScreen({
                 </li>
               ))}
             </ul>
-          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Hiện không có công việc cần xử lý." />}
+          ) : <Empty image={<EmptyWorkspaceIllustration kind="work" />} description="Hiện không có công việc cần xử lý." />}
         </Card>
 
         <Card
@@ -215,7 +216,7 @@ export function PersonalDashboardScreen({
                 </li>
               ))}
             </ul>
-          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lịch đánh giá sắp tới." />}
+          ) : <Empty image={<EmptyWorkspaceIllustration kind="calendar" />} description="Không có lịch đánh giá sắp tới." />}
         </Card>
       </section>
 
@@ -233,7 +234,7 @@ export function PersonalDashboardScreen({
                 </li>
               ))}
             </ul>
-          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc quá hạn." />}
+          ) : <Empty image={<EmptyWorkspaceIllustration kind="work" />} description="Không có công việc quá hạn." />}
         </Card>
 
         <Card className="dashboard-card" title={<Space><FolderOpenOutlined />Hồ sơ vừa cập nhật</Space>}>
@@ -254,7 +255,7 @@ export function PersonalDashboardScreen({
                 </li>
               ))}
             </ul>
-          ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hồ sơ nghiệp vụ gần đây." />}
+          ) : <Empty image={<EmptyWorkspaceIllustration kind="records" />} description="Chưa có hồ sơ nghiệp vụ gần đây." />}
         </Card>
       </section>
 

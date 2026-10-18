@@ -44,6 +44,7 @@ import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
+import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 
 const { Text, Title } = Typography;
 const CUSTOMER_PAGE_SIZE = 10;
@@ -516,7 +517,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 ))}
               </div>
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp" />
+              <Empty image={<EmptyWorkspaceIllustration kind="customers" />} description="Không có khách hàng phù hợp" />
             )}
             {filteredCustomers.length > CUSTOMER_PAGE_SIZE ? (
               <Pagination
@@ -535,7 +536,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
           <Table
             columns={columns}
             dataSource={filteredCustomers}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp" /> }}
+            locale={{ emptyText: <Empty image={<EmptyWorkspaceIllustration kind="customers" />} description="Không có khách hàng phù hợp" /> }}
             pagination={{
               current: visibleCustomerPage,
               pageSize: CUSTOMER_PAGE_SIZE,

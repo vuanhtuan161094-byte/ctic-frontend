@@ -9887,3 +9887,8 @@ input { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .personal-kpi-card { transition: none; }
 }
+
+/* CMP original empty-state SVGs: compact, accessible, white-label. */
+.cmp-empty-illustration { display: inline-block; height: 84px; max-width: 100%; width: 118px; }
+.personal-dashboard .ant-empty-image, .customers-screen .ant-empty-image { height: 88px; }
+@media (max-width:720px) { .cmp-empty-illustration { height: 68px; width: 98px; } .personal-dashboard .ant-empty-image, .customers-screen .ant-empty-image { height: 72px; } }
