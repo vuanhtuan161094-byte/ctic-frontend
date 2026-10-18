@@ -2,7 +2,7 @@
 
 import { EyeOutlined, PaperClipOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TableColumnsType } from "antd";
+import type { TableColumnsType, UploadFile } from "antd";
 import {
   Alert,
   App,
@@ -13,9 +13,9 @@ import {
   Empty,
   Grid,
   Input,
-  List,
   Modal,
   Pagination,
+  Select,
   Space,
   Table,
   Tabs,
@@ -28,10 +28,18 @@ import { useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { openDocumentFile } from "../lib/document-file-client";
+import { DomainStatusBadge, resolveDomainStatus } from "./design-system/status";
+import type { StatusDomain } from "./design-system/types";
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 type PortalDomain = "changes" | "complaints" | "appeals";
+
+const portalDomainMeta: Record<PortalDomain, { label: string; statusDomain: StatusDomain }> = {
+  changes: { label: "Thay đổi chứng nhận", statusDomain: "changeCase" },
+  complaints: { label: "Khiếu nại", statusDomain: "complaint" },
+  appeals: { label: "Kháng nghị", statusDomain: "appeal" },
+};
 
 interface PortalEvidence {
   id: string;
@@ -63,6 +71,10 @@ function caseNumber(record: PortalCase) {
   return record.case_number || record.complaint_number || record.appeal_number || record.id;
 }
 
+function caseSummary(record: PortalCase) {
+  return record.subject || record.description || record.grounds || "—";
+}
+
 export function CustomerCasesScreen() {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -71,9 +83,13 @@ export function CustomerCasesScreen() {
   const [domain, setDomain] = useState<PortalDomain>("changes");
   const [selected, setSelected] = useState<PortalCase | null>(null);
   const [casePage, setCasePage] = useState(1);
+  const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [fields, setFields] = useState<Record<string, string>>({});
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [createEvidenceFiles, setCreateEvidenceFiles] = useState<UploadFile[]>([]);
+  const [additionalEvidenceFiles, setAdditionalEvidenceFiles] = useState<UploadFile[]>([]);
+  const createEvidenceFile = createEvidenceFiles[0]?.originFileObj;
+  const additionalEvidenceFile = additionalEvidenceFiles[0]?.originFileObj;
 
   const query = useQuery({
     queryKey: ["customer-portal", "governance-cases", domain],
@@ -103,18 +119,18 @@ export function CustomerCasesScreen() {
     },
     onSuccess: async (response) => {
       const created = response.data as PortalCase;
-      if (evidenceFile) {
+      if (createEvidenceFile) {
         const form = new FormData();
-        form.append("file", evidenceFile);
-        form.append("note", "Evidence submitted with case");
+        form.append("file", createEvidenceFile);
+        form.append("note", "Bằng chứng gửi kèm hồ sơ");
         await api.post(`/document-files/customer/cases/${domain === "complaints" ? "complaint" : "appeal"}/${created.id}/evidence`, form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
-      message.success(domain === "complaints" ? "Đã gửi complaint." : "Đã gửi appeal.");
+      message.success(domain === "complaints" ? "Đã gửi khiếu nại." : "Đã gửi kháng nghị.");
       setCreateOpen(false);
       setFields({});
-      setEvidenceFile(null);
+      setCreateEvidenceFiles([]);
       await queryClient.invalidateQueries({ queryKey: ["customer-portal", "governance-cases"] });
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -122,17 +138,17 @@ export function CustomerCasesScreen() {
 
   const evidenceMutation = useMutation({
     mutationFn: async () => {
-      if (!selected || !evidenceFile || domain === "changes") throw new Error("Chưa chọn evidence.");
+      if (!selected || !additionalEvidenceFile || domain === "changes") throw new Error("Chưa chọn bằng chứng.");
       const form = new FormData();
-      form.append("file", evidenceFile);
-      form.append("note", fields.evidence_note || "Additional evidence");
+      form.append("file", additionalEvidenceFile);
+      form.append("note", fields.evidence_note || "Tài liệu bằng chứng bổ sung");
       return api.post(`/document-files/customer/cases/${domain === "complaints" ? "complaint" : "appeal"}/${selected.id}/evidence`, form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
     },
     onSuccess: async () => {
-      message.success("Đã tải evidence qua secure pipeline.");
-      setEvidenceFile(null);
+      message.success("Đã tải bằng chứng an toàn.");
+      setAdditionalEvidenceFiles([]);
       await queryClient.invalidateQueries({ queryKey: ["customer-portal", "governance-cases"] });
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -140,38 +156,102 @@ export function CustomerCasesScreen() {
 
   const columns: TableColumnsType<PortalCase> = [
     { title: "Số case", key: "number", width: 190, render: (_, record) => <Text strong>{caseNumber(record)}</Text> },
-    { title: "Nội dung", key: "summary", render: (_, record) => record.subject || record.description || record.grounds || "—" },
+    { title: "Nội dung", key: "summary", render: (_, record) => caseSummary(record) },
     { title: "Ngày gửi", dataIndex: "created_at", key: "created", width: 130, render: (value) => dayjs(value).format("DD/MM/YYYY") },
-    { title: "Trạng thái", dataIndex: "status", key: "status", width: 160, render: (value) => <Tag color="processing">{value}</Tag> },
-    { title: "", key: "action", width: 90, render: (_, record) => <Button icon={<EyeOutlined />} onClick={() => setSelected(record)} size="small">Xem</Button> },
+    { title: "Trạng thái", dataIndex: "status", key: "status", width: 160, render: (value) => <DomainStatusBadge code={value} domain={portalDomainMeta[domain].statusDomain} /> },
+    { title: "", key: "action", width: 90, render: (_, record) => <Button icon={<EyeOutlined />} onClick={() => { setSelected(record); setAdditionalEvidenceFiles([]); }} size="small">Xem</Button> },
   ];
   const cases = query.data ?? [];
-  const casePageCount = Math.max(1, Math.ceil(cases.length / 15));
+  const normalizedSearch = search.trim().toLocaleLowerCase("vi");
+  const filteredCases = normalizedSearch
+    ? cases.filter((record) => [
+      caseNumber(record),
+      caseSummary(record),
+      record.status,
+      resolveDomainStatus(portalDomainMeta[domain].statusDomain, record.status).label,
+      record.challenged_decision?.decision_number,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLocaleLowerCase("vi")
+      .includes(normalizedSearch))
+    : cases;
+  const casePageCount = Math.max(1, Math.ceil(filteredCases.length / 10));
   const visibleCasePage = Math.min(casePage, casePageCount);
-  const visibleCases = cases.slice((visibleCasePage - 1) * 15, visibleCasePage * 15);
+  const visibleCases = filteredCases.slice((visibleCasePage - 1) * 10, visibleCasePage * 10);
+  const canSubmitCase = Boolean(
+    fields.name?.trim()
+      && fields.description?.trim()
+      && (domain === "complaints" ? fields.subject?.trim() : fields.decision_id?.trim()),
+  );
+
+  const resetCreateForm = () => {
+    setFields({});
+    setCreateEvidenceFiles([]);
+  };
+
+  const openCreateForm = () => {
+    resetCreateForm();
+    setCreateOpen(true);
+  };
+
+  const closeCreateForm = () => {
+    setCreateOpen(false);
+    resetCreateForm();
+  };
+
+  const changePortalDomain = (key: string) => {
+    setDomain(key as PortalDomain);
+    setCasePage(1);
+    setSearch("");
+    setSelected(null);
+    resetCreateForm();
+  };
 
   return (
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
           <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
-          <Title level={2}>Thay đổi & Phản hồi</Title>
-          <Text type="secondary">Theo dõi impact status, gửi complaint hoặc appeal bằng projection dành riêng cho khách hàng.</Text>
+          <Title level={2}>Thay đổi, khiếu nại & kháng nghị</Title>
+          <Text type="secondary">Theo dõi yêu cầu thay đổi chứng nhận, gửi khiếu nại hoặc kháng nghị.</Text>
         </div>
         <Space>
-          {domain !== "changes" ? <Button icon={<PlusOutlined />} onClick={() => setCreateOpen(true)} type="primary">{domain === "complaints" ? "Gửi complaint" : "Gửi appeal"}</Button> : null}
+          {domain !== "changes" ? <Button icon={<PlusOutlined />} onClick={openCreateForm} type="primary">{domain === "complaints" ? "Gửi khiếu nại" : "Gửi kháng nghị"}</Button> : null}
           <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => void query.refetch()}>Làm mới</Button>
         </Space>
       </div>
       <Card>
-        <Tabs activeKey={domain} items={[
-          { key: "changes", label: "Thay đổi chứng nhận" },
-          { key: "complaints", label: "Complaints" },
-          { key: "appeals", label: "Appeals" },
-        ]} onChange={(key) => { setDomain(key as PortalDomain); setCasePage(1); setSelected(null); }} />
-        {query.isError ? <Alert description={getErrorMessage(query.error)} message="Không tải được case" showIcon type="error" /> : (
+        {useCompactPortalList ? (
+          <Select
+            aria-label="Loại yêu cầu"
+            onChange={changePortalDomain}
+            options={Object.entries(portalDomainMeta).map(([value, meta]) => ({ value, label: meta.label }))}
+            style={{ marginBottom: 12, width: "100%" }}
+            value={domain}
+          />
+        ) : (
+          <Tabs
+            activeKey={domain}
+            items={Object.entries(portalDomainMeta).map(([key, meta]) => ({ key, label: meta.label }))}
+            onChange={changePortalDomain}
+          />
+        )}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, justifyContent: "space-between", marginBottom: 16 }}>
+          <Input.Search
+            allowClear
+            onChange={(event) => { setSearch(event.target.value); setCasePage(1); }}
+            placeholder="Tìm mã case hoặc nội dung"
+            style={{ maxWidth: 360, width: "100%" }}
+            value={search}
+          />
+          <Text type="secondary">{filteredCases.length} case</Text>
+        </div>
+        {query.isError ? <Alert action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>} description={getErrorMessage(query.error)} showIcon title="Không tải được case" type="error" /> : query.isLoading ? (
+          <Alert showIcon title="Đang tải danh sách case..." type="info" />
+        ) : (
           useCompactPortalList ? (
-            query.isLoading ? <Card loading /> : visibleCases.length ? (
+            visibleCases.length ? (
               <>
                 <div aria-label="Danh sách yêu cầu và phản hồi" className="portal-mobile-list">
                   {visibleCases.map((record) => (
@@ -181,54 +261,96 @@ export function CustomerCasesScreen() {
                           <strong>{caseNumber(record)}</strong>
                           <small>Gửi ngày {dayjs(record.created_at).format("DD/MM/YYYY")}</small>
                         </div>
-                        <Tag color={record.overdue ? "red" : "processing"}>{record.overdue ? "Quá hạn" : record.status}</Tag>
+                        <Space size={4}>
+                          <DomainStatusBadge code={record.status} domain={portalDomainMeta[domain].statusDomain} />
+                          {record.overdue ? <Tag color="red">Quá hạn</Tag> : null}
+                        </Space>
                       </div>
                       <div className="portal-mobile-card__meta">
-                        <span><strong>Nội dung:</strong> {record.subject || record.description || record.grounds || "—"}</span>
+                        <span><strong>Nội dung:</strong> {caseSummary(record)}</span>
                         {record.challenged_decision?.decision_number ? <span><strong>Quyết định:</strong> {record.challenged_decision.decision_number}</span> : null}
                       </div>
-                      <Button block onClick={() => setSelected(record)} size="small">Xem chi tiết</Button>
+                      <Button block onClick={() => { setSelected(record); setAdditionalEvidenceFiles([]); }} size="small">Xem chi tiết</Button>
                     </article>
                   ))}
                 </div>
-                {cases.length > 15 ? <Pagination className="compact-mobile-pagination" current={visibleCasePage} onChange={setCasePage} pageSize={15} responsive showSizeChanger={false} showTotal={(total) => `${total} case`} total={cases.length} /> : null}
+                {filteredCases.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleCasePage} onChange={setCasePage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} case`} total={filteredCases.length} /> : null}
               </>
-            ) : <Empty description="Chưa có case" />
+            ) : <Empty description={normalizedSearch ? "Không tìm thấy case phù hợp" : "Chưa có case"} />
           ) : (
-            <Table columns={columns} dataSource={cases} loading={query.isLoading} locale={{ emptyText: <Empty description="Chưa có case" /> }} pagination={{ pageSize: 15 }} rowKey="id" />
+            <Table columns={columns} dataSource={filteredCases} locale={{ emptyText: <Empty description={normalizedSearch ? "Không tìm thấy case phù hợp" : "Chưa có case"} /> }} pagination={{ pageSize: 10, hideOnSinglePage: true }} rowKey="id" size="small" />
           )
         )}
       </Card>
 
-      <Drawer onClose={() => setSelected(null)} open={Boolean(selected)} title={selected ? caseNumber(selected) : "Chi tiết"} width={680}>
-        {selected ? <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          {selected.overdue ? <Alert message="Case đang quá hạn" showIcon type="warning" /> : null}
+      <Drawer
+        onClose={() => { setSelected(null); setAdditionalEvidenceFiles([]); }}
+        open={Boolean(selected)}
+        size={breakpoints.md ? "large" : "default"}
+        title={selected ? caseNumber(selected) : "Chi tiết case"}
+      >
+        {selected ? <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+          {selected.overdue ? <Alert title="Case đang quá hạn" showIcon type="warning" /> : null}
           <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Trạng thái">{selected.status}</Descriptions.Item>
-            <Descriptions.Item label="Nội dung">{selected.subject || selected.description || selected.grounds || "—"}</Descriptions.Item>
-            <Descriptions.Item label="Impact / Outcome">{selected.assessment_outcome || selected.outcome || "—"}</Descriptions.Item>
-            <Descriptions.Item label="Quyết định bị appeal">{selected.challenged_decision?.decision_number || "—"}</Descriptions.Item>
+            <Descriptions.Item label="Trạng thái"><DomainStatusBadge code={selected.status} domain={portalDomainMeta[domain].statusDomain} /></Descriptions.Item>
+            <Descriptions.Item label="Nội dung">{caseSummary(selected)}</Descriptions.Item>
+            <Descriptions.Item label="Kết quả xem xét">{selected.assessment_outcome || selected.outcome || "—"}</Descriptions.Item>
+            <Descriptions.Item label="Quyết định bị kháng nghị">{selected.challenged_decision?.decision_number || "—"}</Descriptions.Item>
             <Descriptions.Item label="Phản hồi cuối">{selected.final_response || "Chưa có phản hồi cuối"}</Descriptions.Item>
           </Descriptions>
-          {domain !== "changes" ? <Card size="small" title="Evidence attachments">
-            <List dataSource={selected.evidence ?? []} locale={{ emptyText: "Chưa có evidence" }} renderItem={(file) => <List.Item actions={[<Button key="open" onClick={() => void openDocumentFile({ url: `/document-files/customer/${file.id}/download`, filename: file.original_name, title: file.original_name })}>Mở</Button>]}><List.Item.Meta title={file.original_name} description={file.sha256 ? "Đã xác minh SHA-256" : "Chưa neo hash"} /></List.Item>} />
-            {!['CLOSED', 'REJECTED', 'OUT_OF_SCOPE'].includes(selected.status) ? <Space style={{ marginTop: 12 }}>
-              <Upload beforeUpload={(file) => { setEvidenceFile(file); return false; }} maxCount={1}><Button icon={<PaperClipOutlined />}>Chọn evidence</Button></Upload>
-              <Button disabled={!evidenceFile} loading={evidenceMutation.isPending} onClick={() => evidenceMutation.mutate()} type="primary">Tải lên</Button>
+          {domain !== "changes" ? <Card size="small" title="Tài liệu bằng chứng">
+            {selected.evidence?.length ? (
+              <Space orientation="vertical" style={{ width: "100%" }}>
+                {selected.evidence.map((file) => (
+                  <div key={file.id} style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between", width: "100%" }}>
+                    <Space orientation="vertical" size={0} style={{ minWidth: 0 }}>
+                      <Text strong style={{ overflowWrap: "anywhere" }}>{file.original_name}</Text>
+                      <Text type="secondary">{file.sha256 ? "Đã xác minh SHA-256" : "Chưa xác minh mã hash"}</Text>
+                    </Space>
+                    <Button onClick={() => void openDocumentFile({ url: `/document-files/customer/${file.id}/download`, filename: file.original_name, title: file.original_name })}>Mở</Button>
+                  </div>
+                ))}
+              </Space>
+            ) : <Empty description="Chưa có tài liệu bằng chứng" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+            {!['CLOSED', 'REJECTED', 'OUT_OF_SCOPE'].includes(selected.status) ? <Space wrap style={{ marginTop: 12 }}>
+              <Upload
+                beforeUpload={(file) => { setAdditionalEvidenceFiles([{ uid: file.uid, name: file.name, status: "done", originFileObj: file }]); return false; }}
+                fileList={additionalEvidenceFiles}
+                maxCount={1}
+                onRemove={() => { setAdditionalEvidenceFiles([]); return true; }}
+              >
+                <Button icon={<PaperClipOutlined />}>Chọn bằng chứng</Button>
+              </Upload>
+              <Button disabled={!additionalEvidenceFile} loading={evidenceMutation.isPending} onClick={() => evidenceMutation.mutate()} type="primary">Tải lên</Button>
             </Space> : null}
           </Card> : null}
         </Space> : null}
       </Drawer>
 
-      <Modal confirmLoading={createMutation.isPending} onCancel={() => setCreateOpen(false)} onOk={() => createMutation.mutate()} open={createOpen} title={domain === "complaints" ? "Gửi complaint" : "Gửi appeal"}>
-        <Space direction="vertical" style={{ width: "100%" }}>
-          {domain === "appeals" ? <Input onChange={(event) => setFields({ ...fields, decision_id: event.target.value })} placeholder="Exact certification decision UUID" value={fields.decision_id} /> : null}
+      <Modal
+        okButtonProps={{ disabled: !canSubmitCase, loading: createMutation.isPending }}
+        okText={domain === "complaints" ? "Gửi khiếu nại" : "Gửi kháng nghị"}
+        onCancel={closeCreateForm}
+        onOk={() => createMutation.mutate()}
+        open={createOpen}
+        title={domain === "complaints" ? "Gửi khiếu nại" : "Gửi kháng nghị"}
+        width={breakpoints.md ? 520 : "calc(100vw - 24px)"}
+      >
+        <Space orientation="vertical" style={{ width: "100%" }}>
+          {domain === "appeals" ? <Input onChange={(event) => setFields({ ...fields, decision_id: event.target.value })} placeholder="Mã định danh quyết định chứng nhận" value={fields.decision_id} /> : null}
           <Input onChange={(event) => setFields({ ...fields, name: event.target.value })} placeholder="Người gửi" value={fields.name} />
           <Input onChange={(event) => setFields({ ...fields, contact: event.target.value })} placeholder="Email / liên hệ" value={fields.contact} />
-          {domain === "complaints" ? <Input onChange={(event) => setFields({ ...fields, subject: event.target.value })} placeholder="Chủ đề" value={fields.subject} /> : null}
-          <TextArea onChange={(event) => setFields({ ...fields, description: event.target.value })} placeholder={domain === "complaints" ? "Mô tả complaint" : "Grounds of appeal"} rows={5} value={fields.description} />
-          <Upload beforeUpload={(file) => { setEvidenceFile(file); return false; }} maxCount={1}><Button icon={<PaperClipOutlined />}>Đính kèm evidence</Button></Upload>
-          <Alert message="Các ghi chú điều tra, deliberation và SoD nội bộ không được hiển thị trên Portal." showIcon type="info" />
+          {domain === "complaints" ? <Input onChange={(event) => setFields({ ...fields, subject: event.target.value })} placeholder="Chủ đề khiếu nại" value={fields.subject} /> : null}
+          <TextArea onChange={(event) => setFields({ ...fields, description: event.target.value })} placeholder={domain === "complaints" ? "Mô tả khiếu nại" : "Nội dung kháng nghị"} rows={4} value={fields.description} />
+          <Upload
+            beforeUpload={(file) => { setCreateEvidenceFiles([{ uid: file.uid, name: file.name, status: "done", originFileObj: file }]); return false; }}
+            fileList={createEvidenceFiles}
+            maxCount={1}
+            onRemove={() => { setCreateEvidenceFiles([]); return true; }}
+          >
+            <Button icon={<PaperClipOutlined />}>Đính kèm bằng chứng</Button>
+          </Upload>
+          <Alert title="Thông tin điều tra, trao đổi nội bộ và ghi chú phân tách nhiệm vụ chỉ dành cho nhân sự tổ chức chứng nhận." showIcon type="info" />
         </Space>
       </Modal>
     </div>

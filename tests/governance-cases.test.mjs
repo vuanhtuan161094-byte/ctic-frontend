@@ -71,7 +71,7 @@ test('portal renders final status and response without private staff deliberatio
   assert.match(portal, /final_response/);
   assert.match(portal, /assessment_outcome/);
   assert.match(portal, /challenged_decision/);
-  assert.match(portal, /Các ghi chú điều tra, deliberation và SoD nội bộ không được hiển thị/);
+  assert.match(portal, /Thông tin điều tra, trao đổi nội bộ và ghi chú phân tách nhiệm vụ chỉ dành cho nhân sự tổ chức chứng nhận/);
 });
 
 test('role-aware navigation exposes the appropriate internal or customer case workspace', () => {
