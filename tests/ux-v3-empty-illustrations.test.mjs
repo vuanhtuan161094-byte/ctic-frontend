@@ -14,5 +14,5 @@ test("actual lists use vectors without losing business empty labels", () => {
   for(const kind of ["work","calendar","records"]) assert.ok(dashboard.includes('EmptyWorkspaceIllustration kind="'+kind+'"'));
   assert.ok(customers.includes('EmptyWorkspaceIllustration kind="customers"'));
   assert.match(dashboard,/Hiện không có công việc cần xử lý\./);
-  assert.match(customers,/Không có khách hàng phù hợp/);
+  assert.match(customers,/Không có kết quả theo bộ lọc/);
 });

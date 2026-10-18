@@ -320,7 +320,7 @@ export function CustomerProfileScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Hồ sơ tổ chức</Title>
           <Text type="secondary">Thông tin chính thức do tổ chức chứng nhận quản lý và lịch sử yêu cầu thay đổi từ Portal.</Text>
         </div>

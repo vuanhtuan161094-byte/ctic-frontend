@@ -36,6 +36,7 @@ import {
   Select,
   Space,
   Steps,
+  Skeleton,
   Switch,
   Table,
   Tabs,
@@ -58,6 +59,7 @@ import {
 } from "../lib/numbering-configuration";
 import { IndustryTaxonomyPanel } from "./IndustryTaxonomyPanel";
 import { ImportJobDetails } from "./ImportJobDetails";
+import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 import "./configuration-workspaces.css";
 
 const { Paragraph, Text, Title } = Typography;
@@ -954,7 +956,7 @@ export function MasterDataConfigurationPanel({
                   <GuidanceCard icon={<ApartmentOutlined />} title="Phân loại ngành" description="Danh mục và bảng quy đổi ngành để người dùng chỉ cần chọn một hoặc nhiều mã ISIC của khách hàng." example="ISIC 2220 → NACE 22.xx → IAF 14" use="Xác định lĩnh vực chứng nhận và kiểm tra năng lực." />
                   <GuidanceCard icon={<SafetyCertificateOutlined />} title="Năng lực tổ chức" description="Phạm vi mà tổ chức được phép chứng nhận theo từng tiêu chuẩn/phiên bản và lĩnh vực IAF." example="QMS · ISO 9001:2015 → IAF 14, 19, 28" use="Application Review tự đối chiếu IAF của khách với phạm vi năng lực này trước khi cho phê duyệt." />
                   <GuidanceCard icon={<NumberOutlined />} title="Quy tắc đánh số" description="Quy định tiền tố và số chữ số cho các hồ sơ được hệ thống cấp số tự động." example="Khiếu nại: CMP-2026-0001" use="Áp dụng cho số mới phát sinh; số lịch sử không đổi." />
-                  <GuidanceCard icon={<BankOutlined />} title="Tổ chức & thương hiệu" description="Thông tin pháp lý và nhận diện của đơn vị triển khai phần mềm." example="Tên pháp lý, tên hiển thị, địa chỉ, tiêu đề cổng khách hàng" use="Hiển thị trên cổng, tài liệu và báo cáo hỗ trợ branding." />
+                  <GuidanceCard icon={<BankOutlined />} title="Tổ chức & nhận diện" description="Thông tin pháp lý và nhận diện của tổ chức chứng nhận." example="Tên pháp lý, tên hiển thị, địa chỉ, tiêu đề cổng khách hàng" use="Hiển thị đúng tổ chức trên cổng khách hàng và tài liệu chứng nhận." />
                 </div>
               ),
             }]}
@@ -1359,11 +1361,40 @@ export function MasterDataConfigurationPanel({
     },
     {
       key: "organization",
-      label: "Tổ chức & thương hiệu",
+      label: "Tổ chức & nhận diện",
       children: (
         <section className="organization-workspace" aria-label="Tổ chức và nhận diện">
           <Form className="organization-form" form={profileForm} layout="vertical" onFinish={(values) => saveProfile.mutate(values)}>
-            {!readiness.data?.organization.ready ? (
+            {profile.isLoading ? <div className="organization-load-state"><Skeleton active paragraph={{ rows: 2 }} /></div> : null}
+            {profile.isError ? (
+              <Alert
+                action={<Button onClick={() => void profile.refetch()}>Thử tải lại</Button>}
+                description={getErrorMessage(profile.error)}
+                title="Không tải được hồ sơ tổ chức"
+                showIcon
+                type="error"
+              />
+            ) : null}
+            {profile.isFetched && !profile.isError && !profile.data ? (
+              <div className="organization-onboarding">
+                <EmptyWorkspaceIllustration kind="organization" />
+                <div className="organization-onboarding__copy">
+                  <Text strong>Thiết lập thông tin tổ chức chứng nhận</Text>
+                  <Text type="secondary">Thông tin này xuất hiện trên cổng khách hàng và tài liệu phát hành.</Text>
+                </div>
+              </div>
+            ) : null}
+            {readiness.isLoading && !readiness.data ? (
+              <div className="organization-load-state"><Skeleton active title={false} paragraph={{ rows: 1 }} /></div>
+            ) : readiness.isError ? (
+              <Alert
+                action={<Button onClick={() => void readiness.refetch()}>Thử tải lại</Button>}
+                description={getErrorMessage(readiness.error)}
+                title="Không kiểm tra được trạng thái sẵn sàng"
+                showIcon
+                type="error"
+              />
+            ) : !readiness.data?.organization.ready ? (
               <div className="organization-status organization-status--attention" role="status">
                 <div className="organization-status__copy">
                   <Text strong>Cần hoàn tất hồ sơ tổ chức</Text>
@@ -1386,7 +1417,7 @@ export function MasterDataConfigurationPanel({
               <div className="organization-form__section-heading">
                 <div>
                   <Text strong>Thông tin tổ chức</Text>
-                  <Text type="secondary">Thông tin pháp lý và tên hiển thị được dùng xuyên suốt CMP.</Text>
+                  <Text type="secondary">Tên pháp lý và tên hiển thị được dùng thống nhất trên cổng và tài liệu chứng nhận.</Text>
                 </div>
               </div>
               <div className="organization-form__grid">
@@ -1419,14 +1450,14 @@ export function MasterDataConfigurationPanel({
                 <Form.Item name="timezone" label="Múi giờ nghiệp vụ" extra="Việt Nam dùng Asia/Ho_Chi_Minh." rules={[{ required: true, message: "Chọn múi giờ" }]}>
                   <Select showSearch optionFilterProp="label" options={organizationTimezoneOptions} placeholder="Chọn múi giờ" />
                 </Form.Item>
-                <Form.Item name="certificate_reminder_days" label="Mốc nhắc hết hạn chứng chỉ" extra="Baseline cho hồ sơ cũ/chưa có bản chốt quy tắc chương trình." rules={[{ required: true, message: "Nhập số ngày" }]}>
-                  <InputNumber min={0} max={3650} precision={0} addonAfter="ngày" style={{ width: "100%" }} />
+                <Form.Item name="certificate_reminder_days" label="Số ngày nhắc trước khi chứng chỉ hết hạn" extra="Đơn vị: ngày. Dùng cho hồ sơ cũ hoặc hồ sơ chưa có quy tắc chương trình đã chốt." rules={[{ required: true, message: "Nhập số ngày" }]}>
+                  <InputNumber min={0} max={3650} precision={0} style={{ width: "100%" }} />
                 </Form.Item>
               </div>
             </div>
 
             <div className="organization-form__actions">
-              <Button htmlType="submit" type="primary" loading={saveProfile.isPending}>Lưu thông tin tổ chức</Button>
+              <Button disabled={profile.isLoading || profile.isError} htmlType="submit" loading={saveProfile.isPending} type="primary">Lưu thông tin tổ chức</Button>
               {!readiness.data?.organization.ready ? <Text type="secondary">Lưu sẽ chuẩn hóa cấu hình V1 hiện tại.</Text> : null}
             </div>
           </Form>
@@ -1601,11 +1632,11 @@ export function MasterDataConfigurationPanel({
           </Card>
           <Card size="small" title="2. Chu kỳ chứng nhận" style={{ marginBottom: 12 }}>
             <div className="system-admin-form-grid">
-              <Form.Item name="cycle_duration_months" label="Độ dài chu kỳ chứng nhận" extra="Ví dụ: nhập 36 = một chu kỳ chứng nhận kéo dài 36 tháng." rules={[{ required: true, message: "Nhập độ dài chu kỳ" }]}><InputNumber min={1} placeholder="Ví dụ: 36" addonAfter="tháng" style={{ width: "100%" }} /></Form.Item>
+              <Form.Item name="cycle_duration_months" label="Độ dài chu kỳ chứng nhận" extra="Đơn vị: tháng. Ví dụ: 36 tháng cho một chu kỳ chứng nhận." rules={[{ required: true, message: "Nhập độ dài chu kỳ" }]}><InputNumber min={1} placeholder="Ví dụ: 36" style={{ width: "100%" }} /></Form.Item>
               <Form.Item
                 name="surveillance_frequency_months"
                 label="Khoảng giám sát định kỳ"
-                extra="Ví dụ: nhập 12 = hệ thống đề xuất/ghi nhận giám sát mỗi 12 tháng trên hồ sơ mới."
+                extra="Đơn vị: tháng/lần. Ví dụ: 12 tháng giữa các kỳ giám sát trên hồ sơ mới."
                 dependencies={["cycle_duration_months"]}
                 rules={[
                   { required: true, message: "Nhập khoảng giám sát" },
@@ -1616,11 +1647,11 @@ export function MasterDataConfigurationPanel({
                     },
                   },
                 ]}
-              ><InputNumber min={1} placeholder="Ví dụ: 12" addonAfter="tháng/lần" style={{ width: "100%" }} /></Form.Item>
+              ><InputNumber min={1} placeholder="Ví dụ: 12" style={{ width: "100%" }} /></Form.Item>
               <Form.Item
                 name="validity_duration_months"
                 label="Thời hạn hiệu lực chứng chỉ"
-                extra="Ví dụ: nhập 36 = khi lập quyết định, hệ thống tự đề xuất ngày hết hiệu lực sau 36 tháng (trừ 1 ngày)."
+                extra="Đơn vị: tháng. Ví dụ: 36 tháng; khi lập quyết định, hệ thống đề xuất ngày hết hiệu lực sau 36 tháng trừ một ngày."
                 dependencies={["cycle_duration_months"]}
                 rules={[
                   { required: true, message: "Nhập thời hạn chứng chỉ" },
@@ -1631,9 +1662,9 @@ export function MasterDataConfigurationPanel({
                     },
                   },
                 ]}
-              ><InputNumber min={1} placeholder="Ví dụ: 36" addonAfter="tháng" style={{ width: "100%" }} /></Form.Item>
-              <Form.Item name="renewal_window_days" label="Cửa sổ tái chứng nhận" extra="Ví dụ: nhập 90 = từ 90 ngày trước hết hạn, chứng chỉ bắt đầu xuất hiện trong danh sách cần theo dõi/tái chứng nhận." rules={[{ required: true, message: "Nhập cửa sổ tái chứng nhận" }]}><InputNumber min={0} placeholder="Ví dụ: 90" addonAfter="ngày trước hết hạn" style={{ width: "100%" }} /></Form.Item>
-              <Form.Item name="reminder_lead_days" label="Nhắc vận hành trước mốc" extra="Ví dụ: nhập 60 = notification engine bắt đầu nhắc theo baseline của dự án ở mốc 60 ngày; các mốc 30/7 ngày vẫn được giữ để cảnh báo gần hạn." rules={[{ required: true, message: "Nhập mốc nhắc vận hành" }]}><InputNumber min={0} placeholder="Ví dụ: 60" addonAfter="ngày" style={{ width: "100%" }} /></Form.Item>
+              ><InputNumber min={1} placeholder="Ví dụ: 36" style={{ width: "100%" }} /></Form.Item>
+              <Form.Item name="renewal_window_days" label="Số ngày mở kỳ tái chứng nhận" extra="Đơn vị: ngày trước khi chứng chỉ hết hạn. Ví dụ: 90 ngày." rules={[{ required: true, message: "Nhập khoảng thời gian tái chứng nhận" }]}><InputNumber min={0} placeholder="Ví dụ: 90" style={{ width: "100%" }} /></Form.Item>
+              <Form.Item name="reminder_lead_days" label="Số ngày bắt đầu nhắc trước mốc" extra="Đơn vị: ngày. Ví dụ: 60 ngày trước mốc; các mốc 30 và 7 ngày vẫn được dùng để cảnh báo gần hạn." rules={[{ required: true, message: "Nhập mốc nhắc vận hành" }]}><InputNumber min={0} placeholder="Ví dụ: 60" style={{ width: "100%" }} /></Form.Item>
               <Form.Item name="stage1_applicable" label="Có áp dụng Giai đoạn 1" extra="Ví dụ: QMS/EMS/OHSMS chứng nhận lần đầu thường chọn Có nếu workflow chương trình có GĐ1; chỉ chọn Không khi chương trình thực sự không áp dụng GĐ1." valuePropName="checked"><Switch checkedChildren="Có" unCheckedChildren="Không" /></Form.Item>
             </div>
           </Card>
@@ -1711,7 +1742,7 @@ export function MasterDataConfigurationPanel({
           <Form.Item name="entity_type" label="Loại hồ sơ được cấp số" rules={[{ required: true }]}>
             <Select placeholder="Ví dụ: Khiếu nại" loading={numberingCapabilities.isLoading} options={numberingCapabilityOptions(numberingCapabilities.data)} />
           </Form.Item>
-          <Form.Item name="prefix" label="Tiền tố" extra={`Gợi ý: ${numberingCapabilities.data?.configurable_entities.find((item) => item.entity_type === numberingEntity)?.fallback_prefix ?? "CMP"}. Chỉ dùng chữ/số và ký tự . _ / -.`} rules={[{ required: true }]}><Input placeholder="CMP" /></Form.Item>
+          <Form.Item name="prefix" label="Tiền tố" extra={`Gợi ý: ${numberingCapabilities.data?.configurable_entities?.find((item) => item.entity_type === numberingEntity)?.fallback_prefix ?? "CMP"}. Chỉ dùng chữ/số và ký tự . _ / -.`} rules={[{ required: true }]}><Input placeholder="CMP" /></Form.Item>
           <Form.Item name="padding" label="Số chữ số chạy" extra="Ví dụ: nhập 4 → số đầu tiên là 0001; nhập 5 → 00001." rules={[{ required: true }]}><InputNumber min={3} max={12} placeholder="Ví dụ: 4" style={{ width: "100%" }} /></Form.Item>
           <Form.Item name="effective_from" label="Áp dụng cho số cấp từ ngày" extra="Ví dụ: 01/01/2026. Các số cấp trước ngày này không bị đổi." rules={[{ required: true }]}><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" placeholder="Ví dụ: 01/01/2026" /></Form.Item>
           <Form.Item name="effective_to" label="Dừng áp dụng từ sau ngày" extra="Ví dụ: 31/12/2026 nếu quy tắc chỉ dùng trong năm 2026; thường để trống nếu chưa có quy tắc thay thế."><DatePicker style={{ width: "100%" }} format="DD/MM/YYYY" placeholder="Ví dụ: 31/12/2026 hoặc để trống" /></Form.Item>

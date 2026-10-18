@@ -51,7 +51,7 @@ test("organization settings show business data and active operational settings o
   assert.match(master, /Thông tin tổ chức/);
   assert.match(master, /Thiết lập vận hành/);
   assert.match(master, /Múi giờ nghiệp vụ/);
-  assert.match(master, /Mốc nhắc hết hạn chứng chỉ/);
+  assert.match(master, /Số ngày nhắc trước khi chứng chỉ hết hạn/);
   assert.doesNotMatch(master, /Form.Item name="logo_reference"/);
   assert.doesNotMatch(master, /Form.Item name="file_retention_days"/);
   assert.doesNotMatch(master, /CMP V1 hiện cố định giao diện/);

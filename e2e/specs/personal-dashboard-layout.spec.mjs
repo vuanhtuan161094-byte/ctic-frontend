@@ -120,11 +120,13 @@ test("personal dashboard scans priority work and stays usable at desktop and mob
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Tổng quan vận hành" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tổng quan" })).toBeVisible();
+  await page.evaluate(() => document.fonts.load('400 14px "Be Vietnam Pro"', "Đánh giá chứng nhận"));
+  expect(await page.evaluate(() => [...document.fonts].some((font) => font.family.includes("Be Vietnam Pro") && font.status === "loaded"))).toBe(true);
   const cards = page.locator(".personal-kpi-card");
   await expect(cards).toHaveCount(5);
   await expect(page.locator(".personal-work-row")).toHaveCount(7);
-  await expect(page.locator(".personal-dashboard-main-grid .ant-card").first()).toContainText("Công việc ưu tiên");
+  await expect(page.locator(".personal-dashboard-main-grid .ant-card").first()).toContainText("Việc cần xử lý");
 
   const sizes = testInfo.project.name === "desktop-1440x900"
     ? [{ width: 1440, height: 900 }, { width: 1366, height: 768 }]

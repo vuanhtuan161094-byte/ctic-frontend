@@ -131,7 +131,6 @@ export function PersonalDashboardScreen({
     <div className="personal-dashboard">
       <div className="page-heading page-heading-v2 personal-dashboard-heading">
         <div>
-          <span className="eyebrow">CÔNG VIỆC VÀ LỊCH</span>
           <Title level={2}>Tổng quan</Title>
           <Text type="secondary">{personaText} · {dayjs().format("DD/MM/YYYY")}</Text>
         </div>
@@ -176,14 +175,15 @@ export function PersonalDashboardScreen({
                       </Space>
                     </div>
                   </div>
-                  <Button
-                    disabled={!item.can_execute}
-                    onClick={() => onOpenPath(item.destination_path, item.context)}
-                    size="small"
-                    type="primary"
-                  >
-                    Mở
-                  </Button>
+                  {item.can_execute ? (
+                    <Button
+                      onClick={() => onOpenPath(item.destination_path, item.context)}
+                      size="small"
+                      type="primary"
+                    >
+                      Xử lý
+                    </Button>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -192,7 +192,7 @@ export function PersonalDashboardScreen({
 
         <Card
           className="dashboard-card"
-          extra={<Button onClick={onViewCalendar} type="link">Mở lịch</Button>}
+          extra={<Button onClick={onViewCalendar} type="link">Xem lịch</Button>}
           title={<Space><CalendarOutlined />Lịch sắp tới</Space>}
         >
           {workspace.calendar_items.length ? (
@@ -212,7 +212,9 @@ export function PersonalDashboardScreen({
                       {item.project_code ?? "—"} · {item.organization_name ?? calendarTypeLabel(item.type)}
                     </div>
                   </div>
-                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>
+                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">
+                    {item.type === "AUDIT" ? "Xem lịch đánh giá" : "Xem công việc"}
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -251,7 +253,7 @@ export function PersonalDashboardScreen({
                       {item.project_code ?? "—"} · {dayjs(item.occurred_at).format("DD/MM/YYYY HH:mm")}
                     </div>
                   </div>
-                  <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Mở</Button>
+                  {item.destination_path ? <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small">Xem hồ sơ</Button> : null}
                 </li>
               ))}
             </ul>

@@ -16,7 +16,7 @@ test("Vietnamese operator copy is concise without changing business actions", ()
   assert.match(dashboard, /onOpenPath\(item\.destination_path, item\.context\)/);
 });
 test("One locally available font stack is shared by CSS tokens and Ant Design theme", () => {
-  const family = '"Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif';
+  const family = '"Be Vietnam Pro", "Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif';
   assert.ok(tokens.includes(`--cmp-font-family: ${family};`));
   assert.ok(theme.includes(`fontFamily: '${family}'`));
 });

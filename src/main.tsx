@@ -1,5 +1,6 @@
 import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
+import "./fonts";
 import "antd/dist/reset.css";
 import "../app/globals.css";
 import "./expert-overlay-layering.css";

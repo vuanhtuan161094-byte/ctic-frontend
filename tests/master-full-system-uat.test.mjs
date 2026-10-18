@@ -29,7 +29,7 @@ test('core operations navigation remains available', () => {
 });
 
 test('customer portal remains separated from internal administration', () => {
-  assert.ok(shell.includes('CỔNG KHÁCH HÀNG'));
+  assert.ok(shell.includes('Cổng khách hàng'));
   assert.ok(shell.includes('Quản trị hệ thống'));
   assert.ok(shell.includes('customerPortalMode'));
 });

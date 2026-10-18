@@ -127,7 +127,7 @@ export function CustomerResultNotificationsScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Kết quả đánh giá</Title>
           <Text type="secondary">Các thông báo kết quả F.12 đã được gửi chính thức cho tổ chức của bạn.</Text>
         </div>

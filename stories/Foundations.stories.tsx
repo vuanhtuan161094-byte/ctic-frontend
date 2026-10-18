@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { DomainStatusBadge } from "../app/components/design-system";
+import { EmptyWorkspaceIllustration, type EmptyIllustrationKind } from "../app/components/design-system/EmptyWorkspaceIllustration";
 
 const meta = { title: "Foundations/Design language" } satisfies Meta;
 export default meta;
@@ -34,6 +35,48 @@ export const Typography: Story = {
       <p style={{ color: "var(--cmp-text-secondary)" }}>Thông tin hỗ trợ: chuyên gia đã nhận phân công thẩm xét.</p>
     </section>
   ),
+};
+
+export const VietnameseProductCopy: Story = {
+  render: () => (
+    <section className="cmp-section-stack" style={{ maxWidth: 760 }}>
+      <h1 style={{ fontFamily: "var(--cmp-font-family)", fontSize: "var(--cmp-font-size-2xl)", margin: 0 }}>Tổng quan chứng nhận</h1>
+      <p style={{ fontFamily: "var(--cmp-font-family)", fontSize: "var(--cmp-font-size-md)", margin: 0 }}>
+        Hồ sơ đánh giá sự phù hợp · Đăng ký chứng nhận · Thẩm xét kỹ thuật · Quyết định chứng nhận
+      </p>
+      <p style={{ color: "var(--cmp-text-secondary)", fontSize: "var(--cmp-font-size-sm)", margin: 0 }}>
+        Be Vietnam Pro ưu tiên dấu tiếng Việt; bộ chữ dự phòng của hệ điều hành vẫn được giữ để hỗ trợ khi font chưa tải.
+      </p>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+        {[400, 500, 600, 700].map((weight) => <div key={weight} style={{ border: "1px solid var(--cmp-border-default)", borderRadius: "var(--cmp-radius-md)", padding: 14 }}>
+          <strong style={{ fontWeight: weight }}>Trạng thái hồ sơ · {weight}</strong>
+          <p style={{ fontWeight: weight, margin: "6px 0 0" }}>Đánh giá giám sát lần thứ nhất</p>
+          <code>{weight} · Số hồ sơ CMP-2026-0001</code>
+        </div>)}
+      </div>
+    </section>
+  ),
+};
+
+export const WorkflowEmptyIllustrations: Story = {
+  render: () => {
+    const entries: { kind: EmptyIllustrationKind; label: string }[] = [
+      { kind: "work", label: "Công việc" },
+      { kind: "calendar", label: "Lịch đánh giá" },
+      { kind: "records", label: "Hồ sơ" },
+      { kind: "customers", label: "Khách hàng" },
+      { kind: "organization", label: "Tổ chức chứng nhận" },
+    ];
+    return <section className="cmp-section-stack">
+      <h1>Hình minh họa trạng thái trống</h1>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+        {entries.map(({ kind, label }) => <div key={kind} style={{ alignItems: "center", background: "var(--cmp-surface-raised)", border: "1px solid var(--cmp-border-default)", borderRadius: "var(--cmp-radius-md)", display: "flex", flexDirection: "column", gap: 8, padding: 14 }}>
+          <EmptyWorkspaceIllustration kind={kind} />
+          <strong>{label}</strong>
+        </div>)}
+      </div>
+    </section>;
+  },
 };
 
 export const Spacing: Story = {

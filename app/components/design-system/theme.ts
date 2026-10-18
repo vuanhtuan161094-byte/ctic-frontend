@@ -26,7 +26,7 @@ export const CMP_FOUNDATION = Object.freeze({
     error: "#c83b3b",
   }),
   typography: Object.freeze({
-    fontFamily: '"Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif',
+    fontFamily: '"Be Vietnam Pro", "Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif',
     bodySize: 14,
     lineHeight: 1.5,
   }),

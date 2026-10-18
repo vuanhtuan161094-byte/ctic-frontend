@@ -135,6 +135,26 @@ function getWorkTypeLabel(value: string) {
   return workTypeLabels[normalizeWorkType(value)] ?? "Công việc nghiệp vụ";
 }
 
+function getTaskActionLabel(item: Pick<WorkTaskItem, "work_type" | "can_execute">) {
+  if (!item.can_execute) return "Xem chi tiết";
+
+  const actionLabels: Record<string, string> = {
+    CUSTOMER_APPLICATION_INTAKE: "Tiếp nhận đơn",
+    APPLICATION_REVIEW: "Xem xét đơn",
+    SURVEILLANCE_CHANGE_REVIEW: "Xem xét thay đổi",
+    F04_TEAM_APPOINTMENT: "Phân công đoàn",
+    AUDIT_PLAN: "Lập kế hoạch",
+    AUDIT_EXECUTION: "Thực hiện đánh giá",
+    CAP_ACTION_OR_REVIEW: "Xử lý NC/CAP",
+    REVIEWER_ASSIGNMENT: "Phân công thẩm xét",
+    TECHNICAL_REVIEW: "Thẩm xét hồ sơ",
+    CERTIFICATION_DECISION: "Ra quyết định",
+    CERTIFICATE_ISSUE: "Phát hành chứng chỉ",
+  };
+
+  return actionLabels[normalizeWorkType(item.work_type)] ?? "Xử lý";
+}
+
 function getTaskTitle(item: Pick<WorkTaskItem, "title" | "work_type">) {
   const normalizedTitle = normalizeWorkType(item.title);
   const normalizedType = normalizeWorkType(item.work_type);
@@ -443,7 +463,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
             size="small"
             type="primary"
           >
-            {item.can_execute ? "Mở" : "Xem"}
+            {getTaskActionLabel(item)}
           </Button>
         ),
       },
@@ -475,7 +495,6 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
     <div className="my-tasks-screen my-tasks-screen-v2">
       <div className="screen-heading-row my-tasks-heading">
         <div>
-          <Text className="screen-eyebrow">TRUNG TÂM CÔNG VIỆC</Text>
           <Title level={1}>Công việc</Title>
           <Text type="secondary">
             Tổng hợp công việc từ hồ sơ, lịch đánh giá, thẩm xét, NC/CAP và chứng chỉ.
@@ -635,7 +654,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
                     size="small"
                     type="primary"
                   >
-                    {item.can_execute ? "Mở" : "Xem"}
+                    {getTaskActionLabel(item)}
                   </Button>
                 </article>
               );
@@ -683,7 +702,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         footer={<Button onClick={() => setHistoryItem(null)}>Đóng</Button>}
         onCancel={() => setHistoryItem(null)}
         open={Boolean(historyItem)}
-        title="Chi tiết công việc — chỉ xem"
+        title={<Space size={8}><span>Chi tiết công việc</span><Tag>Chỉ xem</Tag></Space>}
       >
         {historyItem ? (
           <Descriptions bordered column={1} size="small">
@@ -706,7 +725,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         ) : null}
         <Alert
           description="Chỉ hiển thị dấu vết công việc; không mở lại thao tác nghiệp vụ đã hoàn thành, đã hủy hoặc đang bị chặn bởi phân quyền/SoD."
-          message="Chế độ lịch sử"
+          message="Bản ghi chỉ xem"
           showIcon
           style={{ marginTop: 16 }}
           type="info"

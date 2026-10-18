@@ -132,7 +132,7 @@ export function CustomerAuditScheduleScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Lịch đánh giá</Title>
           <Text type="secondary">Chỉ hiển thị các kế hoạch đã được công bố cho tổ chức của bạn; không hiển thị phân công nội bộ của đoàn đánh giá.</Text>
         </div>

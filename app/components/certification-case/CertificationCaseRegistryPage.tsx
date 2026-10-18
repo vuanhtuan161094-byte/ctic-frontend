@@ -147,7 +147,7 @@ export function CertificationCaseRegistryView({ records, loading = false, error,
       key: "action",
       width: 48,
       align: "right",
-      render: (_, record) => <Button aria-label={`Mở hồ sơ ${record.project_code}`} icon={<FolderOpenOutlined />} onClick={() => onOpenCase(record.id)} type="text" />,
+      render: (_, record) => <Button aria-label={`Xem hồ sơ chứng nhận ${record.project_code}`} icon={<FolderOpenOutlined />} onClick={() => onOpenCase(record.id)} type="text" />,
     },
   ];
 
@@ -163,7 +163,7 @@ export function CertificationCaseRegistryView({ records, loading = false, error,
         { key: "cycle", label: "Chu kỳ / bước", value: "Xem trong hồ sơ" },
         { key: "attention", label: "Trách nhiệm / hạn", value: "Xác nhận trong hồ sơ" },
       ],
-      actions: <Button block type="primary" onClick={() => onOpenCase(record.id)}>Mở hồ sơ</Button>,
+      actions: <Button block type="primary" onClick={() => onOpenCase(record.id)}>Xem hồ sơ chứng nhận</Button>,
     };
   });
 

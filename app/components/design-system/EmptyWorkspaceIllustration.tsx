@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-export type EmptyIllustrationKind = "work" | "calendar" | "records" | "customers";
+export type EmptyIllustrationKind = "work" | "calendar" | "records" | "customers" | "organization";
 
 /** Original vector illustration; decorative, with semantics in the Empty label. */
 export function EmptyWorkspaceIllustration({ kind }: { kind: EmptyIllustrationKind }): ReactElement {
@@ -33,6 +33,13 @@ export function EmptyWorkspaceIllustration({ kind }: { kind: EmptyIllustrationKi
         <path d="M47 80c0-18 28-18 28 0" fill="var(--cmp-brand-primary)" opacity=".28"/>
         <path fill="none" d="M83 51h27M83 62h22M83 73h29" stroke="var(--cmp-neutral-500)" strokeWidth="3" strokeLinecap="round" opacity=".66"/>
         <path d="M52 30v-6c0-4 3-7 7-7h42c4 0 7 3 7 7v6" stroke="var(--cmp-brand-primary)" opacity=".6" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      </>}
+      {kind === "organization" && <>
+        <path d="M80 18 121 39v58H39V39l41-21Z" fill="var(--cmp-neutral-0)" stroke="var(--cmp-border-strong)" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M39 41h82M51 53h29M51 63h40M51 73h24" fill="none" stroke="var(--cmp-neutral-500)" strokeWidth="3" strokeLinecap="round"/>
+        <rect x="48" y="31" width="64" height="12" rx="4" fill="var(--cmp-brand-primary)" opacity=".12"/>
+        <circle cx="100" cy="82" r="14" fill="var(--cmp-state-positive-bg)" stroke="var(--cmp-state-positive-border)" strokeWidth="1.5"/>
+        <path d="m93 82 5 5 9-11" fill="none" stroke="var(--cmp-state-positive)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
       </>}
     </svg>
   );

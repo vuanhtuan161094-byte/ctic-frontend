@@ -34,9 +34,9 @@ test("internal navigation uses effective permissions from authenticated backend 
 });
 
 test("Step 14 implements the frozen internal information architecture", () => {
-  assert.match(shell, /KHÔNG GIAN LÀM VIỆC/);
-  assert.match(shell, /NGHIỆP VỤ/);
-  assert.match(shell, /QUẢN TRỊ/);
+  assert.match(shell, /label: "Công việc"/);
+  assert.match(shell, /label: "Nghiệp vụ"/);
+  assert.match(shell, /label: "Quản trị"/);
   assert.match(shell, /label: "Chứng nhận", children: certificationChildren/);
   assert.match(shell, /label: "Hồ sơ chứng nhận"/);
   assert.match(shell, /label: "Báo cáo điều hành"/);

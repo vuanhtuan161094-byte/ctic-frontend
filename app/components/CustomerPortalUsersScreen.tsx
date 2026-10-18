@@ -352,7 +352,7 @@ export function CustomerPortalUsersScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Tài khoản Portal</Title>
           <Text type="secondary">Khách hàng chỉ gửi yêu cầu. Việc tạo tài khoản, cấp hoặc ngừng quyền truy cập chỉ có hiệu lực sau khi tổ chức chứng nhận phê duyệt.</Text>
         </div>

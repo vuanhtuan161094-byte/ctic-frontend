@@ -892,7 +892,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         {
           key: "customer-main-group",
           type: "group",
-          label: "CỔNG KHÁCH HÀNG",
+          label: "Cổng khách hàng",
           children: [
             { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
             { key: "customers", icon: <BankOutlined />, label: "Hồ sơ tổ chức" },
@@ -922,7 +922,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     if (hasPermission("audit_plans.read", "audit_teams.read", "experts.read", "competencies.read")) operations.push({ key: "schedule-resources", icon: <CalendarOutlined />, label: "Lịch & nguồn lực" });
     if (hasRole("ADMIN") && hasPermission("experts.read")) operations.push({ key: "experts", icon: <TeamOutlined />, label: "Chuyên gia & năng lực" });
     if (hasPermission("documents.read")) operations.push({ key: "documents", icon: <FileDoneOutlined />, label: "Tài liệu" });
-    if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị", title: "Thay đổi, khiếu nại & kháng nghị" });
+    if (hasPermission("projects.read") && hasRole("ADMIN", "COORDINATOR", "AUDITOR", "LEAD_AUDITOR", "TECHNICAL_REVIEWER", "DECISION_MAKER")) operations.push({ key: "governance-cases", className: "main-menu-label--governance", icon: <FileSearchOutlined />, label: "Thay đổi, khiếu nại & kháng nghị", title: "Thay đổi, khiếu nại & kháng nghị" });
     if (hasPermission("contracts.read") || hasRole("ADMIN", "SALES")) operations.push({ key: "reports", icon: <NotificationOutlined />, label: "Báo cáo điều hành" });
 
     const administration: NonNullable<MenuProps["items"]> = [];
@@ -969,7 +969,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
       {
         key: "workspace-group",
         type: "group",
-        label: "KHÔNG GIAN LÀM VIỆC",
+        label: "Công việc",
         children: [
           { key: "dashboard", icon: <AppstoreOutlined />, label: "Tổng quan" },
           { key: "my-tasks", icon: <CheckCircleOutlined />, label: <MenuLabel label="Công việc" count={taskCount} /> },
@@ -977,8 +977,8 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
         ],
       },
-      ...(operations.length ? [{ key: "operations-group", type: "group" as const, label: "NGHIỆP VỤ", children: operations }] : []),
-      ...(administration.length ? [{ key: "administration-group", type: "group" as const, label: "QUẢN TRỊ", children: administration }] : []),
+      ...(operations.length ? [{ key: "operations-group", type: "group" as const, label: "Nghiệp vụ", children: operations }] : []),
+      ...(administration.length ? [{ key: "administration-group", type: "group" as const, label: "Quản trị", children: administration }] : []),
     ];
   })();
 
@@ -1185,7 +1185,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         theme="dark"
       />
       <div className="side-module-switcher">
-        <span>PHÂN HỆ ĐANG SỬ DỤNG</span>
+        <span>Phân hệ nghiệp vụ</span>
         <Select
           aria-label="Chọn phân hệ nghiệp vụ"
           defaultValue="management-systems"

@@ -26,6 +26,14 @@ const typeMeta: Record<PersonalCalendarItem["type"], { label: string; color: str
   CERTIFICATE_ACTION_DUE: { label: "Hạn chứng chỉ", color: "cyan" },
 };
 
+const actionLabels: Record<PersonalCalendarItem["type"], string> = {
+  AUDIT: "Xem lịch đánh giá",
+  WORK_DUE: "Xem công việc",
+  REVIEW_DUE: "Xem thẩm xét",
+  DECISION_DUE: "Xem quyết định",
+  CERTIFICATE_ACTION_DUE: "Xem chứng chỉ",
+};
+
 export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: MyCalendarScreenProps) {
   const screens = Grid.useBreakpoint();
   const [view, setView] = useState<"month" | "agenda">("month");
@@ -92,7 +100,7 @@ export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: M
           </Space>
         </div>
       </div>
-      <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small" type="primary">Mở</Button>
+      <Button onClick={() => onOpenPath(item.destination_path, item.context)} size="small" type="primary">{actionLabels[item.type]}</Button>
     </li>
   );
 
@@ -100,7 +108,6 @@ export function MyCalendarScreen({ items, refreshing, onRefresh, onOpenPath }: M
     <div className="my-calendar-screen">
       <div className="screen-heading-row">
         <div>
-          <Text className="screen-eyebrow">LỊCH NGHIỆP VỤ</Text>
           <Title level={1}>Lịch</Title>
           <Text type="secondary">Lịch đánh giá được phân công và các hạn công việc liên quan.</Text>
         </div>

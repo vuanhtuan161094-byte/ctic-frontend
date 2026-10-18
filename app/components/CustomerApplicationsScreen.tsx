@@ -424,7 +424,7 @@ export function CustomerApplicationsScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Đơn đăng ký chứng nhận</Title>
           <Text type="secondary">Tạo, cập nhật và gửi đơn đăng ký trực tiếp. Sau khi gửi, tổ chức chứng nhận tiếp nhận và phân công người xem xét.</Text>
         </div>

@@ -30,7 +30,9 @@ const projects = CMP_DEMO_DATA.cases.map((record) => ({
   },
 }));
 
-async function openCustomerList(page) {
+async function openCustomerList(page, options = {}) {
+  const customerFixture = options.customersData ?? customers;
+  const projectFixture = options.projectsData ?? projects;
   const sessionErrors = [];
   const writes = [];
   page.on("pageerror", (error) => sessionErrors.push(`pageerror: ${error.message}`));
@@ -59,7 +61,7 @@ async function openCustomerList(page) {
 
     let body = [];
     if (path === "/auth/me") {
-      body = { user: { ...session.user, permissions: ["customers.read", "projects.read"] } };
+      body = { user: { ...session.user, permissions: ["customers.read", "projects.read", ...(options.canManage ? ["customers.manage"] : [])] } };
     } else if (path === "/platform-branding") {
       body = {};
     } else if (path === "/me/workspace") {
@@ -72,9 +74,9 @@ async function openCustomerList(page) {
     } else if (path.startsWith("/notifications")) {
       body = { items: [], summary: { total: 0, unread: 0, critical: 0, warning: 0 } };
     } else if (path === "/customers") {
-      body = customers;
+      body = customerFixture;
     } else if (path === "/certification-projects") {
-      body = projects;
+      body = projectFixture;
     }
 
     await route.fulfill({ status: 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
@@ -82,9 +84,11 @@ async function openCustomerList(page) {
 
   await page.goto("/customers");
   await expect(page.getByRole("heading", { name: "Khách hàng" })).toBeVisible();
-  await expect(page.locator(".customer-mobile-card, .customers-list-card .ant-table-tbody tr:not(.ant-table-measure-row)").first()).toBeVisible();
-  await expect(page.locator(".customer-summary-strip")).toContainText("20");
-  await expect(page.getByText("20 khách hàng", { exact: true })).toBeVisible();
+  await expect(page.locator(".customer-summary-strip")).toContainText(String(customerFixture.length));
+  if (customerFixture.length) {
+    await expect(page.locator(".customer-mobile-card, .customers-list-card .ant-table-tbody tr:not(.ant-table-measure-row)").first()).toBeVisible();
+    await expect(page.getByText(`${customerFixture.length} khách hàng`, { exact: true })).toBeVisible();
+  }
   return { sessionErrors, writes };
 }
 
@@ -179,5 +183,23 @@ test("customer search and status filters fit at desktop and mobile widths", asyn
   await expect(detailDrawer).toBeVisible();
   await expect(detailDrawer.locator(".customer-projects-card")).toContainText("2 hồ sơ");
   await expect(detailDrawer.locator(".customer-projects-card .ant-list-item")).toHaveCount(2);
+  expect(sessionErrors).toEqual([]);
+});
+
+test("empty customer state offers only permitted actions and has a compact visual", async ({ page }, testInfo) => {
+  const { sessionErrors, writes } = await openCustomerList(page, { customersData: [], projectsData: [], canManage: true });
+  await expect(page.locator(".customer-list-empty")).toContainText("Chưa có khách hàng");
+  await expect(page.locator(".customer-list-empty .cmp-empty-illustration")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Thêm khách hàng" })).toHaveCount(1);
+
+  const sizes = testInfo.project.name === "desktop-1440x900"
+    ? [{ width: 1440, height: 900 }, { width: 1366, height: 768 }]
+    : [{ width: 390, height: 844 }];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await expectNoHorizontalOverflow(page);
+    await captureVisualBaseline(page, testInfo, `customer-empty-${size.width}`, { fullPage: false });
+  }
+  expect(writes).toEqual([]);
   expect(sessionErrors).toEqual([]);
 });

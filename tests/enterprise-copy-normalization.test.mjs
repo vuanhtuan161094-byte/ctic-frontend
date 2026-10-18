@@ -16,7 +16,7 @@ test("login never exposes internal procedure code P.09", () => {
 test("operational dashboard avoids consumer-style personal copy", () => {
   assert.doesNotMatch(dashboard, /của tôi/i);
   assert.doesNotMatch(dashboard, /Xin chào/i);
-  assert.match(dashboard, /Tổng quan vận hành/);
+  assert.match(dashboard, /<Title level=\{2\}>Tổng quan<\/Title>/);
   assert.match(dashboard, /Chưa tạo hồ sơ/);
 });
 
@@ -30,6 +30,9 @@ test("customer application intake is translated into business language", () => {
 test("calendar uses neutral operational wording", () => {
   assert.doesNotMatch(calendar, /Lịch của tôi/);
   assert.doesNotMatch(calendar, /Danh sách lịch của tôi/);
-  assert.match(calendar, /LỊCH NGHIỆP VỤ/);
+  assert.match(calendar, /<Title level=\{1\}>Lịch<\/Title>/);
+  assert.match(calendar, /AUDIT: "Xem lịch đánh giá"/);
+  assert.match(calendar, /WORK_DUE: "Xem công việc"/);
+  assert.doesNotMatch(calendar, />Mở<\/Button>/);
   assert.match(calendar, /Chưa tạo hồ sơ/);
 });

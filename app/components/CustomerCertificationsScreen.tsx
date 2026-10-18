@@ -70,7 +70,7 @@ export function CustomerCertificationsScreen({
   return (
     <div className="cmp-page-stack customer-portal-screen">
       <PageHeader
-        identity="CỔNG KHÁCH HÀNG"
+        identity="Cổng khách hàng"
         title="Hồ sơ chứng nhận"
         description="Theo dõi các hồ sơ chứng nhận thuộc tổ chức mà tài khoản của bạn được phép truy cập."
       />

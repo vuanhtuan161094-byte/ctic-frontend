@@ -15,7 +15,7 @@ test('customer portal uses dedicated customer-safe screens instead of internal o
   assert.match(shell, /CustomerAuditScheduleScreen/);
   assert.match(shell, /CustomerResultNotificationsScreen/);
   assert.match(shell, /CustomerCertificatesScreen/);
-  assert.match(shell, /CỔNG KHÁCH HÀNG/);
+  assert.match(shell, /label: "Cổng khách hàng"/);
   assert.match(shell, /Hành động khắc phục/);
   const profile = read('app/components/CustomerProfileScreen.tsx');
   assert.doesNotMatch(profile, /Phase 3\.2/);

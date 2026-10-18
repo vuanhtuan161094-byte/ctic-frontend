@@ -62,6 +62,7 @@ import { openDocumentFile } from "../lib/document-file-client";
 import { invalidatePersonalWorkflowQueries } from "../lib/workspace-query-cache";
 import { IntegratedMandayAllocationPanel } from "./IntegratedMandayAllocationPanel";
 import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
+import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 
 dayjs.locale("vi");
 
@@ -2399,7 +2400,7 @@ export function ScheduleResourcesScreen({
           <div aria-label={`Danh sách đợt đánh giá tháng ${monthLabel}`} className="resource-calendar-mobile-list">
             {sortedPlans.map((plan) => renderPlanEvent(plan))}
           </div>
-        ) : null}
+        ) : <Empty className="resource-calendar-empty" description="Tháng này chưa có đợt đánh giá" image={<EmptyWorkspaceIllustration kind="calendar" />} />}
       </div>
       <div className="resource-calendar-desktop">
       <ConfigProvider locale={viVN}>
@@ -2502,9 +2503,8 @@ export function ScheduleResourcesScreen({
       {!appointmentEditorOnly ? <>
       <div className="screen-heading-row">
         <div>
-          <Text className="page-eyebrow">THEO DÕI LỊCH VÀ KHẢ DỤNG</Text>
           <Title level={1}>Lịch & nguồn lực</Title>
-          <Text type="secondary">Theo dõi lịch đánh giá, lịch chuyên gia, mức sử dụng nguồn lực và xung đột.</Text>
+          <Text type="secondary">Lịch đánh giá, chuyên gia, phân công đoàn và xung đột lịch.</Text>
         </div>
         <Button icon={<ReloadOutlined />} onClick={() => void refresh()}>Làm mới</Button>
       </div>
@@ -3172,7 +3172,7 @@ export function ScheduleResourcesScreen({
             <Space wrap>
               <Button icon={<EyeOutlined />} onClick={() => { setProjectSourceRecord("application"); setProjectSourceTab("system"); }} size="small">Phiếu đăng ký</Button>
               <Button disabled={!projectBriefReview} icon={<EyeOutlined />} onClick={() => { setProjectSourceRecord("review"); setProjectSourceTab("system"); }} size="small">Phiếu xem xét</Button>
-              {!appointmentEditorOnly && selectedPlan?.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)} size="small">Mở hồ sơ</Button> : null}
+              {!appointmentEditorOnly && selectedPlan?.project_id ? <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)} size="small">Xem hồ sơ chứng nhận</Button> : null}
             </Space>
           </> : <Alert message="Chưa tải được thông tin hồ sơ" showIcon type="warning" />}
         </Card> : null}
@@ -3202,7 +3202,7 @@ export function ScheduleResourcesScreen({
               <Space wrap>
                 {!appointmentEditorOnly && selectedPlan?.project_id ? (
                   <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)}>
-                    Mở hồ sơ
+                    Xem hồ sơ chứng nhận
                   </Button>
                 ) : null}
                 <Button icon={<FileTextOutlined />} onClick={downloadScopeIssueReport}>
@@ -3252,7 +3252,7 @@ export function ScheduleResourcesScreen({
                 </Button>
                 {!appointmentEditorOnly && selectedPlan?.project_id ? (
                   <Button icon={<FolderOpenOutlined />} onClick={() => onOpenProject(selectedPlan.project_id)}>
-                    Mở hồ sơ
+                    Xem hồ sơ chứng nhận
                   </Button>
                 ) : null}
                 <Button icon={<FileTextOutlined />} onClick={downloadScopeIssueReport}>

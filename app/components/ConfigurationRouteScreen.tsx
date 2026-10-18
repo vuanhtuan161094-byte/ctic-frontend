@@ -158,7 +158,9 @@ export function ConfigurationRouteScreen({ section }: ConfigurationRouteScreenPr
     <div className="configuration-route-page">
       <PageHeader
         title={destination.label}
-        identity={<Tag icon={activeSection === "import" ? <ImportOutlined /> : <SafetyCertificateOutlined />}>{pageIdentity[activeSection]}</Tag>}
+        identity={pageIdentity[activeSection] === destination.label
+          ? undefined
+          : <Tag icon={activeSection === "import" ? <ImportOutlined /> : <SafetyCertificateOutlined />}>{pageIdentity[activeSection]}</Tag>}
         description={destination.description}
       />
 

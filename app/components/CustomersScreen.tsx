@@ -69,7 +69,7 @@ function normalizeCountryCode(value?: string | null) {
 function taxIdentifierLabel(countryCode?: string | null) {
   return normalizeCountryCode(countryCode) === "VN"
     ? "Mã số thuế"
-    : "Tax ID / Business ID";
+    : "Mã số thuế / mã doanh nghiệp";
 }
 
 
@@ -426,16 +426,19 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   ];
 
   if (customersQuery.isLoading || projectsQuery.isLoading) {
-    return <Card><Skeleton active paragraph={{ rows: 12 }} /></Card>;
+    return <Card><Skeleton active paragraph={{ rows: 6 }} /></Card>;
   }
 
   if (customersQuery.isError || projectsQuery.isError) {
     const error = customersQuery.error ?? projectsQuery.error;
     return (
-      <Card>
-        <Empty description={getErrorMessage(error)} />
-        <Button onClick={() => { void customersQuery.refetch(); void projectsQuery.refetch(); }}>Thử lại</Button>
-      </Card>
+      <Alert
+        action={<Button onClick={() => { void customersQuery.refetch(); void projectsQuery.refetch(); }}>Thử lại</Button>}
+        description={getErrorMessage(error)}
+        message="Không tải được danh sách khách hàng"
+        showIcon
+        type="error"
+      />
     );
   }
 
@@ -443,14 +446,25 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const inactiveCount = customers.length - activeCount;
   const linkedCount = customers.filter((item) => (projectsByCustomer.get(item.id)?.length ?? 0) > 0).length;
   const selectedProjects = selectedCustomer ? projectsByCustomer.get(selectedCustomer.id) ?? [] : [];
+  const hasCustomerFilters = Boolean(searchTerm.trim()) || statusFilter !== "all";
+  const customerListEmpty = (
+    <Empty
+      className="customer-list-empty"
+      description={customers.length === 0 ? "Chưa có khách hàng" : "Không có kết quả theo bộ lọc"}
+      image={<EmptyWorkspaceIllustration kind="customers" />}
+    >
+      {customers.length === 0 && canManage ? null : hasCustomerFilters ? (
+        <Button onClick={() => { setSearchTerm(""); setStatusFilter("all"); setCustomerPage(1); }} type="link">Xóa bộ lọc</Button>
+      ) : null}
+    </Empty>
+  );
 
   return (
     <div className="customers-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">DỮ LIỆU KHÁCH HÀNG</span>
           <Title level={2}>Khách hàng</Title>
-          <Text type="secondary">Thông tin pháp lý, liên hệ và hồ sơ chứng nhận theo từng tổ chức.</Text>
+          <Text type="secondary">Thông tin tổ chức, đầu mối liên hệ và hồ sơ chứng nhận liên quan.</Text>
         </div>
         {canManage ? <Button icon={<PlusOutlined />} onClick={openCreate} type="primary">Thêm khách hàng</Button> : null}
       </div>
@@ -491,7 +505,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                     <div className="customer-mobile-card__heading">
                       <div className="customer-mobile-card__identity">
                         <button
-                          aria-label={`Mở hồ sơ ${customer.company_name}`}
+                          aria-label={`Xem khách hàng ${customer.company_name}`}
                           className="customer-mobile-card__code"
                           onClick={() => setSelectedCustomerId(customer.id)}
                           type="button"
@@ -517,7 +531,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 ))}
               </div>
             ) : (
-              <Empty image={<EmptyWorkspaceIllustration kind="customers" />} description="Không có khách hàng phù hợp" />
+              customerListEmpty
             )}
             {filteredCustomers.length > CUSTOMER_PAGE_SIZE ? (
               <Pagination
@@ -536,7 +550,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
           <Table
             columns={columns}
             dataSource={filteredCustomers}
-            locale={{ emptyText: <Empty image={<EmptyWorkspaceIllustration kind="customers" />} description="Không có khách hàng phù hợp" /> }}
+            locale={{ emptyText: customerListEmpty }}
             pagination={{
               current: visibleCustomerPage,
               pageSize: CUSTOMER_PAGE_SIZE,
@@ -674,7 +688,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 dataSource={selectedProjects}
                 locale={{ emptyText: <div className="customer-empty-inline"><FolderOpenOutlined /><Text type="secondary">Chưa có hồ sơ chứng nhận</Text></div> }}
                 renderItem={(project) => (
-                  <List.Item actions={[<Button key="open" onClick={() => onOpenProject(project.id)} size="small">Mở hồ sơ</Button>]}>
+                  <List.Item actions={[<Button key="open" onClick={() => onOpenProject(project.id)} size="small">Xem hồ sơ chứng nhận</Button>]}>
                     <List.Item.Meta
                       avatar={<span className="customer-project-icon"><FolderOpenOutlined /></span>}
                       description={`${project.certification_applications?.application_code ?? "Chưa có đơn"} · Cập nhật ${dayjs(project.updated_at).format("DD/MM/YYYY")}`}
@@ -781,7 +795,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 label={taxIdentifierLabel(watchedCountryCode)}
                 name="tax_code"
                 rules={[
-                  { max: 20, message: "Tax ID/Business ID không được vượt quá 20 ký tự" },
+                  { max: 20, message: "Mã số thuế hoặc mã doanh nghiệp không được vượt quá 20 ký tự" },
                   ({ getFieldValue }) => ({
                     validator: async (_, value) => {
                       if (!value) return;
@@ -796,9 +810,9 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                 ]}
                 extra={normalizeCountryCode(watchedCountryCode) === "VN"
                   ? "10 hoặc 13 chữ số; chấp nhận dạng 0101234567-001."
-                  : "Theo định dạng của quốc gia."}
+                  : "Nhập theo định dạng đăng ký của quốc gia."}
               >
-                <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Tax ID / Business ID"} />
+                <Input placeholder={normalizeCountryCode(watchedCountryCode) === "VN" ? "Ví dụ: 0101234567" : "Mã số thuế hoặc mã doanh nghiệp"} />
               </Form.Item>
 
               <Form.Item className="customer-form-wide" label="Tên tổ chức" name="company_name" rules={[{ required: true, message: "Nhập tên tổ chức" }, { max: 255 }]}>

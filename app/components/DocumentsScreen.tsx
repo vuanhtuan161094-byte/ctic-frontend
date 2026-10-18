@@ -39,6 +39,7 @@ import { downloadDocumentFile } from "../lib/document-file-client";
 import { DocumentPreviewModal, type PreviewableFile } from "./DocumentPreviewModal";
 import { ControlledDocumentPanel } from "./ControlledDocumentPanel";
 import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
+import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 
 const { Text, Title } = Typography;
 
@@ -266,6 +267,16 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
     (currentDocumentPage - 1) * documentPageSize,
     currentDocumentPage * documentPageSize,
   );
+  const documentsEmpty = (
+    <Empty
+      description={documentsQuery.data?.items.length === 0 ? "Chưa có tệp nghiệp vụ" : "Không có tệp phù hợp với bộ lọc"}
+      image={<EmptyWorkspaceIllustration kind="records" />}
+    >
+      {documentsQuery.data?.items.length && filteredDocuments.length === 0 ? (
+        <Button onClick={() => { setSearchTerm(""); setDocumentTypeFilter("all"); setEntityTypeFilter("all"); setVersionFilter("current"); setDocumentPage(1); }} type="link">Xóa bộ lọc</Button>
+      ) : null}
+    </Empty>
+  );
 
   const openFile = async (record: DocumentRecord, download = false) => {
     if (!download) {
@@ -373,7 +384,6 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
     <div className="documents-screen">
       <div className="documents-heading">
         <div>
-          <span className="eyebrow">QUẢN LÝ CHỨNG NHẬN</span>
           <Title level={2}>Tài liệu & Mẫu biểu</Title>
           <Text type="secondary">Quản lý tài liệu, mẫu biểu và hồ sơ trong một luồng đơn giản; kho tệp nghiệp vụ khác được thu gọn bên dưới khi cần tra cứu.</Text>
         </div>
@@ -401,9 +411,9 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
                   <Select aria-label="Trạng thái phiên bản" onChange={(value) => { setVersionFilter(value); setDocumentPage(1); }} options={[{ value: "current", label: "Tệp hiện hành" }, { value: "archived", label: "Phiên bản lịch sử" }, { value: "all", label: "Tất cả phiên bản" }]} value={versionFilter} />
                 </div>
                 <div className="cmp-data-table--responsive">
-                  <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" /> }} onChange={(pagination) => setDocumentPage(pagination.current ?? 1)} pagination={{ current: currentDocumentPage, pageSize: documentPageSize, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
+                  <Table columns={columns} dataSource={filteredDocuments} locale={{ emptyText: documentsEmpty }} onChange={(pagination) => setDocumentPage(pagination.current ?? 1)} pagination={{ current: currentDocumentPage, pageSize: documentPageSize, showSizeChanger: false, showTotal: (total) => `${total} tài liệu` }} rowKey="id" scroll={{ x: 1_180 }} />
                 </div>
-                <ResponsiveCardList empty={<Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có tài liệu phù hợp bộ lọc" />} items={documentCards} />
+                <ResponsiveCardList empty={documentsEmpty} items={documentCards} />
                 {filteredDocuments.length > documentPageSize ? (
                   <Pagination
                     className="documents-mobile-pagination"

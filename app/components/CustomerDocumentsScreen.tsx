@@ -283,7 +283,7 @@ export function CustomerDocumentsScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Tài liệu & yêu cầu bổ sung</Title>
           <Text type="secondary">Tài liệu kèm đơn đăng ký, yêu cầu bổ sung từ tổ chức chứng nhận và lịch sử phiên bản có kiểm soát.</Text>
         </div>

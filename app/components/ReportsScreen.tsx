@@ -337,7 +337,7 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
       width: 105,
       render: (_, report) => {
         const projectId = reportProjectId(report);
-        return <Button disabled={!projectId} onClick={() => projectId && onOpenProject(projectId)} size="small">Mở hồ sơ</Button>;
+        return <Button disabled={!projectId} onClick={() => projectId && onOpenProject(projectId)} size="small">Xem hồ sơ chứng nhận</Button>;
       },
     },
   ], [onOpenProject]);

@@ -476,7 +476,6 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
     <div className="certificates-screen">
       <div className="certificates-heading">
         <div>
-          <span className="eyebrow">QUẢN LÝ CHỨNG NHẬN</span>
           <Title level={2}>Chứng chỉ</Title>
           <Text type="secondary">Theo dõi hiệu lực, hồ sơ phát hành, PDF chính thức và mã QR tra cứu.</Text>
         </div>

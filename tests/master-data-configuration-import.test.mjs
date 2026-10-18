@@ -21,7 +21,7 @@ test("system administration contains guided Vietnamese master/configuration tabs
     "Phân loại ngành ISIC / NACE / IAF",
     "Chu kỳ & quy tắc chứng nhận",
     "Quy tắc đánh số",
-    "Tổ chức & thương hiệu",
+    "Tổ chức & nhận diện",
     "Trung tâm nhập dữ liệu",
   ]) assert.match(panel, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });

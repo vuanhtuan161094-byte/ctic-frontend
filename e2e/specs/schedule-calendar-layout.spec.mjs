@@ -363,6 +363,7 @@ test("empty month is compact and clearly different from loading or error", async
     await expectNoHorizontalOverflow(page);
     await expect(page.locator(".resource-calendar-mobile-view")).toBeVisible();
     await expect(page.locator(".resource-calendar-desktop")).toBeHidden();
+    await expect(page.locator(".resource-calendar-empty")).toContainText("Tháng này chưa có đợt đánh giá");
     await captureVisualBaseline(page, testInfo, "schedule-calendar-empty-390", { fullPage: false });
   }
   expect(runtimeErrors).toEqual([]);

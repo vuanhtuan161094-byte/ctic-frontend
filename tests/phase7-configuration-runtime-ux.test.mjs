@@ -39,7 +39,7 @@ test('program screen preserves versioned rule history instead of editing an appl
 });
 
 test('organization reminder remains a fallback for old or unsnapshotted records', () => {
-  assert.match(panel, /Baseline cho hồ sơ cũ\/chưa có bản chốt quy tắc chương trình/);
+  assert.match(panel, /Dùng cho hồ sơ cũ hoặc hồ sơ chưa có quy tắc chương trình đã chốt/);
 });
 
 test('audit and decision catalogs are not falsely presented as fully enforced permission switches', () => {

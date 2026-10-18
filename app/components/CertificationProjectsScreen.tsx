@@ -3512,7 +3512,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       title: "",
       key: "action",
       width: 92,
-      render: (_, record) => <Button onClick={() => onOpenProject(record.id)} size="small">Mở hồ sơ</Button>,
+      render: (_, record) => <Button onClick={() => onOpenProject(record.id)} size="small">Xem hồ sơ chứng nhận</Button>,
     },
   ];
 
@@ -3739,7 +3739,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           <span><strong>Hợp đồng:</strong> {project.contracts?.contract_number ?? "Chưa có hợp đồng"}</span>
                           <span><strong>Cập nhật:</strong> {project.updated_at ? dayjs(project.updated_at).format("DD/MM/YYYY") : "—"}</span>
                         </div>
-                        <Button className="project-mobile-card__open" onClick={() => onOpenProject(project.id)} size="small">Mở hồ sơ</Button>
+                        <Button className="project-mobile-card__open" onClick={() => onOpenProject(project.id)} size="small">Xem hồ sơ chứng nhận</Button>
                       </article>
                     );
                   })}
@@ -3815,7 +3815,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
               }}
               type="primary"
             >
-              Mở hồ sơ vừa tạo
+              Xem hồ sơ vừa tạo
             </Button>
           </Space>
         ) : isApplicationWorkspace ? (

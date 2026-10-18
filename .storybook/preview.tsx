@@ -1,5 +1,6 @@
 import type { Preview } from "@storybook/react-vite";
 import { UiRuntime } from "../app/components/UiRuntime";
+import "../src/fonts";
 import "../app/components/design-system/tokens.css";
 
 document.documentElement.lang = "vi";

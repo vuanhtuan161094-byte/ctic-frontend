@@ -13,10 +13,12 @@ const cache = readFileSync(new URL("../app/lib/workspace-query-cache.ts", import
 test("My Work preserves the exact backend destination path and separates view from execute", () => {
   assert.match(tasks, /onOpenPath\(item\.destination_path, item\.context\)/);
   assert.match(tasks, /!item\.can_execute && !item\.can_view/);
-  assert.match(tasks, /item\.can_execute \? "Mở" : "Xem"/);
+  assert.match(tasks, /function getTaskActionLabel/);
+  assert.match(tasks, /CAP_ACTION_OR_REVIEW: "Xử lý NC\/CAP"/);
+  assert.match(tasks, /getTaskActionLabel\(item\)/);
   assert.match(tasks, /setHistoryItem\(item\)/);
-  assert.match(tasks, /Chi tiết công việc — chỉ xem/);
-  assert.match(tasks, /Chế độ lịch sử/);
+  assert.match(tasks, /title={<Space size=\{8\}>[\s\S]*Chi tiết công việc[\s\S]*Chỉ xem/);
+  assert.match(tasks, /message="Bản ghi chỉ xem"/);
 });
 
 test("project deep links retain workspace and audit_plan_id context", () => {

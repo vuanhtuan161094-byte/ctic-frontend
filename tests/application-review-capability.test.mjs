@@ -78,7 +78,7 @@ test("customer UI is country-aware and only applies Vietnam tax-format validatio
   assert.match(source, /VN · Việt Nam/);
   assert.match(source, /KH · Campuchia/);
   assert.match(source, /ID · Indonesia/);
-  assert.match(source, /Tax ID \/ Business ID/);
+  assert.match(source, /Mã số thuế \/ mã doanh nghiệp/);
   assert.match(source, /Mã số thuế Việt Nam phải gồm 10 hoặc 13 chữ số/);
   assert.match(source, /countryCode !== "VN"/);
 });

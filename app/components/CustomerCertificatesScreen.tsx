@@ -139,7 +139,7 @@ export function CustomerCertificatesScreen() {
     <div className="projects-screen customer-portal-screen">
       <div className="module-page-heading">
         <div>
-          <span className="eyebrow">CỔNG KHÁCH HÀNG</span>
+          <span className="eyebrow">Cổng khách hàng</span>
           <Title level={2}>Chứng chỉ</Title>
           <Text type="secondary">Tra cứu trạng thái và tải đúng PDF chính thức theo từng version chứng chỉ.</Text>
         </div>

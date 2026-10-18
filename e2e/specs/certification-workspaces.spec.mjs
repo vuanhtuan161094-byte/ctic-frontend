@@ -27,12 +27,12 @@ test.describe("controlled certification browser baseline", () => {
     const registry = page.getByRole("region", { name: "Sổ hồ sơ chứng nhận" });
     await expect(registry).toBeVisible();
     await expect(registry).toContainText("HS-MAU-2026-0042");
-    await expect(registry.getByRole("button", { name: "Mở hồ sơ" }).first()).toBeVisible();
+    await expect(registry.getByRole("button", { name: "Xem hồ sơ chứng nhận" }).first()).toBeVisible();
 
     if ((page.viewportSize()?.width ?? 0) >= 1280) {
       const firstRow = registry.getByRole("row").nth(1);
       const status = firstRow.locator('[data-status-domain="case"]');
-      const action = firstRow.getByRole("button", { name: /Mở hồ sơ/ });
+      const action = firstRow.getByRole("button", { name: /Xem hồ sơ chứng nhận/ });
       const [statusBox, actionBox] = await Promise.all([status.boundingBox(), action.boundingBox()]);
       expect(statusBox, "Expected the case status badge to have desktop bounds").not.toBeNull();
       expect(actionBox, "Expected the case action to have desktop bounds").not.toBeNull();
@@ -47,7 +47,7 @@ test.describe("controlled certification browser baseline", () => {
     const runtime = watchRuntimeIssues(page);
     await openControlledView(page, "registry");
 
-    await page.getByRole("button", { name: /Mở hồ sơ/ }).first().click();
+    await page.getByRole("button", { name: /Xem hồ sơ chứng nhận/ }).first().click();
     await expect(page).toHaveURL(/view=overview/);
     await expect(page.getByText("HS-MAU-2026-0042").first()).toBeVisible();
 
