@@ -3423,7 +3423,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
 
   const renderApplicationActions = (application: ProjectApplication, compact = false) => (
     <Space className={compact ? "project-mobile-card__actions" : undefined} size={4} wrap onClick={(event) => event.stopPropagation()}>
-      <Button icon={<EyeOutlined />} onClick={() => openApplicationView(application)} size="small">Xem đơn</Button>
+      {compact ? <Button icon={<EyeOutlined />} onClick={() => openApplicationView(application)} size="small">Xem đơn</Button> : null}
       <Button
         icon={<FileSearchOutlined />}
         onClick={() => openApplicationReviewAction(application)}
