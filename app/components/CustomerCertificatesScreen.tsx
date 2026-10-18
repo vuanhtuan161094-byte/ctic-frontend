@@ -1,9 +1,9 @@
 "use client";
 
-import { FilePdfOutlined, QrcodeOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { FilePdfOutlined, QrcodeOutlined, ReloadOutlined, SafetyCertificateOutlined, SearchOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
-import { Alert, Button, Card, Empty, Grid, Pagination, Space, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Grid, Input, Pagination, Select, Space, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 import { useState } from "react";
 
@@ -61,6 +61,8 @@ export function CustomerCertificatesScreen() {
   const breakpoints = Grid.useBreakpoint();
   const useCompactPortalList = !breakpoints.lg;
   const [certificatePage, setCertificatePage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
   const query = useQuery({
     queryKey: ["customer-portal", "certificates"],
     queryFn: async () => (
@@ -75,7 +77,7 @@ export function CustomerCertificatesScreen() {
       render: (_, item) => (
         <div className="table-primary-cell">
           <strong>{item.cert_number}</strong>
-          <small>{item.series_code} · Version {item.version_no}</small>
+          <small>{item.series_code} · Phiên bản {item.version_no}</small>
         </div>
       ),
     },
@@ -118,12 +120,20 @@ export function CustomerCertificatesScreen() {
     },
   ];
 
-  if (query.isError) return <Alert message="Không tải được chứng chỉ" description={getErrorMessage(query.error)} showIcon type="error" />;
+  if (query.isError) return <Card><Alert action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>} title="Không tải được chứng chỉ" description={getErrorMessage(query.error)} showIcon type="error" /></Card>;
 
   const certificates = query.data ?? [];
-  const certificatePageCount = Math.max(1, Math.ceil(certificates.length / 10));
+  const normalizedSearch = search.trim().toLocaleLowerCase("vi");
+  const filteredCertificates = certificates.filter((item) => (
+    (status === "all" || item.status?.toLowerCase() === status)
+    && (!normalizedSearch || [item.cert_number, item.series_code, item.standard_name, item.certification_scope]
+      .some((value) => value.toLocaleLowerCase("vi").includes(normalizedSearch)))
+  ));
+  const statusOptions = Array.from(new Set(certificates.map((item) => item.status?.toLowerCase()).filter((value): value is string => Boolean(value))))
+    .map((value) => ({ label: statusLabel(value), value }));
+  const certificatePageCount = Math.max(1, Math.ceil(filteredCertificates.length / 10));
   const visibleCertificatePage = Math.min(certificatePage, certificatePageCount);
-  const visibleCertificates = certificates.slice((visibleCertificatePage - 1) * 10, visibleCertificatePage * 10);
+  const visibleCertificates = filteredCertificates.slice((visibleCertificatePage - 1) * 10, visibleCertificatePage * 10);
 
   return (
     <div className="projects-screen customer-portal-screen">
@@ -134,9 +144,15 @@ export function CustomerCertificatesScreen() {
           <Text type="secondary">Tra cứu trạng thái và tải đúng PDF chính thức theo từng version chứng chỉ.</Text>
         </div>
       </div>
-      <Card loading={query.isLoading} title={<span><SafetyCertificateOutlined /> Chứng chỉ của tổ chức</span>}>
+      <Card className="customer-records-card" loading={query.isLoading} title={<span><SafetyCertificateOutlined /> Chứng chỉ của tổ chức</span>}>
         {certificates.length ? (
-          useCompactPortalList ? (
+          <>
+            <div className="customer-records-toolbar">
+              <Input allowClear aria-label="Tìm chứng chỉ" onChange={(event) => { setSearch(event.target.value); setCertificatePage(1); }} placeholder="Tìm số chứng chỉ, tiêu chuẩn, phạm vi" prefix={<SearchOutlined />} value={search} />
+              <Select aria-label="Lọc trạng thái chứng chỉ" onChange={(value) => { setStatus(value); setCertificatePage(1); }} options={[{ label: "Tất cả trạng thái", value: "all" }, ...statusOptions]} value={status} />
+              <Text type="secondary">{filteredCertificates.length} chứng chỉ</Text>
+            </div>
+            {filteredCertificates.length ? (useCompactPortalList ? (
             <>
               <div aria-label="Danh sách chứng chỉ" className="portal-mobile-list">
                 {visibleCertificates.map((item) => (
@@ -144,7 +160,7 @@ export function CustomerCertificatesScreen() {
                     <div className="portal-mobile-card__heading">
                       <div className="portal-mobile-card__identity">
                         <strong>{item.cert_number}</strong>
-                        <small>{item.series_code} · Version {item.version_no}</small>
+                        <small>{item.series_code} · Phiên bản {item.version_no}</small>
                       </div>
                       <Tag color={statusColor(item.status)}>{statusLabel(item.status)}</Tag>
                     </div>
@@ -174,7 +190,7 @@ export function CustomerCertificatesScreen() {
                   </article>
                 ))}
               </div>
-              {certificates.length > 10 ? (
+              {filteredCertificates.length > 10 ? (
                 <Pagination
                   className="compact-mobile-pagination"
                   current={visibleCertificatePage}
@@ -183,20 +199,22 @@ export function CustomerCertificatesScreen() {
                   responsive
                   showSizeChanger={false}
                   showTotal={(total) => `${total} chứng chỉ`}
-                  total={certificates.length}
+                  total={filteredCertificates.length}
                 />
               ) : null}
             </>
           ) : (
           <Table<CustomerCertificate>
             columns={columns}
-            dataSource={certificates}
+            dataSource={filteredCertificates}
             loading={query.isLoading}
-            pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
             rowKey="id"
-            scroll={{ x: 900 }}
+            size="small"
+            scroll={{ x: 760 }}
           />
-          )
+            )) : <Empty description="Không có chứng chỉ khớp bộ lọc" />}
+          </>
         ) : <Empty description="Chưa có chứng chỉ" />}
       </Card>
     </div>

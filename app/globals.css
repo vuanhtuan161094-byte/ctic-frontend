@@ -9305,3 +9305,34 @@ input { font: inherit; }
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.customer-records-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 240px) auto;
+  margin-bottom: 12px;
+}
+
+.customer-records-toolbar .ant-select {
+  width: 100%;
+}
+
+.customer-records-toolbar > .ant-typography {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.customer-records-card .ant-table-tbody > tr > td {
+  padding-block: 10px;
+}
+
+@media (max-width: 680px) {
+  .customer-records-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .customer-records-toolbar > .ant-typography {
+    justify-self: start;
+  }
+}

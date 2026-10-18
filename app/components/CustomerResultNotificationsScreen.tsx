@@ -1,9 +1,9 @@
 "use client";
 
-import { FileDoneOutlined, ReloadOutlined } from "@ant-design/icons";
+import { FileDoneOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
-import { Alert, Button, Card, Empty, Grid, Pagination, Table, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Grid, Input, Pagination, Select, Table, Tag, Typography } from "antd";
 import dayjs from "dayjs";
 import { useState } from "react";
 
@@ -57,6 +57,8 @@ export function CustomerResultNotificationsScreen() {
   const breakpoints = Grid.useBreakpoint();
   const useCompactPortalList = !breakpoints.lg;
   const [resultPage, setResultPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [result, setResult] = useState("all");
   const query = useQuery({
     queryKey: ["customer-portal", "results"],
     queryFn: async () => (
@@ -106,12 +108,20 @@ export function CustomerResultNotificationsScreen() {
     },
   ];
 
-  if (query.isError) return <Alert message="Không tải được thông báo kết quả" description={getErrorMessage(query.error)} showIcon type="error" />;
+  if (query.isError) return <Card><Alert action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>} title="Không tải được thông báo kết quả" description={getErrorMessage(query.error)} showIcon type="error" /></Card>;
 
   const results = query.data ?? [];
-  const resultPageCount = Math.max(1, Math.ceil(results.length / 10));
+  const normalizedSearch = search.trim().toLocaleLowerCase("vi");
+  const filteredResults = results.filter((item) => (
+    (result === "all" || item.notification_result.toLowerCase() === result)
+    && (!normalizedSearch || [item.notification_number, item.project.project_code, item.plan.plan_code ?? "", item.standard_name]
+      .some((value) => value.toLocaleLowerCase("vi").includes(normalizedSearch)))
+  ));
+  const resultOptions = Array.from(new Set(results.map((item) => item.notification_result.toLowerCase())))
+    .map((value) => ({ label: resultLabel(value), value }));
+  const resultPageCount = Math.max(1, Math.ceil(filteredResults.length / 10));
   const visibleResultPage = Math.min(resultPage, resultPageCount);
-  const visibleResults = results.slice((visibleResultPage - 1) * 10, visibleResultPage * 10);
+  const visibleResults = filteredResults.slice((visibleResultPage - 1) * 10, visibleResultPage * 10);
 
   return (
     <div className="projects-screen customer-portal-screen">
@@ -123,9 +133,15 @@ export function CustomerResultNotificationsScreen() {
         </div>
         <Button icon={<ReloadOutlined />} loading={query.isFetching} onClick={() => void query.refetch()}>Làm mới</Button>
       </div>
-      <Card loading={query.isLoading} title={<span><FileDoneOutlined /> Thông báo đã gửi</span>}>
+      <Card className="customer-records-card" loading={query.isLoading} title={<span><FileDoneOutlined /> Thông báo đã gửi</span>}>
         {results.length ? (
-          useCompactPortalList ? (
+          <>
+            <div className="customer-records-toolbar">
+              <Input allowClear aria-label="Tìm thông báo kết quả" onChange={(event) => { setSearch(event.target.value); setResultPage(1); }} placeholder="Tìm số thông báo, hồ sơ, tiêu chuẩn" prefix={<SearchOutlined />} value={search} />
+              <Select aria-label="Lọc kết quả chứng nhận" onChange={(value) => { setResult(value); setResultPage(1); }} options={[{ label: "Tất cả kết quả", value: "all" }, ...resultOptions]} value={result} />
+              <Text type="secondary">{filteredResults.length} thông báo</Text>
+            </div>
+            {filteredResults.length ? (useCompactPortalList ? (
             <>
               <div aria-label="Danh sách kết quả đánh giá" className="portal-mobile-list">
                 {visibleResults.map((item) => (
@@ -147,18 +163,20 @@ export function CustomerResultNotificationsScreen() {
                   </article>
                 ))}
               </div>
-              {results.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleResultPage} onChange={setResultPage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} thông báo`} total={results.length} /> : null}
+              {filteredResults.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleResultPage} onChange={setResultPage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} thông báo`} total={filteredResults.length} /> : null}
             </>
           ) : (
           <Table<CustomerResultNotification>
             columns={columns}
-            dataSource={results}
+            dataSource={filteredResults}
             loading={query.isLoading}
-            pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            pagination={{ pageSize: 10, hideOnSinglePage: true, showSizeChanger: false }}
             rowKey="id"
-            scroll={{ x: 860 }}
+            size="small"
+            scroll={{ x: 760 }}
           />
-          )
+            )) : <Empty description="Không có thông báo khớp bộ lọc" />}
+          </>
         ) : <Empty description="Chưa có thông báo kết quả được gửi" />}
       </Card>
     </div>
