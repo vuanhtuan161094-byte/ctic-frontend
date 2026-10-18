@@ -731,13 +731,13 @@ export default function TechnicalReviewWorkspaceModal({
     {
       title: "Trạng thái",
       dataIndex: "status",
-      width: 145,
+      width: 135,
       render: (value: string) => <Tag color={itemStatusColor(value)}>{itemStatusLabel(value)}</Tag>,
     },
     {
       title: "Nhận xét của người thẩm xét",
       key: "comment",
-      width: 320,
+      width: 280,
       render: (_value, item) => (
         <Input.TextArea
           autoSize={{ minRows: 1, maxRows: 4 }}
@@ -755,7 +755,7 @@ export default function TechnicalReviewWorkspaceModal({
       title: "Thao tác",
       key: "actions",
       align: "right",
-      width: 310,
+      width: 360,
       render: (_value, item) => {
         const status = normalize(item.status);
         const currentItemPending = itemMutation.isPending
@@ -784,7 +784,7 @@ export default function TechnicalReviewWorkspaceModal({
                 onClick={() => void openReviewItemPreview(item)}
                 size="small"
               >
-                Xem thông tin
+                Xem hồ sơ
               </Button>
               <Button
                 icon={<SyncOutlined />}
@@ -808,7 +808,7 @@ export default function TechnicalReviewWorkspaceModal({
               onClick={() => void openReviewItemPreview(item)}
               size="small"
             >
-              Xem thông tin
+              Xem hồ sơ
             </Button>
             <Button
               icon={<CheckCircleOutlined />}
@@ -997,7 +997,7 @@ export default function TechnicalReviewWorkspaceModal({
                             dataSource={reviewItems}
                             pagination={false}
                             rowKey="document_key"
-                            scroll={{ x: 1150 }}
+                            scroll={{ x: 1060 }}
                             size="small"
                           />
                         </Space>
@@ -1022,7 +1022,7 @@ export default function TechnicalReviewWorkspaceModal({
                             dataSource={preliminaryRows}
                             pagination={false}
                             rowKey="key"
-                            scroll={{ x: 1150 }}
+                            scroll={{ x: 1060 }}
                             size="small"
                           />
                           <Form.Item label="Nhận xét khác – Thẩm xét sơ bộ" name="preliminary_other_comment">
@@ -1050,7 +1050,7 @@ export default function TechnicalReviewWorkspaceModal({
                             dataSource={technicalRows}
                             pagination={false}
                             rowKey="key"
-                            scroll={{ x: 1150 }}
+                            scroll={{ x: 1060 }}
                             size="small"
                           />
                           <Form.Item label="Nhận xét khác – Thẩm xét kỹ thuật" name="technical_other_comment">
