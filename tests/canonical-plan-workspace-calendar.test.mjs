@@ -123,8 +123,9 @@ test("calendar uses Vietnamese controls, bounded cells, and exact-cycle navigati
   assert.match(scheduleSource, />Hôm nay<\/Button>/);
   assert.match(scheduleSource, /label: "Tháng"/);
   assert.match(scheduleSource, /label: "Năm"/);
-  assert.match(scheduleSource, /dayPlans\.slice\(0, 3\)/);
-  assert.match(scheduleSource, /\+\{dayPlans\.length - 3\} đợt khác/);
+  assert.match(scheduleSource, /const otherPlans = dayPlans\.slice\(1\)/);
+  assert.match(scheduleSource, /dayPlans\.slice\(0, 1\)\.map/);
+  assert.match(scheduleSource, /\+\{otherPlans\.length\} đợt khác/);
   assert.match(scheduleSource, /onOpenProject\(plan\.project_id, dossierKeyForAuditPlan\(plan\)\)/);
   assert.match(dashboardSource, /initialDossierKey=\{selectedProjectDossierKey\}/);
 

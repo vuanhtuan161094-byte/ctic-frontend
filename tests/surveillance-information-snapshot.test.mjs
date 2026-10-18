@@ -93,13 +93,18 @@ test("month calendar is Vietnamese, compact and has no per-cell scrollbar", asyn
   assert.match(schedule, /Hôm nay/);
   assert.match(schedule, /label: "Tháng"/);
   assert.match(schedule, /label: "Năm"/);
-  assert.match(schedule, /dayPlans\.slice\(0, 3\)/);
+  assert.match(schedule, /const otherPlans = dayPlans\.slice\(1\)/);
+  assert.match(schedule, /dayPlans\.slice\(0, 1\)\.map/);
   assert.match(schedule, /đợt khác/);
   assert.match(schedule, /labelFromMap\(plan\.audit_type, auditTypeLabels\)/);
   const cellStyles = styles.slice(
     styles.indexOf(".resource-calendar-cell"),
-    styles.indexOf(".resource-calendar-event.status-in_progress"),
+    styles.indexOf(".resource-calendar-popover-list"),
   );
   assert.match(cellStyles, /overflow: hidden/);
   assert.doesNotMatch(cellStyles, /overflow(?:-y)?:\s*(?:auto|scroll)/);
+  const popoverStyles = styles.match(/\.resource-calendar-popover-list\s*\{([^}]*)\}/);
+  assert.ok(popoverStyles, "missing bounded overflow for the event popover");
+  assert.match(popoverStyles[1], /max-height:\s*min\(320px, 60vh\)/);
+  assert.match(popoverStyles[1], /overflow-y:\s*auto/);
 });
