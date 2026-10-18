@@ -22,6 +22,7 @@ import {
   Pagination,
   Select,
   Space,
+  Tabs,
   Table,
   Tag,
   Typography,
@@ -132,6 +133,7 @@ export function CustomerPortalUsersScreen() {
   const [userPage, setUserPage] = useState(1);
   const [requestsPage, setRequestsPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+  const [activeAccessSection, setActiveAccessSection] = useState("users");
 
   const accessQuery = useQuery({
     queryKey: ["customer-portal", "user-access"],
@@ -228,7 +230,7 @@ export function CustomerPortalUsersScreen() {
       title: "Người dùng",
       key: "user",
       render: (_, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Text strong>{record.full_name || record.email}</Text>
           <Text type="secondary">{record.email}</Text>
         </Space>
@@ -330,8 +332,20 @@ export function CustomerPortalUsersScreen() {
     { title: "Thời điểm", dataIndex: "changed_at", key: "changed_at", width: 160, render: (value: string) => formatDateTime(value) },
   ];
 
+  if (accessQuery.isLoading) {
+    return <Card><Alert showIcon title="Đang tải người dùng Portal..." type="info" /></Card>;
+  }
+
   if (accessQuery.isError) {
-    return <Alert description={getErrorMessage(accessQuery.error)} message="Không tải được người dùng Portal" showIcon type="error" />;
+    return (
+      <Alert
+        action={<Button onClick={() => void accessQuery.refetch()}>Thử lại</Button>}
+        description={getErrorMessage(accessQuery.error)}
+        showIcon
+        title="Không tải được người dùng Portal"
+        type="error"
+      />
+    );
   }
 
   return (
@@ -345,7 +359,13 @@ export function CustomerPortalUsersScreen() {
         <Space>
           {groups.length > 1 ? (
             <Select
-              onChange={setSelectedCustomerId}
+              onChange={(value) => {
+                setSelectedCustomerId(value);
+                setUserPage(1);
+                setRequestsPage(1);
+                setHistoryPage(1);
+                setActiveAccessSection("users");
+              }}
               options={groups.map((group) => ({ value: group.customer_id, label: `${group.customer_code} · ${group.company_name}` }))}
               value={effectiveCustomerId ?? undefined}
               style={{ minWidth: 280 }}
@@ -357,6 +377,18 @@ export function CustomerPortalUsersScreen() {
 
       {selectedGroup ? (
         <>
+          <Tabs
+            activeKey={activeAccessSection}
+            className="customer-portal-users__tabs"
+            items={[
+              { key: "users", label: "Người dùng" },
+              { key: "requests", label: "Yêu cầu" },
+              { key: "history", label: "Lịch sử quyền" },
+            ]}
+            onChange={setActiveAccessSection}
+            size="small"
+          />
+          {activeAccessSection === "users" ? (
           <Card
             extra={useCompactPortalList ? null : <Button icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">Đề nghị bổ sung người dùng</Button>}
             title={<Space><UserOutlined /><span>{selectedGroup.company_name}</span><Tag>{selectedGroup.customer_code}</Tag></Space>}
@@ -366,7 +398,7 @@ export function CustomerPortalUsersScreen() {
                 Đề nghị bổ sung người dùng
               </Button>
             ) : null}
-            {activeCount <= 1 ? <Alert message="Hệ thống không cho phép ngừng người dùng Portal cuối cùng của tổ chức." showIcon style={{ marginBottom: 16 }} type="info" /> : null}
+            {activeCount <= 1 ? <Alert title="Hệ thống không cho phép ngừng người dùng Portal cuối cùng của tổ chức." showIcon style={{ marginBottom: 16 }} type="info" /> : null}
             {useCompactPortalList ? (
               selectedGroup.users.length ? (
                 <>
@@ -406,12 +438,24 @@ export function CustomerPortalUsersScreen() {
                 </>
               ) : <Empty description="Chưa có người dùng Portal" />
             ) : (
-              <Table<PortalUser> columns={userColumns} dataSource={selectedGroup.users} locale={{ emptyText: <Empty description="Chưa có người dùng Portal" /> }} pagination={false} rowKey="access_id" />
+              <Table<PortalUser> columns={userColumns} dataSource={selectedGroup.users} locale={{ emptyText: <Empty description="Chưa có người dùng Portal" /> }} pagination={{ pageSize: 10, hideOnSinglePage: true }} rowKey="access_id" />
             )}
           </Card>
+          ) : null}
 
-          <Card style={{ marginTop: 16 }} title="Lịch sử yêu cầu quản trị tài khoản">
-            {useCompactPortalList ? (
+          {activeAccessSection === "requests" ? (
+          <Card title="Lịch sử yêu cầu quản trị tài khoản">
+            {requestsQuery.isLoading ? (
+              <Alert showIcon title="Đang tải lịch sử yêu cầu quản trị tài khoản..." type="info" />
+            ) : requestsQuery.isError ? (
+              <Alert
+                action={<Button onClick={() => void requestsQuery.refetch()}>Thử lại</Button>}
+                description={getErrorMessage(requestsQuery.error)}
+                showIcon
+                title="Không tải được lịch sử yêu cầu quản trị tài khoản"
+                type="error"
+              />
+            ) : useCompactPortalList ? (
               customerRequests.length ? (
                 <>
                   <div aria-label="Lịch sử yêu cầu quản trị tài khoản" className="portal-mobile-list">
@@ -461,8 +505,10 @@ export function CustomerPortalUsersScreen() {
               <Table<UserAccessRequest> columns={requestColumns} dataSource={customerRequests} loading={requestsQuery.isLoading} pagination={{ pageSize: 10 }} rowKey="id" />
             )}
           </Card>
+          ) : null}
 
-          <Card style={{ marginTop: 16 }} title="Lịch sử quyền truy cập">
+          {activeAccessSection === "history" ? (
+          <Card title="Lịch sử quyền truy cập">
             {useCompactPortalList ? (
               selectedGroup.history.length ? (
                 <>
@@ -502,11 +548,12 @@ export function CustomerPortalUsersScreen() {
               <Table<AccessHistory> columns={historyColumns} dataSource={selectedGroup.history} pagination={{ pageSize: 10 }} rowKey="id" />
             )}
           </Card>
+          ) : null}
         </>
       ) : <Card><Empty description="Chưa có tổ chức được gán cho tài khoản" /></Card>}
 
       <Modal
-        destroyOnHidden
+        forceRender
         okButtonProps={{ loading: mutation.isPending }}
         okText="Gửi yêu cầu"
         onCancel={() => {
@@ -521,7 +568,7 @@ export function CustomerPortalUsersScreen() {
         {targetUser ? (
           <Alert
             description={`${targetUser.full_name || targetUser.email} · ${targetUser.email}`}
-            message="Người dùng được đề nghị"
+            title="Người dùng được đề nghị"
             showIcon
             style={{ marginBottom: 16 }}
             type="info"

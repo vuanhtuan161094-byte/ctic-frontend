@@ -8463,6 +8463,14 @@ input { font: inherit; }
   width: 100%;
 }
 
+.customer-portal-users__tabs.ant-tabs {
+  margin-bottom: 12px;
+}
+
+.customer-portal-users__tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+
 .customer-profile__mobile-edit.ant-btn {
   height: auto;
   margin-bottom: 12px;
