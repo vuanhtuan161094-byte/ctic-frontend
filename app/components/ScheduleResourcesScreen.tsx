@@ -38,6 +38,7 @@ import {
   InputNumber,
   Modal,
   Pagination,
+  Popover,
   Popconfirm,
   Select,
   Segmented,
@@ -2320,26 +2321,54 @@ export function ScheduleResourcesScreen({
               const endDate = dayjs(plan.planned_end_date ?? plan.planned_start_date).startOf("day");
               return !current.startOf("day").isBefore(start) && !current.startOf("day").isAfter(endDate);
             });
+            const renderPlanEvent = (plan: AuditPlan, inPopover = false) => {
+              const customerName = plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng";
+              const auditType = labelFromMap(plan.audit_type, auditTypeLabels);
+              const planCode = plan.plan_code || plan.certification_projects?.project_code || "Đợt đánh giá";
+              return (
+                <button
+                  aria-label={`${customerName} · ${auditType} · ${planCode}`}
+                  className={`resource-calendar-event${inPopover ? " resource-calendar-event--popover" : ""} status-${normalize(plan.status) || "draft"}`}
+                  key={plan.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenProject(plan.project_id, dossierKeyForAuditPlan(plan));
+                  }}
+                  type="button"
+                >
+                  <strong>{customerName}</strong>
+                  <span>{auditType}{roleByPlan.get(plan.id) ? ` · ${roleByPlan.get(plan.id)}` : ""}</span>
+                  <small>{planCode}</small>
+                </button>
+              );
+            };
+            const otherPlans = dayPlans.slice(1);
             return (
-              <div className="resource-calendar-cell">
+              <div className={`resource-calendar-cell${otherPlans.length ? " has-more-events" : ""}`} data-event-count={dayPlans.length}>
                 {info.originNode}
                 <div className="resource-calendar-events">
-                  {dayPlans.slice(0, 3).map((plan) => (
-                    <button
-                      className={`resource-calendar-event status-${normalize(plan.status) || "draft"}`}
-                      key={plan.id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenProject(plan.project_id, dossierKeyForAuditPlan(plan));
-                      }}
-                      type="button"
+                  {dayPlans.slice(0, 1).map((plan) => renderPlanEvent(plan))}
+                  {otherPlans.length ? (
+                    <Popover
+                      content={(
+                        <div className="resource-calendar-popover-list">
+                          {otherPlans.map((plan) => renderPlanEvent(plan, true))}
+                        </div>
+                      )}
+                      placement="right"
+                      title={`${otherPlans.length} đợt đánh giá khác`}
+                      trigger="click"
                     >
-                      <strong>{plan.certification_projects?.certification_applications?.customers?.company_name ?? "Khách hàng"}</strong>
-                      <span>{labelFromMap(plan.audit_type, auditTypeLabels)}{roleByPlan.get(plan.id) ? ` · ${roleByPlan.get(plan.id)}` : ""}</span>
-                      <small>{plan.plan_code || plan.certification_projects?.project_code}</small>
-                    </button>
-                  ))}
-                  {dayPlans.length > 3 ? <Text type="secondary">+{dayPlans.length - 3} đợt khác</Text> : null}
+                      <Button
+                        aria-label={`Mở ${otherPlans.length} đợt đánh giá khác`}
+                        className="resource-calendar-more"
+                        size="small"
+                        type="link"
+                      >
+                        +{otherPlans.length} đợt khác
+                      </Button>
+                    </Popover>
+                  ) : null}
                 </div>
               </div>
             );

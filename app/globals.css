@@ -4502,8 +4502,8 @@ input { font: inherit; }
 }
 
 .resource-month-calendar .ant-picker-calendar-date-content {
-  height: auto;
-  min-height: 108px;
+  height: auto !important;
+  min-height: 42px;
   overflow-y: visible;
 }
 
@@ -4521,16 +4521,38 @@ input { font: inherit; }
 }
 
 .resource-calendar-cell {
-  min-height: 104px;
+  min-height: 38px;
   overflow: hidden;
+}
+
+.resource-calendar-cell.has-more-events {
+  min-height: 82px;
 }
 
 .resource-calendar-events {
   display: grid;
   gap: 4px;
   margin-top: 4px;
-  max-height: none;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.resource-calendar-more {
+  justify-self: start;
+  line-height: 18px;
+  min-height: 18px;
+  padding: 0 2px;
+}
+
+.resource-calendar-popover-list {
+  display: grid;
+  gap: 6px;
+  max-height: min(320px, 60vh);
+  overflow-y: auto;
+  width: min(300px, calc(100vw - 56px));
+}
+
+.resource-calendar-event--popover {
+  width: 100%;
 }
 
 .resource-calendar-toolbar {
