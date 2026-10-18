@@ -24,8 +24,8 @@ import {
   Descriptions,
   Empty,
   Form,
+  Grid,
   Input,
-  List,
   Modal,
   Progress,
   Segmented,
@@ -235,6 +235,7 @@ export default function CorrectiveActionWorkspaceModal({
   page,
 }: CorrectiveActionWorkspaceModalProps) {
   const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
   const [responseForm] = Form.useForm<CorrectiveActionFormValues>();
   const [reviewForm] = Form.useForm<ReviewFormValues>();
   const [closeForm] = Form.useForm<CloseFormValues>();
@@ -587,7 +588,7 @@ export default function CorrectiveActionWorkspaceModal({
       <Timeline
         items={actions.map((action) => ({
           color: statusColor(action.status),
-          children: (
+          content: (
             <Card
               size="small"
               title={(
@@ -619,30 +620,26 @@ export default function CorrectiveActionWorkspaceModal({
               <div style={{ marginTop: 12 }}>
                 <Text strong>Bằng chứng thực hiện</Text>
                 {action.evidence_files?.length ? (
-                  <List
-                    dataSource={action.evidence_files}
-                    size="small"
-                    renderItem={(file) => (
-                      <List.Item
-                        actions={[
-                          <Button
-                            icon={<DownloadOutlined />}
-                            key="download"
-                            onClick={() => void downloadFile(file)}
-                            size="small"
-                            type="text"
-                          />,
-                        ]}
-                      >
-                        <List.Item.Meta
-                          title={file.original_name}
-                          description={`Phiên bản ${file.version_no ?? 1} · ${formatDate(file.created_at, true)}`}
+                  <div className="cmp-cap-evidence-list">
+                    {action.evidence_files.map((file) => (
+                      <div className="cmp-cap-evidence-row" key={file.id}>
+                        <div className="cmp-cap-evidence-copy">
+                          <Text strong>{file.original_name}</Text>
+                          <Text type="secondary">Phiên bản {file.version_no ?? 1} · {formatDate(file.created_at, true)}</Text>
+                        </div>
+                        <Button
+                          aria-label={`Tải xuống ${file.original_name}`}
+                          icon={<DownloadOutlined />}
+                          onClick={() => void downloadFile(file)}
+                          size="small"
+                          title="Tải xuống"
+                          type="text"
                         />
-                      </List.Item>
-                    )}
-                  />
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <Alert message="Chưa có tệp bằng chứng" showIcon type="warning" />
+                  <Alert title="Chưa có tệp bằng chứng" showIcon type="warning" />
                 )}
               </div>
 
@@ -689,31 +686,31 @@ export default function CorrectiveActionWorkspaceModal({
     <Alert
       action={<Button icon={<ReloadOutlined />} onClick={() => void refresh()}>Thử lại</Button>}
       description={getErrorMessage(workspaceError)}
-      message="Không tải được không gian NC/CAP"
       showIcon
+      title="Không tải được không gian NC/CAP"
       type="error"
     />
   ) : !allNc.length ? (
     <Empty description="Cuộc đánh giá không có NC nhẹ hoặc NC nặng">
       <Alert
         description="Điểm phù hợp, quan sát và OFI không yêu cầu hành động khắc phục nên không hiển thị tại đây."
-        message="Không áp dụng F.10"
         showIcon
+        title="Không áp dụng F.10"
         type="success"
       />
     </Empty>
   ) : (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12 }}>
+    <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+      <div className="cmp-cap-summary-grid">
         <Card size="small"><Statistic title="Tổng NC" value={summary.total} /></Card>
         <Card size="small"><Statistic title="Đang xử lý" value={summary.open} /></Card>
         <Card size="small"><Statistic title="Chờ xem xét" value={summary.waitingReview} /></Card>
-        <Card size="small"><Statistic title="Quá hạn" value={summary.overdue} valueStyle={summary.overdue ? { color: "#cf1322" } : undefined} /></Card>
+        <Card size="small"><Statistic title="Quá hạn" value={summary.overdue} styles={{ content: summary.overdue ? { color: "#cf1322" } : undefined }} /></Card>
         <Card size="small"><Statistic title="Đã đóng" value={summary.closed} /></Card>
       </div>
 
       <Card size="small">
-        <Space direction="vertical" size={8} style={{ width: "100%" }}>
+        <Space orientation="vertical" size={8} style={{ width: "100%" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
             <div>
               <Title level={5} style={{ margin: 0 }}>Tiến độ xử lý NC/CAP</Title>
@@ -754,7 +751,7 @@ export default function CorrectiveActionWorkspaceModal({
           return {
             key: finding.id,
             label: (
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", width: "100%" }}>
+              <div className="cmp-cap-finding-heading">
                 <Space wrap>
                   <strong>{finding.finding_code}</strong>
                   {finding.id === initialFindingId ? <Tag color="blue">Công việc đang mở</Tag> : null}
@@ -766,18 +763,18 @@ export default function CorrectiveActionWorkspaceModal({
                     <Tag color="red" icon={<WarningOutlined />}>Quá hạn</Tag>
                   ) : null}
                 </Space>
-                <Text type="secondary">Hạn: {formatDate(finding.due_date)}</Text>
+                <Text className="cmp-cap-finding-due" type="secondary">Hạn: {formatDate(finding.due_date)}</Text>
               </div>
             ),
             children: (
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+              <Space orientation="vertical" size={16} style={{ width: "100%" }}>
                 <Card size="small" title="Nội dung điểm không phù hợp">
-                  <Descriptions column={2} size="small">
+                  <Descriptions column={breakpoints.sm ? 2 : 1} size="small">
                     <Descriptions.Item label="Điều khoản">{finding.clause || "—"}</Descriptions.Item>
                     <Descriptions.Item label="Ngày phát hiện">{formatDate(finding.detected_date)}</Descriptions.Item>
-                    <Descriptions.Item label="Yêu cầu" span={2}>{finding.requirement || "—"}</Descriptions.Item>
-                    <Descriptions.Item label="Mô tả NC" span={2}>{finding.description}</Descriptions.Item>
-                    <Descriptions.Item label="Bằng chứng khách quan" span={2}>{finding.objective_evidence}</Descriptions.Item>
+                    <Descriptions.Item label="Yêu cầu" span={breakpoints.sm ? 2 : 1}>{finding.requirement || "—"}</Descriptions.Item>
+                    <Descriptions.Item label="Mô tả NC" span={breakpoints.sm ? 2 : 1}>{finding.description}</Descriptions.Item>
+                    <Descriptions.Item label="Bằng chứng khách quan" span={breakpoints.sm ? 2 : 1}>{finding.objective_evidence}</Descriptions.Item>
                   </Descriptions>
                 </Card>
 
@@ -830,8 +827,8 @@ export default function CorrectiveActionWorkspaceModal({
                         ))}
                       </Space>
                     )}
-                    message={`F.10 hiện hành · ${currentF10.length} định dạng`}
                     showIcon
+                    title={`F.10 hiện hành · ${currentF10.length} định dạng`}
                     type="success"
                   />
                 ) : null}
@@ -863,9 +860,10 @@ export default function CorrectiveActionWorkspaceModal({
         onUpload={(action) => { setEvidenceFiles([]); setEvidenceTarget({ finding: page.data.finding, action }); }}
         onDownload={(file) => void downloadFile(file)}
       /> : <Modal
+        className="cmp-corrective-action-workspace-modal"
         destroyOnHidden
         footer={null}
-        maskClosable={false}
+        mask={{ closable: false }}
         onCancel={onClose}
         open={open}
         title={(
@@ -879,16 +877,17 @@ export default function CorrectiveActionWorkspaceModal({
             ) : null}
           </div>
         )}
-        width={1180}
+        width="min(1180px, calc(100vw - 32px))"
       >
         {content}
       </Modal>}
 
       <ResponseContainer
         page={Boolean(page)}
+        className="cmp-cap-response-modal"
         cancelText="Hủy"
         destroyOnHidden
-        maskClosable={false}
+        mask={{ closable: false }}
         okButtonProps={{ loading: createResponseMutation.isPending }}
         okText="Lưu và gửi phản hồi"
         onCancel={() => {
@@ -907,9 +906,9 @@ export default function CorrectiveActionWorkspaceModal({
         >
           <Alert
             description="Mỗi lần gửi tạo một phiên bản mới. Phiên bản cũ được giữ nguyên để truy xuất."
-            message="Phân tích nguyên nhân và hành động khắc phục"
             showIcon
             style={{ marginBottom: 16 }}
+            title="Phân tích nguyên nhân và hành động khắc phục"
             type="info"
           />
           <Form.Item name="root_cause" label="Nguyên nhân gốc rễ" rules={[{ required: true, message: "Nhập nguyên nhân gốc rễ" }]}>
@@ -921,7 +920,7 @@ export default function CorrectiveActionWorkspaceModal({
           <Form.Item name="corrective_action_plan" label="Kế hoạch hành động khắc phục" rules={[{ required: true, message: "Nhập kế hoạch hành động khắc phục" }]}>
             <Input.TextArea rows={4} />
           </Form.Item>
-          <div className={page ? "cmp-cap-response-grid" : undefined} style={page ? undefined : { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div className="cmp-cap-response-grid">
             <Form.Item name="responsible_person" label="Người phụ trách">
               <Input />
             </Form.Item>
@@ -938,7 +937,7 @@ export default function CorrectiveActionWorkspaceModal({
       <Modal
         cancelText="Hủy"
         destroyOnHidden
-        maskClosable={false}
+        mask={{ closable: false }}
         okButtonProps={{ loading: uploadEvidenceMutation.isPending }}
         okText="Tải bằng chứng"
         onCancel={() => {
@@ -965,7 +964,7 @@ export default function CorrectiveActionWorkspaceModal({
       <Modal
         cancelText="Hủy"
         destroyOnHidden
-        maskClosable={false}
+        mask={{ closable: false }}
         okButtonProps={{ loading: reviewMutation.isPending }}
         okText="Ghi nhận kết quả"
         onCancel={() => {
@@ -985,9 +984,9 @@ export default function CorrectiveActionWorkspaceModal({
           {!reviewTarget?.action.evidence_files?.length ? (
             <Alert
               description="Backend sẽ không cho chấp nhận CAP khi chưa có bằng chứng thực hiện."
-              message="Chưa có bằng chứng"
               showIcon
               style={{ marginBottom: 16 }}
+              title="Chưa có bằng chứng"
               type="warning"
             />
           ) : null}
@@ -1008,7 +1007,7 @@ export default function CorrectiveActionWorkspaceModal({
       <Modal
         cancelText="Hủy"
         destroyOnHidden
-        maskClosable={false}
+        mask={{ closable: false }}
         okButtonProps={{ loading: closeMutation.isPending }}
         okText="Đóng NC"
         onCancel={() => {
@@ -1021,9 +1020,9 @@ export default function CorrectiveActionWorkspaceModal({
       >
         <Alert
           description="Sau khi đóng, NC được khóa. Khi toàn bộ NC đã đóng và báo cáo đã nộp, hồ sơ sẽ chuyển sang trạng thái sẵn sàng thẩm xét."
-          message="Xác nhận đóng NC"
           showIcon
           style={{ marginBottom: 16 }}
+          title="Xác nhận đóng NC"
           type="success"
         />
         <Form<CloseFormValues> form={closeForm} layout="vertical" onFinish={(values) => closeMutation.mutate(values)}>

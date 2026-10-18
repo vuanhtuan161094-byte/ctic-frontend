@@ -9189,3 +9189,119 @@ input { font: inherit; }
     grid-column: auto;
   }
 }
+
+.cmp-cap-summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.cmp-cap-summary-grid .ant-card-body {
+  padding: 10px 12px;
+}
+
+.cmp-cap-summary-grid .ant-statistic-title {
+  line-height: 1.3;
+  min-height: 2.6em;
+}
+
+.cmp-cap-finding-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  width: 100%;
+}
+
+.cmp-cap-finding-heading .ant-space {
+  min-width: 0;
+}
+
+.cmp-cap-evidence-list {
+  display: grid;
+  gap: 4px;
+}
+
+.cmp-cap-evidence-row {
+  align-items: center;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.cmp-cap-evidence-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cmp-cap-evidence-copy .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.cmp-cap-response-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ant-modal.cmp-corrective-action-workspace-modal,
+.ant-modal.cmp-cap-response-modal {
+  top: 16px;
+}
+
+.cmp-corrective-action-workspace-modal .ant-modal-container,
+.cmp-cap-response-modal .ant-modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+.cmp-corrective-action-workspace-modal .ant-modal-body,
+.cmp-cap-response-modal .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 1100px) {
+  .cmp-cap-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .cmp-cap-summary-grid {
+    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cmp-cap-summary-grid .ant-card-body {
+    padding: 8px 10px;
+  }
+
+  .cmp-cap-summary-grid .ant-statistic-title {
+    font-size: 12px;
+    min-height: 0;
+  }
+
+  .cmp-cap-summary-grid .ant-statistic-content {
+    font-size: 20px;
+  }
+
+  .cmp-cap-finding-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cmp-cap-response-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -169,7 +169,7 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
         <Alert
           action={<Button icon={<ReloadOutlined />} onClick={() => void workspacesQuery.refetch()}>Thử lại</Button>}
           description={customerSafeError(workspacesQuery.error)}
-          message="Không tải được hồ sơ khắc phục"
+          title="Không tải được hồ sơ khắc phục"
           showIcon
           type="error"
         />
@@ -193,7 +193,7 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
         <Card><Statistic prefix={<FolderOpenOutlined />} title="Kế hoạch đánh giá" value={workspaces.length} /></Card>
         <Card><Statistic prefix={<CheckCircleOutlined />} title="Tổng NC" value={totals.findings} /></Card>
         <Card><Statistic prefix={<ClockCircleOutlined />} title="Đang xử lý" value={totals.open} /></Card>
-        <Card><Statistic prefix={<WarningOutlined />} title="Quá hạn" value={totals.overdue} valueStyle={totals.overdue ? { color: "#cf1322" } : undefined} /></Card>
+        <Card><Statistic prefix={<WarningOutlined />} title="Quá hạn" value={totals.overdue} styles={totals.overdue ? { content: { color: "#cf1322" } } : undefined} /></Card>
       </section>
 
       <Card>
