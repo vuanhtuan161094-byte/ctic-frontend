@@ -9348,3 +9348,140 @@ input { font: inherit; }
     justify-self: start;
   }
 }
+
+
+/* CMP operating workspace — focused dashboard visual hierarchy pilot */
+.personal-dashboard {
+  gap: 18px;
+}
+.personal-dashboard-heading {
+  border-bottom: 1px solid var(--cmp-border-default);
+  padding-bottom: 14px;
+}
+.personal-dashboard-heading .ant-typography {
+  letter-spacing: -.018em;
+}
+.personal-kpi-grid {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+  box-shadow: var(--cmp-shadow-low);
+  gap: 0;
+  overflow: hidden;
+}
+.personal-kpi-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-top: 0;
+  box-shadow: none;
+  min-height: 82px;
+  min-width: 0;
+  padding: 13px 18px 12px;
+  position: relative;
+  transition: background-color .16s ease;
+}
+.personal-kpi-card + .personal-kpi-card {
+  border-left: 1px solid var(--cmp-border-default);
+}
+.personal-kpi-card:hover {
+  background: var(--cmp-surface-selected);
+  border-color: transparent;
+  transform: none;
+}
+.personal-kpi-card:focus-visible {
+  outline: 3px solid var(--cmp-focus-ring);
+  outline-offset: -3px;
+  z-index: 1;
+}
+.personal-kpi-card .ant-statistic-title {
+  color: var(--cmp-text-secondary);
+  font-size: 13px;
+  line-height: 1.35;
+  margin-bottom: 7px;
+}
+.personal-kpi-card .ant-statistic-content {
+  color: var(--cmp-text-primary);
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.1;
+}
+.personal-dashboard-main-grid,
+.personal-dashboard-secondary-grid {
+  align-items: start;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, .9fr);
+}
+.personal-dashboard .dashboard-card {
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+  box-shadow: none;
+  overflow: hidden;
+}
+.personal-dashboard .dashboard-card .ant-card-head {
+  background: var(--cmp-surface-raised);
+  border-bottom: 1px solid var(--cmp-border-default);
+  min-height: 48px;
+  padding: 0 16px;
+}
+.personal-dashboard .dashboard-card .ant-card-head-title {
+  font-size: 14px;
+  font-weight: 650;
+}
+.personal-dashboard .dashboard-card > .ant-card-body {
+  padding: 8px 16px 12px;
+}
+.personal-dashboard .ant-list-item {
+  align-items: start;
+  padding: 12px 0;
+}
+.personal-dashboard .ant-list-item-meta-title {
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.personal-dashboard .ant-list-item-meta-description {
+  line-height: 1.45;
+}
+.personal-dashboard .ant-empty {
+  margin: 8px 0 12px;
+}
+.personal-dashboard .ant-empty-image {
+  height: 44px;
+}
+.personal-dashboard .ant-empty-description {
+  color: var(--cmp-text-secondary);
+  font-size: 13px;
+}
+@media (max-width: 1200px) {
+  .personal-dashboard-main-grid,
+  .personal-dashboard-secondary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .personal-kpi-grid {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    gap: 10px;
+    overflow: visible;
+  }
+  .personal-kpi-card,
+  .personal-kpi-card + .personal-kpi-card {
+    background: var(--cmp-surface-raised);
+    border: 1px solid var(--cmp-border-default);
+    border-radius: var(--cmp-radius-md);
+    box-shadow: none;
+  }
+}
+@media (max-width: 720px) {
+  .personal-kpi-card {
+    min-height: 78px;
+    padding: 12px;
+  }
+  .personal-kpi-card .ant-statistic-content {
+    font-size: 23px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .personal-kpi-card { transition: none; }
+}
