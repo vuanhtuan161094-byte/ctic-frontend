@@ -4939,6 +4939,22 @@ input { font: inherit; }
 
 /* Patch 35J - Certificate issuance workspace */
 .certificate-issuance-workspace { display: flex; flex-direction: column; gap: 16px; }
+.certificate-issuance-workspace-modal .ant-modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.certificate-issuance-workspace-modal .ant-modal-header { flex: 0 0 auto; }
+.certificate-issuance-workspace-modal .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.certificate-issuance-workspace-modal .ant-descriptions-view { max-width: 100%; overflow-wrap: anywhere; }
+.certificate-issuance-workspace-modal .ant-descriptions-view table { width: 100%; }
 .certificate-issuance-heading { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; padding-right: 36px; }
 .certificate-issuance-heading h3.ant-typography { color: #0d376c; font-family: "Cascadia Code", Consolas, monospace; margin: 4px 0 0; }
 .cmp-compact-empty-card > .ant-card-body { padding-block: 10px; }
@@ -4956,6 +4972,19 @@ input { font: inherit; }
 @media (max-width: 900px) {
   .certificate-issuance-form-grid { grid-template-columns: 1fr; }
   .certificate-pdf-upload-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .certificate-issuance-workspace-modal .ant-modal-container {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .certificate-issuance-workspace-modal .ant-modal-body { padding: 12px 16px; }
+  .certificate-issuance-workspace-modal .ant-descriptions-item-content { overflow-wrap: anywhere; }
+  .certificate-issuance-workspace { gap: 12px; }
+  .certificate-issuance-heading { gap: 8px; padding-right: 28px; }
+  .certificate-issuance-workspace .ant-card-body { padding: 12px; }
 }
 
 /* UAT Application Review polish */

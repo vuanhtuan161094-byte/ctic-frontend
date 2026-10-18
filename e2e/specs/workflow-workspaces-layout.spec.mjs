@@ -31,6 +31,44 @@ for (const workspace of workspaces) {
     for (const size of sizes) {
       await page.setViewportSize(size);
       await expectNoHorizontalOverflow(page);
+      if (workspace.name === "certificate issuance") {
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible();
+        const modalBody = dialog.locator(".ant-modal-body");
+        await modalBody.evaluate((element) => { element.scrollTop = 0; });
+        const issuanceLayout = await dialog.evaluate((element) => {
+          const container = element.querySelector(".ant-modal-container");
+          const body = element.querySelector(".ant-modal-body");
+          const evidence = element.querySelector(".certificate-issuance-workspace .ant-descriptions-view");
+          const containerRect = container?.getBoundingClientRect();
+          return {
+            containerBottom: containerRect?.bottom ?? Number.POSITIVE_INFINITY,
+            bodyClientHeight: body?.clientHeight ?? 0,
+            bodyScrollHeight: body?.scrollHeight ?? 0,
+            bodyOverflowY: body ? getComputedStyle(body).overflowY : "missing",
+            evidenceClientWidth: evidence?.clientWidth ?? 0,
+            evidenceScrollWidth: evidence?.scrollWidth ?? 0,
+          };
+        });
+        expect(issuanceLayout.containerBottom).toBeLessThanOrEqual(size.height + 1);
+        expect(issuanceLayout.bodyOverflowY).toBe("auto");
+        expect(issuanceLayout.bodyScrollHeight).toBeGreaterThan(issuanceLayout.bodyClientHeight);
+        expect(issuanceLayout.evidenceScrollWidth).toBeLessThanOrEqual(issuanceLayout.evidenceClientWidth + 1);
+        if (size.width <= 767) {
+          const workflowSteps = dialog.locator(".certificate-issuance-workspace .ant-steps.ant-steps-filled.ant-steps-vertical");
+          await expect(workflowSteps).toBeVisible();
+          await expect(workflowSteps.locator(".ant-steps-item-title")).toHaveCount(5);
+          await expect(workflowSteps.locator(".ant-steps-item-title").nth(3)).toHaveText("Phát hành chứng chỉ");
+        }
+        await testInfo.attach(`certificate-issuance-layout-${size.width}`, {
+          body: Buffer.from(JSON.stringify({ size, ...issuanceLayout }, null, 2)),
+          contentType: "application/json",
+        });
+        await captureVisualBaseline(page, testInfo, `${workspace.name}-${size.width}`);
+        await modalBody.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+        await expect(dialog.locator(".certificate-issuance-workspace form button[type=submit]")).toBeInViewport();
+        continue;
+      }
       await captureVisualBaseline(page, testInfo, `${workspace.name}-${size.width}`);
     }
 

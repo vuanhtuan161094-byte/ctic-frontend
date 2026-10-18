@@ -20,6 +20,7 @@ import {
   Descriptions,
   Empty,
   Form,
+  Grid,
   Input,
   List,
   Modal,
@@ -282,6 +283,8 @@ export default function CertificateIssuanceWorkspaceModal({
   page,
 }: Props) {
   const { message } = App.useApp();
+  const breakpoints = Grid.useBreakpoint();
+  const descriptionsLayout = breakpoints.xs ? "vertical" : "horizontal";
   const [form] = Form.useForm<IssueFormValues>();
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -427,6 +430,8 @@ export default function CertificateIssuanceWorkspaceModal({
 
   return (
     <Modal
+      centered
+      className="certificate-issuance-workspace-modal"
       destroyOnHidden
       footer={null}
       onCancel={() => {
@@ -452,7 +457,7 @@ export default function CertificateIssuanceWorkspaceModal({
         {workspace ? (
           <Space direction="vertical" size={16} style={{ width: "100%" }}>
             <Card size="small">
-              <Steps responsive={false} size="small" items={workflowItems} />
+              <Steps responsive size="small" items={workflowItems} />
             </Card>
 
             {workspace.eligibility_errors.length && workspace.requires_certificate_issuance && !certificate ? (
@@ -470,7 +475,7 @@ export default function CertificateIssuanceWorkspaceModal({
             ) : null}
 
             <Card title="Căn cứ phát hành" size="small">
-              <Descriptions bordered column={2} size="small">
+              <Descriptions bordered column={{ xs: 1, sm: 2 }} layout={descriptionsLayout} size="small">
                 <Descriptions.Item label="PLAN">{workspace.plan.plan_code || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Báo cáo">{workspace.report?.report_code || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Thẩm xét">{statusLabel(workspace.technical_review?.status)}</Descriptions.Item>
@@ -478,10 +483,10 @@ export default function CertificateIssuanceWorkspaceModal({
                 <Descriptions.Item label="Loại quyết định"><Tag color="blue">{decisionType ? decisionTypeLabels[decisionType] : "—"}</Tag></Descriptions.Item>
                 <Descriptions.Item label="Thông báo kết quả">{workspace.notification?.notification_number || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Trạng thái thông báo">{statusLabel(workspace.notification?.status)}</Descriptions.Item>
-                <Descriptions.Item label="Tổ chức" span={2}>{workspace.decision?.organization_name || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Tiêu chuẩn" span={2}>{workspace.decision?.standard_name || workspace.plan.standard_name || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Phạm vi" span={2}>{workspace.decision?.certification_scope || "—"}</Descriptions.Item>
-                {workspace.decision?.change_reason ? <Descriptions.Item label="Lý do thay đổi" span={2}>{workspace.decision.change_reason}</Descriptions.Item> : null}
+                <Descriptions.Item label="Tổ chức" span="filled">{workspace.decision?.organization_name || "—"}</Descriptions.Item>
+                <Descriptions.Item label="Tiêu chuẩn" span="filled">{workspace.decision?.standard_name || workspace.plan.standard_name || "—"}</Descriptions.Item>
+                <Descriptions.Item label="Phạm vi" span="filled">{workspace.decision?.certification_scope || "—"}</Descriptions.Item>
+                {workspace.decision?.change_reason ? <Descriptions.Item label="Lý do thay đổi" span="filled">{workspace.decision.change_reason}</Descriptions.Item> : null}
               </Descriptions>
             </Card>
 
@@ -489,15 +494,15 @@ export default function CertificateIssuanceWorkspaceModal({
               {currentCertificate ? (
                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
                   {normalize(currentCertificate.status) === "suspended" ? <Alert showIcon type="warning" message="Chứng chỉ hiện đang bị đình chỉ." /> : null}
-                  <Descriptions bordered column={2} size="small">
+                  <Descriptions bordered column={{ xs: 1, sm: 2 }} layout={descriptionsLayout} size="small">
                     <Descriptions.Item label="Số chứng chỉ">{currentCertificate.cert_number}</Descriptions.Item>
                     <Descriptions.Item label="Phiên bản">{currentCertificate.version_no}</Descriptions.Item>
                     <Descriptions.Item label="Trạng thái"><Tag color={normalize(currentCertificate.status) === "active" ? "green" : normalize(currentCertificate.status) === "withdrawn" ? "red" : "orange"}>{statusLabel(currentCertificate.status)}</Tag></Descriptions.Item>
                     <Descriptions.Item label="Ngày hết hạn">{formatDate(currentCertificate.expire_date)}</Descriptions.Item>
                     <Descriptions.Item label="Tiêu chuẩn">{currentCertificate.standard_name}</Descriptions.Item>
                     <Descriptions.Item label="PDF chính thức">{workspace.version_timeline.find((item) => item.id === currentCertificate.id)?.official_pdf_available ? "Đã có" : "Chưa có"}</Descriptions.Item>
-                    <Descriptions.Item label="Phạm vi chứng nhận" span={2}>{currentCertificate.certification_scope}</Descriptions.Item>
-                    <Descriptions.Item label="Mã xác minh" span={2}><Text copyable>{currentCertificate.verification_code}</Text></Descriptions.Item>
+                    <Descriptions.Item label="Phạm vi chứng nhận" span="filled">{currentCertificate.certification_scope}</Descriptions.Item>
+                    <Descriptions.Item label="Mã xác minh" span="filled"><Text copyable>{currentCertificate.verification_code}</Text></Descriptions.Item>
                   </Descriptions>
                   {workspace.can_issue_status_decision && canManageLifecycle && workspace.allowed_status_actions.length ? (
                     <Space wrap>
@@ -540,7 +545,7 @@ export default function CertificateIssuanceWorkspaceModal({
                     : "Chứng chỉ chỉ được tạo sau khi người có thẩm quyền xác nhận phát hành."}
                   style={{ marginBottom: 16 }}
                 />
-                <Descriptions bordered column={2} size="small" style={{ marginBottom: 16 }}>
+                <Descriptions bordered column={{ xs: 1, sm: 2 }} layout={descriptionsLayout} size="small" style={{ marginBottom: 16 }}>
                   {workspace.issuance_preview.previous_version ? (
                     <>
                       <Descriptions.Item label="Phiên bản trước">{workspace.issuance_preview.previous_version.version_no}</Descriptions.Item>
@@ -549,17 +554,17 @@ export default function CertificateIssuanceWorkspaceModal({
                       <Descriptions.Item label="Trạng thái phiên bản trước">{statusLabel(workspace.issuance_preview.previous_version.status)}</Descriptions.Item>
                     </>
                   ) : null}
-                  <Descriptions.Item label="Tên tổ chức" span={2}>{workspace.decision?.organization_name || "—"}</Descriptions.Item>
-                  <Descriptions.Item label="Địa chỉ" span={2}>{workspace.decision?.organization_address || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Tên tổ chức" span="filled">{workspace.decision?.organization_name || "—"}</Descriptions.Item>
+                  <Descriptions.Item label="Địa chỉ" span="filled">{workspace.decision?.organization_address || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Hệ thống quản lý">{workspace.decision?.management_system || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Tiêu chuẩn">{workspace.decision?.standard_name || "—"}</Descriptions.Item>
-                  {isReissue && currentCertificate ? <Descriptions.Item label="Phạm vi hiện hành" span={2}>{currentCertificate.certification_scope}</Descriptions.Item> : null}
-                  <Descriptions.Item label={isReissue ? "Phạm vi đề xuất" : "Phạm vi chứng nhận"} span={2}>{workspace.decision?.certification_scope || "—"}</Descriptions.Item>
+                  {isReissue && currentCertificate ? <Descriptions.Item label="Phạm vi hiện hành" span="filled">{currentCertificate.certification_scope}</Descriptions.Item> : null}
+                  <Descriptions.Item label={isReissue ? "Phạm vi đề xuất" : "Phạm vi chứng nhận"} span="filled">{workspace.decision?.certification_scope || "—"}</Descriptions.Item>
                   <Descriptions.Item label="Ngày cấp mới">{formatDate(workspace.issuance_preview.proposed_version?.issue_date)}</Descriptions.Item>
                   <Descriptions.Item label="Ngày hết hạn mới">{formatDate(workspace.issuance_preview.proposed_version?.expire_date)}</Descriptions.Item>
                   <Descriptions.Item label="Số chứng chỉ dự kiến">{workspace.issuance_preview.proposed_version?.cert_number || workspace.defaults.cert_number}</Descriptions.Item>
                   <Descriptions.Item label="Phiên bản dự kiến">{workspace.issuance_preview.proposed_version?.version_no ?? 1}</Descriptions.Item>
-                  <Descriptions.Item label="Địa điểm chứng nhận mới" span={2}>
+                  <Descriptions.Item label="Địa điểm chứng nhận mới" span="filled">
                     {parseSites(workspace.issuance_preview.proposed_version?.site_snapshot_json).length
                       ? <List
                         size="small"
@@ -620,13 +625,13 @@ export default function CertificateIssuanceWorkspaceModal({
               </Card>
             ) : certificate ? (
               <Card title={certificate.version_no > 1 ? "Phiên bản chứng chỉ mới đã phát hành" : "Giấy chứng nhận đã cấp"} size="small">
-                <Descriptions bordered column={2} size="small">
+                <Descriptions bordered column={{ xs: 1, sm: 2 }} layout={descriptionsLayout} size="small">
                   <Descriptions.Item label="Số chứng chỉ">{certificate.cert_number}</Descriptions.Item>
                   <Descriptions.Item label="Phiên bản">{certificate.version_no}</Descriptions.Item>
                   <Descriptions.Item label="Trạng thái"><Tag color={normalize(certificate.status) === "active" ? "green" : "orange"}>{statusLabel(certificate.status)}</Tag></Descriptions.Item>
                   <Descriptions.Item label="Ngày cấp">{formatDate(certificate.issue_date)}</Descriptions.Item>
                   <Descriptions.Item label="Ngày hết hạn">{formatDate(certificate.expire_date)}</Descriptions.Item>
-                  <Descriptions.Item label="Mã xác minh" span={2}><Text copyable>{certificate.verification_code}</Text></Descriptions.Item>
+                  <Descriptions.Item label="Mã xác minh" span="filled"><Text copyable>{certificate.verification_code}</Text></Descriptions.Item>
                 </Descriptions>
               </Card>
             ) : null}
@@ -717,14 +722,14 @@ export default function CertificateIssuanceWorkspaceModal({
                 {selectedVersion ? (
                   <Card type="inner" title={`Chi tiết bất biến · Phiên bản ${selectedVersion.version_no}`} extra={<Button onClick={() => setSelectedVersionId(null)} size="small">Đóng</Button>}>
                     <Alert showIcon type="info" message="Dữ liệu dưới đây là snapshot tại thời điểm phát hành và chỉ được xem." style={{ marginBottom: 12 }} />
-                    <Descriptions bordered column={2} size="small">
-                      <Descriptions.Item label="Tên tổ chức" span={2}>{selectedVersion.organization_name}</Descriptions.Item>
-                      <Descriptions.Item label="Địa chỉ" span={2}>{selectedVersion.organization_address || "—"}</Descriptions.Item>
+                    <Descriptions bordered column={{ xs: 1, sm: 2 }} layout={descriptionsLayout} size="small">
+                      <Descriptions.Item label="Tên tổ chức" span="filled">{selectedVersion.organization_name}</Descriptions.Item>
+                      <Descriptions.Item label="Địa chỉ" span="filled">{selectedVersion.organization_address || "—"}</Descriptions.Item>
                       <Descriptions.Item label="Hệ thống quản lý">{selectedVersion.management_system || "—"}</Descriptions.Item>
                       <Descriptions.Item label="Tiêu chuẩn">{selectedVersion.standard_name}</Descriptions.Item>
-                      <Descriptions.Item label="Phạm vi chứng nhận" span={2}>{selectedVersion.certification_scope}</Descriptions.Item>
-                      <Descriptions.Item label="Lý do thay đổi" span={2}>{selectedVersion.change_reason || "Cấp chứng nhận lần đầu"}</Descriptions.Item>
-                      <Descriptions.Item label="Địa điểm chứng nhận" span={2}>
+                      <Descriptions.Item label="Phạm vi chứng nhận" span="filled">{selectedVersion.certification_scope}</Descriptions.Item>
+                      <Descriptions.Item label="Lý do thay đổi" span="filled">{selectedVersion.change_reason || "Cấp chứng nhận lần đầu"}</Descriptions.Item>
+                      <Descriptions.Item label="Địa điểm chứng nhận" span="filled">
                         {parseSites(selectedVersion.site_snapshot_json).length
                           ? <List
                             size="small"
