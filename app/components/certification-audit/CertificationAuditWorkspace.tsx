@@ -116,6 +116,15 @@ function teamRoleLabel(value?: string | null) {
   return teamRoleLabels[normalize(value)] ?? value?.replaceAll("_", " ") ?? "Thành viên";
 }
 
+function assignmentStatusPresentation(value?: string | null) {
+  const key = normalize(value).replaceAll("-", "_");
+  const known: Record<string, { label: string; color: string }> = {
+    confirmed: { label: "Đã xác nhận", color: "green" },
+    pending_confirmation: { label: "Chờ xác nhận", color: "orange" },
+  };
+  return known[key] ?? { label: value?.replaceAll("_", " ") || "Chưa cập nhật", color: "default" };
+}
+
 function auditCycle(
   data: CertificationCaseWorkspaceProjection,
   auditId: string,
@@ -284,15 +293,18 @@ export function CertificationAuditWorkspaceView({
             className="cmp-audit-team-list"
             dataSource={appointment.members ?? []}
             locale={{ emptyText: "Chưa có thành viên" }}
-            renderItem={(member) => (
-              <List.Item>
-                <List.Item.Meta
-                  title={member.experts?.full_name ?? "Thành viên chưa xác định"}
-                  description={`${teamRoleLabel(member.team_role)} · ${Number(member.planned_mandays ?? 0).toFixed(1)} MD · ${formatCaseDate(member.planned_start_date)} – ${formatCaseDate(member.planned_end_date)}`}
-                />
-                <Tag>{member.assignment_status ?? "Chưa cập nhật"}</Tag>
-              </List.Item>
-            )}
+            renderItem={(member) => {
+              const assignmentStatus = assignmentStatusPresentation(member.assignment_status);
+              return (
+                <List.Item>
+                  <List.Item.Meta
+                    title={member.experts?.full_name ?? "Thành viên chưa xác định"}
+                    description={`${teamRoleLabel(member.team_role)} · ${Number(member.planned_mandays ?? 0).toFixed(1)} MD · ${formatCaseDate(member.planned_start_date)} – ${formatCaseDate(member.planned_end_date)}`}
+                  />
+                  <Tag color={assignmentStatus.color}>{assignmentStatus.label}</Tag>
+                </List.Item>
+              );
+            }}
           />
         </>
       )}
