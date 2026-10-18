@@ -299,6 +299,7 @@ export function CustomerApplicationsScreen() {
 
   const openEdit = (item: CustomerApplication) => {
     setEditing(item);
+    form.resetFields();
     form.setFieldsValue({
       customer_id: item.customer_id,
       application_date: dayjs(item.application_date),
@@ -483,8 +484,10 @@ export function CustomerApplicationsScreen() {
       </Card>
 
       <Modal
-        destroyOnHidden
+        centered
+        className="customer-application-modal"
         footer={null}
+        forceRender
         onCancel={() => {
           setModalOpen(false);
           setEditing(null);
@@ -494,10 +497,12 @@ export function CustomerApplicationsScreen() {
         width={980}
       >
         <Form<ApplicationFormValues>
+          className="customer-application-form"
           form={form}
           layout="vertical"
           onFinish={(values) => saveMutation.mutate(values)}
         >
+          <div className="customer-application-form__fields">
           {organizations.length > 1 ? (
             <Form.Item label="Tổ chức" name="customer_id" rules={[{ required: true, message: "Chọn tổ chức" }]}>
               <Select disabled={Boolean(editing)} options={organizationOptions} />
@@ -638,8 +643,9 @@ export function CustomerApplicationsScreen() {
             style={{ marginBottom: 16 }}
             type="info"
           />
+          </div>
 
-          <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+          <Space className="customer-application-form-actions" style={{ width: "100%", justifyContent: "flex-end" }}>
             <Button onClick={() => setModalOpen(false)}>Hủy</Button>
             <Button htmlType="submit" icon={<CheckCircleOutlined />} loading={saveMutation.isPending} type="primary">
               Lưu bản nháp

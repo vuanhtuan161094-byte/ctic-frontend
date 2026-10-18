@@ -8901,6 +8901,93 @@ input { font: inherit; }
   }
 }
 
+.customer-application-modal {
+  max-width: calc(100vw - 24px);
+}
+
+.customer-application-modal .ant-modal-container {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+
+.customer-application-modal .ant-modal-header {
+  flex: 0 0 auto;
+}
+
+.customer-application-modal .ant-modal-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.customer-application-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.customer-application-form__fields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 2px;
+}
+
+.customer-application-form__fields .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.customer-application-form__fields .ant-form-item-label {
+  padding-bottom: 3px;
+}
+
+.customer-application-form__fields h5.ant-typography {
+  margin-block: 10px 6px;
+}
+
+.customer-application-form__fields .ant-card-small > .ant-card-body {
+  padding: 12px;
+}
+
+.customer-application-form-actions {
+  background: #fff;
+  border-top: 1px solid #e7edf4;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .customer-application-modal {
+    max-width: calc(100vw - 16px);
+  }
+
+  .customer-application-modal .ant-modal-container {
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .customer-application-modal .ant-modal-body {
+    padding: 12px 16px;
+  }
+
+  .customer-application-form-actions {
+    gap: 8px;
+    padding-top: 10px;
+  }
+
+  .customer-application-form-actions .ant-btn {
+    min-height: 40px;
+  }
+}
+
 .own-competency-mobile-list {
   display: grid;
   gap: 8px;
