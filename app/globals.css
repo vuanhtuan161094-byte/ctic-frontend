@@ -6432,6 +6432,17 @@ input { font: inherit; }
   margin-bottom: var(--cmp-space-3);
 }
 
+@media (max-width: 767px) {
+  .customer-list-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .customer-list-toolbar > * {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
 .customers-list-card .ant-table-container {
   border: 1px solid var(--cmp-border-default);
   border-radius: var(--cmp-radius-sm);
