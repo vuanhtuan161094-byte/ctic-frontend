@@ -4,6 +4,7 @@ import {
   captureVisualBaseline,
   expectNoHorizontalOverflow,
 } from "../helpers/quality.mjs";
+import { generateCmpDemo10YearFixture } from "../fixtures/cmp-demo-10year.mjs";
 
 const session = {
   access_token: "browser-fixture-not-a-credential",
@@ -157,7 +158,7 @@ const makeCaseWorkspace = (projectId) => {
   };
 };
 
-async function openSchedule(page, { plans: fixturePlans = plans, fixtureDate = "2026-10-18T08:00:00+07:00" } = {}) {
+async function openSchedule(page, { plans: fixturePlans = plans, projects: fixtureProjects = projects, experts: fixtureExperts = experts, fixtureDate = "2026-10-18T08:00:00+07:00" } = {}) {
   const runtimeErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") runtimeErrors.push(`console: ${message.text()}`);
@@ -196,7 +197,7 @@ async function openSchedule(page, { plans: fixturePlans = plans, fixtureDate = "
       body = makeCaseWorkspace(path.split("/")[2]);
     } else if (/^\/certification-projects\/[^/]+\/dossier$/.test(path)) {
       const projectId = path.split("/")[2];
-      const project = projects.find((candidate) => candidate.id === projectId);
+      const project = fixtureProjects.find((candidate) => candidate.id === projectId);
       const customer = project?.certification_applications.customers;
       const projectPlans = fixturePlans.filter((plan) => plan.project_id === projectId);
       body = {
@@ -230,7 +231,7 @@ async function openSchedule(page, { plans: fixturePlans = plans, fixtureDate = "
       body = { warning_days: 90, generated_at: fixtureDate, summary: { total: 0, critical: 0, warning: 0, info: 0 }, alerts: [] };
     } else if (/^\/certification-projects\/[^/]+$/.test(path)) {
       const projectId = path.split("/")[2];
-      const project = projects.find((candidate) => candidate.id === projectId);
+      const project = fixtureProjects.find((candidate) => candidate.id === projectId);
       body = {
         ...project,
         created_at: "2026-01-01T00:00:00Z",
@@ -238,13 +239,13 @@ async function openSchedule(page, { plans: fixturePlans = plans, fixtureDate = "
         audit_plans: fixturePlans.filter((plan) => plan.project_id === projectId),
       };
     } else if (path === "/certification-projects") {
-      body = projects;
+      body = fixtureProjects;
     } else if (path === "/audit-plans") {
       body = fixturePlans;
     } else if (path === "/audit-team-appointments") {
       body = [];
     } else if (path === "/experts") {
-      body = experts;
+      body = fixtureExperts;
     }
     await route.fulfill({ status: 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
   });
@@ -448,5 +449,111 @@ test("mobile calendar uses a readable agenda and retains month/year navigation",
   await page.getByRole("button", { name: "Tháng 10, 16 đợt đánh giá" }).click();
   await expect(page.locator(".resource-calendar-mobile-title")).toHaveText("tháng 10 năm 2026");
   await expectNoHorizontalOverflow(page);
+  expect(runtimeErrors).toEqual([]);
+});
+
+function tenYearCalendarApiData(scenario = "edge-cases") {
+  const fixture = generateCmpDemo10YearFixture(scenario);
+  const fixtureProjects = fixture.projects.map((project) => ({
+    ...project,
+    certification_applications: {
+      ...project.certification_applications,
+      customers: project.customer,
+    },
+  }));
+  const projectById = new Map(fixtureProjects.map((project) => [project.id, project]));
+  const auditTypes = {
+    STAGE_1: "stage1",
+    STAGE_2: "stage2",
+    SURVEILLANCE_1: "surveillance",
+    SURVEILLANCE_2: "surveillance",
+    SPECIAL_AUDIT: "special_audit",
+  };
+  const fixturePlans = fixture.auditPlans.map((plan, index) => {
+    const project = projectById.get(plan.project_id);
+    const application = project?.certification_applications;
+    const eventType = auditTypes[plan.audit_type] ?? "surveillance";
+    return {
+      ...plan,
+      audit_event_id: `fixture-10y-event-${index + 1}`,
+      version_no: 1,
+      audit_type: eventType,
+      location: plan.customer_id,
+      audit_scope: application?.certification_scope ?? "Phạm vi giả lập",
+      audit_criteria: application?.standard_name ?? "ISO 9001:2015",
+      audit_objectives: "Dữ liệu giả lập để kiểm tra lịch và nguồn lực.",
+      certification_projects: project,
+      audit_event: {
+        sequence_no: index + 1,
+        planned_mandays: 1 + (index % 4),
+        event_type: eventType,
+        audit_programs: {
+          program_code: `F10Y-PROGRAM-${index + 1}`,
+          organization_name: project?.customer?.company_name
+            ?? application?.customers?.company_name
+            ?? `Khách hàng giả lập ${index + 1}`,
+          standard_name: application?.standard_name ?? "ISO 9001:2015",
+        },
+      },
+    };
+  });
+  const fixtureExperts = fixture.personnel.map((person) => ({
+    id: person.id,
+    employee_code: person.employee_code,
+    full_name: person.full_name,
+    email: person.email,
+    status: person.status,
+  }));
+  return { fixture, fixtureProjects, fixturePlans, fixtureExperts };
+}
+
+test("10-year fixture calendar navigates 2016–2026 and renders dense October plans on desktop", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-1440x900", "desktop multi-year calendar evidence");
+  const { fixture, fixtureProjects, fixturePlans, fixtureExperts } = tenYearCalendarApiData();
+  const runtimeErrors = await openSchedule(page, {
+    plans: fixturePlans,
+    projects: fixtureProjects,
+    experts: fixtureExperts,
+    fixtureDate: "2026-10-24T08:00:00+07:00",
+  });
+  await expect(page.locator('.resource-calendar-cell[data-date="2026-10-22"]')).toHaveAttribute("data-event-count", "12");
+  await expect(page.locator('.resource-calendar-cell[data-date="2026-10-22"] .resource-calendar-more')).toHaveText("+11 đợt khác");
+  await expect(page.locator(".resource-calendar-desktop .ant-picker-cell")).toHaveCount(42);
+  await expectSingleDateLabels(page);
+
+  for (const size of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size);
+    await expectNoHorizontalOverflow(page);
+    const screenshotName = `fixture-10y-calendar-${size.width}x${size.height}`;
+    await captureVisualBaseline(page, testInfo, screenshotName, { fullPage: false });
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.locator(".resource-calendar-desktop .ant-segmented").getByText("Năm", { exact: true }).click();
+  await expect(page.locator(".resource-calendar-toolbar-title")).toHaveText("Năm 2026");
+  for (let year = 2026; year > 2016; year -= 1) await page.getByRole("button", { name: "Năm trước" }).click();
+  await expect(page.locator(".resource-calendar-toolbar-title")).toHaveText("Năm 2016");
+  expect(fixture.range.start).toBe("2016-10-24");
+  expect(fixture.range.end).toBe("2026-10-24");
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("10-year fixture calendar offers a mobile year agenda without overflow", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-390x844", "mobile calendar evidence");
+  const { fixture, fixtureProjects, fixturePlans, fixtureExperts } = tenYearCalendarApiData();
+  const runtimeErrors = await openSchedule(page, {
+    plans: fixturePlans,
+    projects: fixtureProjects,
+    experts: fixtureExperts,
+    fixtureDate: "2026-10-24T08:00:00+07:00",
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator(".resource-calendar-mobile-toolbar .ant-segmented").getByText("Năm", { exact: true }).click();
+  await expect(page.locator(".resource-calendar-mobile-title")).toHaveText("Năm 2026");
+  const octoberPlanCount = fixture.auditPlans.filter((plan) => plan.planned_start_date.startsWith("2026-10")).length;
+  await expect(page.getByRole("button", { name: new RegExp(`Tháng 10, ${octoberPlanCount} đợt đánh giá`) })).toBeVisible();
+  await captureVisualBaseline(page, testInfo, "fixture-10y-calendar-mobile-year-2026", { fullPage: false });
+  await expectNoHorizontalOverflow(page);
+  expect(fixture.auditPlans.length).toBeGreaterThan(100);
   expect(runtimeErrors).toEqual([]);
 });

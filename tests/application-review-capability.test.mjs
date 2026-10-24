@@ -39,6 +39,39 @@ test("Application Review UI supports draft, submit and one reviewer assignment",
   assert.doesNotMatch(source, /name="checker_user_id"|name="approver_user_id"/);
 });
 
+test("organization capability check is read-only and runs before review persistence", async () => {
+  const source = await readFile(reviewScreenUrl, "utf8");
+  const start = source.indexOf("const checkCertificationBodyCapability = async () => {");
+  const end = source.indexOf("const submitApplicationReview =", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const precheck = source.slice(start, end);
+  assert.match(precheck, /\/application-reviews\/capability-precheck/);
+  assert.match(precheck, /standard_names: values\.standard_names/);
+  assert.match(precheck, /industry_scopes: values\.industry_scopes/);
+  assert.doesNotMatch(precheck, /ensureApplicationCreated|validateReviewOutcomes|api\.post\("\/application-reviews"/);
+});
+
+test("incomplete review draft stays in the current UI session and is not sent to the API", async () => {
+  const source = await readFile(reviewScreenUrl, "utf8");
+  const start = source.indexOf("const saveApplicationReviewDraft = async () => {");
+  const end = source.indexOf("async function validateReviewOutcomes()", start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const draftSaver = source.slice(start, end);
+  const incompleteStart = draftSaver.indexOf("if (hasIncompleteOutcomes) {");
+  const incompleteEnd = draftSaver.indexOf("await validateReviewOutcomes()", incompleteStart);
+  assert.notEqual(incompleteStart, -1);
+  assert.notEqual(incompleteEnd, -1);
+  const incompleteBranch = draftSaver.slice(incompleteStart, incompleteEnd);
+  assert.match(incompleteBranch, /localReviewDraftsRef\.current\.set/);
+  assert.match(incompleteBranch, /setLocalReviewDraftSaved\(true\)/);
+  assert.match(incompleteBranch, /chưa lưu lên máy chủ/);
+  assert.match(incompleteBranch, /return;/);
+  assert.doesNotMatch(incompleteBranch, /ensureApplicationCreated|api\.post|ACCEPTED/);
+  assert.match(source, /Bản nháp cục bộ chưa lưu máy chủ/);
+});
+
 test("proposed experts are required only for IAF MD11 calculation and remain excluded from CB capability", async () => {
   const source = await readFile(reviewScreenUrl, "utf8");
   const proposedExpertSection = source.slice(

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 // Controlled API fixture: verifies browser ownership routing/UI, not live DB UAT.
-test('account self-service edits returned evidence and submits without admin actions', async ({ page }) => {
+test('account self-service edits returned evidence and submits without admin actions', async ({ page }, testInfo) => {
   const session = { access_token: 'controlled-competency-fixture', user: { id: 'owner', username: 'expert.fixture', full_name: 'Expert Fixture', roles: ['AUDITOR'] } };
   const rows = ['RETURNED', 'PENDING_APPROVAL', 'APPROVED', 'SUSPENDED', 'DRAFT'].map((approval_status, i) => ({
     id: 'c' + i, expert_id: 'e1', standard_code: 'ISO 9001:2015', management_system: 'QMS',
@@ -35,9 +35,12 @@ test('account self-service edits returned evidence and submits without admin act
   });
   await page.goto('/resources/experts?view=me');
   await expect(page.getByRole('heading', { name: 'Năng lực của tôi', exact: true })).toBeVisible();
-  await expect(page.getByText('Bổ sung số chứng chỉ', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Bổ sung số chứng chỉ/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Phê duyệt', exact: true })).toHaveCount(0);
-  const returned = page.locator('tr[data-row-key="c0"]');
+  const returned = testInfo.project.name === 'mobile-390x844'
+    ? page.locator('article').filter({ hasText: 'IAF 14' })
+    : page.locator('tr[data-row-key="c0"]');
+  await expect(returned).toBeVisible();
   await returned.getByRole('button', { name: 'Sửa', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Tóm tắt bằng chứng').fill('Chứng chỉ bổ sung số 123');

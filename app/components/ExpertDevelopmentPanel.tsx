@@ -333,7 +333,6 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
   const [witnessValues, setWitnessValues] = useState<Record<string, { rating?: string; comment?: string }>>({});
   const [mobilePage, setMobilePage] = useState<{ tab: string; page: number }>({ tab: "training", page: 1 });
   const [activeDevelopmentTab, setActiveDevelopmentTab] = useState("training");
-  const [mobileDevelopmentOpen, setMobileDevelopmentOpen] = useState(false);
 
   const developmentQuery = useQuery({
     queryKey: ["experts", "development", expertId],
@@ -752,9 +751,7 @@ export default function ExpertDevelopmentPanel({ expertId, canManage }: ExpertDe
       <Select
         aria-label="Mục đào tạo và giám sát"
         className="expert-development-mobile-select"
-        onChange={(tab) => { setActiveDevelopmentTab(tab); setMobileDevelopmentOpen(false); }}
-        onOpenChange={setMobileDevelopmentOpen}
-        open={mobileDevelopmentOpen}
+        onChange={setActiveDevelopmentTab}
         options={[
           { value: "training", label: `Đào tạo (${developmentQuery.data?.trainings.length ?? 0})` },
           { value: "monitoring", label: `Giám sát F.12 (${developmentQuery.data?.monitoring.length ?? 0})` },

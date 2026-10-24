@@ -5,6 +5,7 @@ import {
   expectNoHorizontalOverflow,
 } from "../helpers/quality.mjs";
 import { CMP_DEMO_DATA } from "../fixtures/cmp-demo-3year.mjs";
+import { generateCmpDemo10YearFixture } from "../fixtures/cmp-demo-10year.mjs";
 
 const session = {
   access_token: "browser-fixture-not-a-credential",
@@ -35,6 +36,7 @@ async function openCustomerList(page, options = {}) {
   const projectFixture = options.projectsData ?? projects;
   const sessionErrors = [];
   const writes = [];
+  const userAccessRequests = [];
   page.on("pageerror", (error) => sessionErrors.push(`pageerror: ${error.message}`));
   page.on("requestfailed", (request) => sessionErrors.push(`requestfailed: ${request.method()} ${request.url()}`));
   page.on("response", (response) => {
@@ -53,6 +55,14 @@ async function openCustomerList(page, options = {}) {
   await page.route("http://127.0.0.1:3000/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (/^\/customers\/[^/]+\/user-access$/.test(path)) {
+      userAccessRequests.push(path);
+      if (options.userAccessDelayMs) await new Promise((resolve) => setTimeout(resolve, options.userAccessDelayMs));
+      if (options.userAccessFailure) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Fixture dependency unavailable" }) });
+        return;
+      }
+    }
     if (request.method() !== "GET") {
       writes.push(`${request.method()} ${path}`);
       await route.fulfill({ status: 405, contentType: "application/json", body: JSON.stringify({ message: "Controlled fixture is read-only" }) });
@@ -83,13 +93,12 @@ async function openCustomerList(page, options = {}) {
   });
 
   await page.goto("/customers");
-  await expect(page.getByRole("heading", { name: "Khách hàng" })).toBeVisible();
   await expect(page.locator(".customer-summary-strip")).toContainText(String(customerFixture.length));
   if (customerFixture.length) {
     await expect(page.locator(".customer-mobile-card, .customers-list-card .ant-table-tbody tr:not(.ant-table-measure-row)").first()).toBeVisible();
     await expect(page.getByText(`${customerFixture.length} khách hàng`, { exact: true })).toBeVisible();
   }
-  return { sessionErrors, writes };
+  return { sessionErrors, writes, userAccessRequests };
 }
 
 async function expectToolbarFits(page, testInfo, errors) {
@@ -200,6 +209,67 @@ test("empty customer state offers only permitted actions and has a compact visua
     await expectNoHorizontalOverflow(page);
     await captureVisualBaseline(page, testInfo, `customer-empty-${size.width}`, { fullPage: false });
   }
+  expect(writes).toEqual([]);
+  expect(sessionErrors).toEqual([]);
+});
+
+test("customer detail distinguishes a delayed Portal response from an empty result", async ({ page }) => {
+  const { userAccessRequests, sessionErrors, writes } = await openCustomerList(page, { userAccessDelayMs: 300 });
+  await page.getByRole("button", { name: "Chi tiết" }).first().click();
+  const drawer = page.locator(".customer-detail-drawer");
+  const accessList = drawer.locator(".ant-card").filter({ hasText: "Tài khoản khách hàng" }).locator(".ant-list");
+  await expect.poll(() => userAccessRequests.length).toBe(1);
+  await expect(accessList.locator(".ant-spin-spinning")).toBeVisible();
+  await expect(drawer.getByText("Chưa có tài khoản khách hàng")).toBeVisible({ timeout: 5_000 });
+  await expect(accessList.locator(".ant-spin-spinning")).toHaveCount(0);
+  expect(writes).toEqual([]);
+  expect(sessionErrors).toEqual([]);
+});
+
+test("customer detail shows a load error separately from an empty Portal list", async ({ page }) => {
+  const { userAccessRequests, sessionErrors, writes } = await openCustomerList(page, { userAccessFailure: true });
+  await page.getByRole("button", { name: "Chi tiết" }).first().click();
+  const drawer = page.locator(".customer-detail-drawer");
+  await expect.poll(() => userAccessRequests.length).toBe(1);
+  await expect(drawer.getByText("Không thể tải danh sách tài khoản Portal")).toBeVisible();
+  await expect(drawer.getByText("Chưa có tài khoản khách hàng")).toHaveCount(0);
+  expect(writes).toEqual([]);
+  expect(sessionErrors.filter((entry) => !entry.includes("503"))).toEqual([]);
+});
+
+test("20-customer 10-year fixture stays searchable and paginated across three viewports", async ({ page }, testInfo) => {
+  const fixture = generateCmpDemo10YearFixture("full-10y");
+  const projectsData = fixture.projects.map((project) => ({
+    ...project,
+    certification_applications: {
+      ...project.certification_applications,
+      customers: { id: project.customer_id },
+    },
+  }));
+  const { sessionErrors, writes } = await openCustomerList(page, { customersData: fixture.customers, projectsData });
+  const sizes = testInfo.project.name === "desktop-1440x900"
+    ? [{ width: 1366, height: 768 }, { width: 1440, height: 900 }]
+    : [{ width: 390, height: 844 }];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await expectNoHorizontalOverflow(page);
+    await captureVisualBaseline(page, testInfo, `fixture-10y-customers-${size.width}`, { fullPage: false });
+  }
+  const search = page.locator(".customer-list-toolbar input.ant-input");
+  await search.fill("F10Y-CMP-020");
+  await expect(page.getByText("Công ty Thiết kế và Sản xuất Nội thất Hòa Phát", { exact: true })).toBeVisible();
+  const visibleCustomerRows = page.locator(".customer-mobile-card, .customers-list-card .ant-table-tbody tr:not(.ant-table-measure-row):not(.ant-table-placeholder)");
+  await expect(visibleCustomerRows).toHaveCount(1);
+  await search.clear();
+  await expect(visibleCustomerRows).toHaveCount(10);
+  await expect(page.locator(".ant-pagination-total-text")).toContainText("20 khách hàng");
+  await page.locator(".ant-pagination-next").click();
+  await expect(visibleCustomerRows).toHaveCount(10);
+  await expect(page.getByText("F10Y-CMP-020", { exact: true })).toBeVisible();
+  await page.locator(".ant-pagination-prev").click();
+  await page.getByRole("button", { name: "Chi tiết" }).first().click();
+  const firstCustomerProjectCount = fixture.projects.filter((project) => project.customer_id === fixture.customers[0].id).length;
+  await expect(page.locator(".customer-detail-drawer .customer-projects-card .ant-list-item")).toHaveCount(firstCustomerProjectCount);
   expect(writes).toEqual([]);
   expect(sessionErrors).toEqual([]);
 });

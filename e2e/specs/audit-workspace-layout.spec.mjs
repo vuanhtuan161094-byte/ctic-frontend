@@ -41,13 +41,15 @@ for (const section of sections) {
         expect(sectionTop, "Audit content should start early enough to use the desktop viewport").toBeLessThan(420);
       }
       if (size.width <= 767) {
+        await page.evaluate(() => document.fonts.ready);
         const navigation = page.getByRole("navigation", { name: "Khu vực cuộc đánh giá" });
         const selectedTab = navigation.locator('[aria-current="page"]');
-        const [navigationBox, selectedBox] = await Promise.all([navigation.boundingBox(), selectedTab.boundingBox()]);
-        expect(navigationBox).not.toBeNull();
-        expect(selectedBox).not.toBeNull();
-        expect(selectedBox.x).toBeGreaterThanOrEqual(navigationBox.x - 1);
-        expect(selectedBox.x + selectedBox.width).toBeLessThanOrEqual(navigationBox.x + navigationBox.width + 1);
+        await expect.poll(async () => {
+          const [navigationBox, selectedBox] = await Promise.all([navigation.boundingBox(), selectedTab.boundingBox()]);
+          if (!navigationBox || !selectedBox) return false;
+          return selectedBox.x >= navigationBox.x - 1
+            && selectedBox.x + selectedBox.width <= navigationBox.x + navigationBox.width + 1;
+        }).toBe(true);
       }
       await captureVisualBaseline(page, testInfo, `audit-${section.key}-${size.width}`);
     }

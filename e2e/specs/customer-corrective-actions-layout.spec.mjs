@@ -157,10 +157,12 @@ test("customer NC/CAP workspace keeps findings and response actions usable at al
     expect(workspaceBox?.x + (workspaceBox?.width ?? 0)).toBeLessThanOrEqual(size.width);
     await expectNoHorizontalOverflow(page);
 
-    const stats = workspaceDialog.locator(".ant-statistic");
+    const stats = workspaceDialog.locator(".cmp-cap-summary-grid > .ant-card");
     await expect(stats).toHaveCount(5);
-    const statisticWidths = await stats.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().width));
-    expect(statisticWidths.every((width) => width >= 120)).toBe(true);
+    await expect.poll(async () => {
+      const summaryCardWidths = await stats.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().width));
+      return summaryCardWidths.every((width) => width >= 120);
+    }).toBe(true);
     await captureVisualBaseline(page, testInfo, `customer-cap-workspace-${size.width}`);
 
     await workspaceDialog.locator(".ant-collapse-header").first().click();

@@ -209,7 +209,7 @@ interface ReviewAssigneeResponse {
 }
 
 interface CertificationBodyCapabilityEvaluation {
-  review_id: string;
+  review_id?: string;
   evaluated_at: string;
   overall_result: "CAPABLE" | "REVIEW_REQUIRED" | "NOT_CAPABLE";
   items: Array<{
@@ -1163,6 +1163,18 @@ function formatMonthPayload(value?: Dayjs) {
   return value?.isValid() ? value.startOf("month").format("YYYY-MM-DD") : undefined;
 }
 
+function cloneLocalReviewDraftValue<T>(value: T): T {
+  if (dayjs.isDayjs(value)) return value.clone() as T;
+  if (value instanceof Date) return new Date(value.getTime()) as T;
+  if (Array.isArray(value)) return value.map((item) => cloneLocalReviewDraftValue(item)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, cloneLocalReviewDraftValue(item)]),
+    ) as T;
+  }
+  return value;
+}
+
 function generateNextCode(prefix: string, values: Array<string | null | undefined>) {
   const year = dayjs().format("YYYY");
   const expression = new RegExp(`^${prefix}-${year}-(\\d+)$`, "i");
@@ -1294,6 +1306,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const currentWizardSteps = isApplicationWorkspace ? applicationWizardSteps : projectWizardSteps;
   const queryClient = useQueryClient();
   const [wizardForm] = Form.useForm<ProjectCreationValues>();
+  const localReviewDraftsRef = useRef(new Map<string, ProjectCreationValues>());
   const [searchTerm, setSearchTerm] = useState("");
   const [workspacePage, setWorkspacePage] = useState(1);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1311,6 +1324,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const [creationError, setCreationError] = useState<string | null>(null);
   const [uploadingApplicationDocument, setUploadingApplicationDocument] = useState<string | null>(null);
   const [draftReviewId, setDraftReviewId] = useState<string | null>(null);
+  const [localReviewDraftSaved, setLocalReviewDraftSaved] = useState(false);
+  const [capabilityPrecheck, setCapabilityPrecheck] = useState<{
+    signature: string;
+    evaluation: CertificationBodyCapabilityEvaluation;
+  } | null>(null);
   const [validationIssues, setValidationIssues] = useState<CreationValidationIssue[]>([]);
   const actualCreationStep = isApplicationWorkspace ? creationStep : ([0, 2, 3][creationStep] ?? 0);
   const [mandayTableOpen, setMandayTableOpen] = useState(false);
@@ -1521,6 +1539,15 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const imsIntegrationCriteria = Form.useWatch("ims_integration_criteria", wizardForm) ?? [];
   const riskLevel = Form.useWatch("risk_level", wizardForm);
   const selectedIndustryScopes = Form.useWatch("industry_scopes", wizardForm) ?? [];
+  const capabilitySelectionSignature = JSON.stringify({
+    standards: watchedStandardNames ?? [],
+    scopes: selectedIndustryScopes.map((scope) => ({
+      management_system: scope.management_system,
+      isic_nace_mapping_id: scope.isic_nace_mapping_id,
+      nace_iaf_mapping_id: scope.nace_iaf_mapping_id,
+      iaf_code: scope.iaf_code,
+    })),
+  });
   const emsComplexity = Form.useWatch("ems_complexity", wizardForm) ?? "MEDIUM";
   const ohsmsComplexity = Form.useWatch("ohsms_complexity", wizardForm) ?? "MEDIUM";
 
@@ -1566,7 +1593,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const capabilityEvaluation = capabilityEvaluationQuery.data ?? null;
+  const capabilityEvaluation = capabilityPrecheck?.signature === capabilitySelectionSignature
+    ? capabilityPrecheck.evaluation
+    : capabilityEvaluationQuery.data ?? null;
   const capabilitySummaryRows = useMemo(() => {
     if (!capabilityEvaluation) return [];
     const grouped = new Map<string, {
@@ -2179,6 +2208,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreatedProjectId(null);
     setSavedApplication(application);
     setDraftReviewId(null);
+    setLocalReviewDraftSaved(false);
     setCreationError(null);
     setValidationIssues([]);
     setCreationOpen(true);
@@ -2196,6 +2226,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreatedProjectId(null);
     setSavedApplication(application);
     setDraftReviewId(null);
+    setLocalReviewDraftSaved(false);
     setCreationError(null);
     setValidationIssues([]);
     setCreationOpen(true);
@@ -2213,6 +2244,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreatedProjectId(null);
     setSavedApplication(application);
     setDraftReviewId(application.application_reviews?.[0]?.id ?? null);
+    const localDraft = localReviewDraftsRef.current.get(application.id);
+    setLocalReviewDraftSaved(Boolean(localDraft));
     setCreationError(null);
     setValidationIssues([]);
     setWorkflowComment("");
@@ -2225,6 +2258,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     window.setTimeout(() => {
       wizardForm.resetFields();
       applyApplicationToForm(application);
+      if (localDraft) wizardForm.setFieldsValue(localDraft);
     }, 0);
   }, [applyApplicationToForm, wizardForm]);
 
@@ -2254,6 +2288,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreatedProjectId(null);
     setSavedApplication(application);
     setDraftReviewId(application.application_reviews?.[0]?.id ?? null);
+    setLocalReviewDraftSaved(false);
     setCreationError(null);
     setValidationIssues([]);
     setWorkflowComment("");
@@ -2358,6 +2393,11 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         applyApplicationToForm(acceptedApplications[0]);
         wizardForm.setFieldValue("application_mode", "existing");
       }
+      const localDraft = localReviewDraftsRef.current.get("new");
+      if (localDraft) {
+        wizardForm.setFieldsValue(localDraft);
+        setLocalReviewDraftSaved(true);
+      }
     }, 0);
   };
 
@@ -2368,6 +2408,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     setCreationStep(0);
     setCreatedProjectId(null);
     setSavedApplication(null);
+    setLocalReviewDraftSaved(false);
     setCreationError(null);
     setValidationIssues([]);
     mandayRequestVersionRef.current += 1;
@@ -2855,27 +2896,16 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     try {
       setCreationError(null);
       setCreationSubmitting(true);
-      await validateReviewOutcomes();
       const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
-      const application = await ensureApplicationCreated(values);
-      const response = await api.post<{ id: string }>(
-        "/application-reviews",
-        buildReviewPayload(application.id, values, "SAVE_DRAFT"),
+      const response = await api.post<CertificationBodyCapabilityEvaluation>(
+        "/application-reviews/capability-precheck",
+        {
+          standard_names: values.standard_names ?? [],
+          industry_scopes: values.industry_scopes ?? [],
+        },
       );
-      const reviewId = response.data.id;
-      await queryClient.fetchQuery({
-        queryKey: ["application-review-capability", reviewId],
-        queryFn: async () => (
-          await api.get<CertificationBodyCapabilityEvaluation>(
-            `/application-reviews/${reviewId}/capability-evaluation`,
-          )
-        ).data,
-        staleTime: 5 * 60_000,
-      });
-      setDraftReviewId(reviewId);
-      void queryClient.invalidateQueries({ queryKey: ["certification-applications"] });
-      void queryClient.invalidateQueries({ queryKey: ["application-reviews"] });
-      message.success("Đã đối chiếu năng lực tổ chức chứng nhận.");
+      setCapabilityPrecheck({ signature: capabilitySelectionSignature, evaluation: response.data });
+      message.success("Đã đối chiếu năng lực từ cấu hình hiện hành; chưa tạo bản xem xét.");
     } catch (error) {
       handleCreationFailure(error);
     } finally {
@@ -2910,12 +2940,25 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const saveApplicationReviewDraft = async () => {
     try {
       setCreationError(null);
+      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
+      const reviewItems = values.review_items ?? defaultReviewItems;
+      const hasIncompleteOutcomes = !values.review_result
+        || reviewItems.length === 0
+        || reviewItems.some((item) => !item?.result);
+      if (hasIncompleteOutcomes) {
+        const localDraftKey = savedApplication?.id ?? values.existing_application_id ?? "new";
+        localReviewDraftsRef.current.set(localDraftKey, cloneLocalReviewDraftValue(values));
+        setLocalReviewDraftSaved(true);
+        message.info("Bản nháp chưa đủ kết quả được giữ trong phiên màn hình này; chưa lưu lên máy chủ.");
+        return;
+      }
       await validateReviewOutcomes();
       setCreationSubmitting(true);
-      const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       const response = await api.post<{ id: string }>("/application-reviews", buildReviewPayload(application.id, values, "SAVE_DRAFT"));
       setDraftReviewId(response.data.id);
+      localReviewDraftsRef.current.delete(application.id);
+      setLocalReviewDraftSaved(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
@@ -4732,6 +4775,15 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                         </div>
 
                         <div className="span-2">
+                          {localReviewDraftSaved ? (
+                            <Alert
+                              className="application-review-local-draft-notice"
+                              message="Bản nháp cục bộ chưa lưu máy chủ"
+                              description="Nội dung chỉ được giữ trong phiên màn hình hiện tại. Nếu tải lại trang hoặc đóng ứng dụng, bản nháp này sẽ mất."
+                              showIcon
+                              type="info"
+                            />
+                          ) : null}
                           <Card
                             className="cb-capability-compact"
                             size="small"
@@ -4742,17 +4794,20 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                               </Tag>
                             ) : null}
                           >
-                            {!activeCapabilityReviewId ? (
+                            {!activeCapabilityReviewId && !capabilityEvaluation ? (
                               <div className="cb-capability-empty">
                                 <Text type="secondary">Đối chiếu theo tiêu chuẩn + IAF trước khi gửi reviewer.</Text>
                                 <Button loading={creationSubmitting} onClick={() => void checkCertificationBodyCapability()} size="small" type="primary">
                                   Đối chiếu
                                 </Button>
                               </div>
-                            ) : capabilityEvaluationQuery.isLoading ? (
+                            ) : activeCapabilityReviewId && capabilityEvaluationQuery.isLoading && capabilityPrecheck?.signature !== capabilitySelectionSignature ? (
                               <Skeleton active paragraph={{ rows: 1 }} />
                             ) : capabilityEvaluation ? (
                               <>
+                                {capabilityPrecheck?.signature === capabilitySelectionSignature ? (
+                                  <Text className="cb-capability-precheck-note" type="secondary">Đối chiếu chỉ đọc theo lựa chọn hiện tại; chưa lưu bản xem xét.</Text>
+                                ) : null}
                                 <div className="cb-capability-rows">
                                   {capabilitySummaryRows.map((row) => (
                                     <div className="cb-capability-row" key={`${row.program_code}:${row.program_name}`}>

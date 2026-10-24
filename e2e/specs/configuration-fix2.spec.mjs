@@ -211,7 +211,7 @@ test('competence matrix, summary and filters use the existing records', async ({
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('Cao su');
   await expect(page.getByText('1 cấu hình · 1 lĩnh vực IAF', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Bộ lọc nâng cao', exact: true }).click();
+  await page.getByText('Bộ lọc nâng cao', { exact: true }).click();
   await page.getByRole('textbox', { name: 'Tìm năng lực', exact: true }).fill('');
   await selectOption(page, 'Lọc theo hiệu lực', 'Hết hạn trong 30 ngày');
   await expect(page.getByText('1 cấu hình · 1 lĩnh vực IAF', { exact: true })).toBeVisible();
@@ -241,6 +241,7 @@ test('competence add and matrix edit keep exact edition, IAF and validity payloa
   await expect(page.locator('.ant-select-dropdown:visible').getByText('IAF 12 · Hóa chất, sản phẩm hóa chất và sợi', { exact: true })).toBeVisible();
   await iafInput.press('Enter');
   await expect(create.getByRole('button', { name: 'Lưu 1 lĩnh vực IAF', exact: true })).toBeVisible();
+  await iafInput.press('Escape');
   await quality(page, testInfo, 'capability-add');
   await create.getByRole('button', { name: 'Lưu 1 lĩnh vực IAF', exact: true }).click();
   await expect(create).not.toBeVisible();

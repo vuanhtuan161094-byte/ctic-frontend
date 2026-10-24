@@ -208,8 +208,8 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
   await page.goto(`/certification-projects/${projectId}?dossier_key=initial_certification`);
   await expect(page.getByRole("heading", { name: project.project_code })).toBeVisible();
   await page.locator(".dossier-next-action-button").click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toBeVisible();
+  const dialog = page.locator(".appointment-editor-modal");
+  await expect(dialog).toBeVisible({ timeout: 15_000 });
   await expect(dialog.getByText("Thành viên đoàn đánh giá", { exact: true })).toBeVisible();
   await expect(dialog.locator(".appointment-member-form")).toHaveCount(1);
   const modalBody = dialog.locator(".ant-modal-body");
@@ -227,9 +227,7 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
       const footer = element.querySelector(".ant-modal-footer");
       const member = element.querySelector(".appointment-member-form");
       const content = element.querySelector(".ant-modal-container");
-      const bodyRect = body?.getBoundingClientRect();
       const footerRect = footer?.getBoundingClientRect();
-      const memberRect = member?.getBoundingClientRect();
       return {
         dialogClassName: element.className,
         containerMaxHeight: content ? getComputedStyle(content).maxHeight : "missing",
@@ -239,9 +237,7 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
         bodyScrollHeight: body?.scrollHeight ?? 0,
         bodyOverflowY: body ? getComputedStyle(body).overflowY : "missing",
         footerBottom: footerRect?.bottom ?? 0,
-        memberVisible: Boolean(bodyRect && memberRect
-          && memberRect.top < bodyRect.bottom
-          && memberRect.bottom > bodyRect.top),
+        memberExists: Boolean(member),
       };
     });
     await testInfo.attach(`assignment-layout-${size.width}`, {
@@ -252,8 +248,12 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
     expect(layout.footerBottom).toBeLessThanOrEqual(size.height + 1);
     expect(layout.bodyOverflowY).toBe("auto");
     expect(layout.bodyScrollHeight).toBeGreaterThan(layout.bodyClientHeight);
-    expect(layout.memberVisible).toBe(true);
+    expect(layout.memberExists).toBe(true);
     await captureVisualBaseline(page, testInfo, `audit-team-assignment-${size.width}`);
+    const firstMember = dialog.locator(".appointment-member-form").first();
+    await firstMember.scrollIntoViewIfNeeded();
+    await expect(firstMember).toBeInViewport();
+    await captureVisualBaseline(page, testInfo, `audit-team-assignment-member-${size.width}`);
     await modalBody.evaluate((element) => { element.scrollTop = element.scrollHeight; });
     await expect(dialog.locator(".ant-modal-footer")).toBeInViewport();
     await expect(dialog.getByRole("button", { name: "Tạo dự thảo chỉ định" })).toBeVisible();

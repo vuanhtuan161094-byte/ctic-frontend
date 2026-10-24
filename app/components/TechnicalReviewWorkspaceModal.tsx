@@ -755,7 +755,7 @@ export default function TechnicalReviewWorkspaceModal({
       title: "Thao tác",
       key: "actions",
       align: "right",
-      width: 360,
+      width: 400,
       render: (_value, item) => {
         const status = normalize(item.status);
         const currentItemPending = itemMutation.isPending

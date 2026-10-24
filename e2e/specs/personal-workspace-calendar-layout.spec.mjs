@@ -160,7 +160,7 @@ test("personal calendar keeps events readable and navigable at desktop and mobil
   await expect(page.locator(".my-calendar-agenda-row")).toHaveCount(12);
   await captureVisualBaseline(page, testInfo, `personal-calendar-agenda-${testInfo.project.name}`, { fullPage: false });
 
-  await expect(page.getByRole("button", { name: "Mở" }).first()).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Xem lịch đánh giá" }).first()).toBeEnabled();
   expect(writes).toEqual([]);
   runtime.assertClean();
 });

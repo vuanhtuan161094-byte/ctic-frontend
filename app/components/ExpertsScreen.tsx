@@ -1011,13 +1011,11 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
   const [expertPage, setExpertPage] = useState(1);
   const [selectedExpertId, setSelectedExpertId] = useState<string | null>(null);
   const [activeExpertTab, setActiveExpertTab] = useState("profile");
-  const [mobileSectionOpen, setMobileSectionOpen] = useState(false);
   const [competencyCardPagination, setCompetencyCardPagination] = useState<{ expertId: string | null; page: number }>({ expertId: null, page: 1 });
   const [detailCardPagination, setDetailCardPagination] = useState<{ expertId: string | null; tab: string; page: number }>({ expertId: null, tab: "", page: 1 });
   const openExpertProfile = (expertId: string | null) => {
     setSelectedExpertId(expertId);
     setActiveExpertTab("profile");
-    setMobileSectionOpen(false);
     setCompetencyCardPagination({ expertId, page: 1 });
     setDetailCardPagination({ expertId, tab: "", page: 1 });
   };
@@ -2328,9 +2326,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
             <Select
               aria-label="Mục hồ sơ chuyên gia"
               className="expert-detail-mobile-select"
-              onChange={(tab) => { setActiveExpertTab(tab); setMobileSectionOpen(false); }}
-              onOpenChange={setMobileSectionOpen}
-              open={mobileSectionOpen}
+              onChange={setActiveExpertTab}
               options={[
                 { value: "profile", label: "Hồ sơ cá nhân" },
                 { value: "competencies", label: `Chương trình & lĩnh vực (${selectedExpert.competencies.length})` },

@@ -211,7 +211,11 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const customerAccessQuery = useQuery({
     enabled: Boolean(selectedCustomerId && isAdmin),
     queryKey: ["customers", selectedCustomerId, "user-access"],
-    queryFn: async () => (await api.get<CustomerUserAccess[]>(`/customers/${selectedCustomerId}/user-access`)).data,
+    queryFn: async () => (await api.get<CustomerUserAccess[]>(
+      `/customers/${selectedCustomerId}/user-access`,
+      { signal: AbortSignal.timeout(15_000) },
+    )).data,
+    retry: false,
   });
 
   const customerAccess = customerAccessQuery.data ?? [];
@@ -626,11 +630,20 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                   </Button>
                 }
               >
-                <List
-                  loading={customerAccessQuery.isLoading}
-                  dataSource={customerAccess}
-                  locale={{ emptyText: <div className="customer-empty-inline"><TeamOutlined /><Text type="secondary">Chưa có tài khoản khách hàng</Text></div> }}
-                  renderItem={(access) => {
+                {customerAccessQuery.isError ? (
+                  <Alert
+                    showIcon
+                    type="error"
+                    message="Không thể tải danh sách tài khoản Portal"
+                    description="Hệ thống chưa xác nhận được tài khoản. Thử tải lại trước khi thay đổi quyền truy cập."
+                    action={<Button loading={customerAccessQuery.isFetching} onClick={() => void customerAccessQuery.refetch()} size="small">Thử tải lại</Button>}
+                  />
+                ) : (
+                  <List
+                    loading={customerAccessQuery.isLoading}
+                    dataSource={customerAccess}
+                    locale={{ emptyText: <div className="customer-empty-inline"><TeamOutlined /><Text type="secondary">Chưa có tài khoản khách hàng</Text></div> }}
+                    renderItem={(access) => {
                     const active = normalize(access.status) === "active";
                     const accountActive = normalize(access.user.status || "active") === "active";
                     const blockLastRevoke = active && activePortalAccessCount <= 1;
@@ -680,8 +693,9 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
                         />
                       </List.Item>
                     );
-                  }}
-                />
+                    }}
+                  />
+                )}
               </Card>
             ) : null}
 

@@ -247,11 +247,31 @@ export function CertificationAuditWorkspaceView({
 
   useEffect(() => {
     const navigation = sectionNavigationRef.current;
-    if (!navigation || navigation.scrollWidth <= navigation.clientWidth) return;
-    navigation.querySelector<HTMLButtonElement>('[aria-current="page"]')?.scrollIntoView({
-      block: "nearest",
-      inline: "nearest",
-    });
+    if (!navigation) return;
+
+    let frame = 0;
+    let active = true;
+    const alignSelectedSection = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (!active) return;
+
+      const selected = navigation.querySelector<HTMLButtonElement>('[aria-current="page"]');
+      if (!selected) return;
+
+        selected.scrollIntoView({ block: "nearest", inline: "nearest" });
+      });
+    };
+
+    alignSelectedSection();
+    window.addEventListener("resize", alignSelectedSection);
+    void document.fonts?.ready.then(alignSelectedSection);
+
+    return () => {
+      active = false;
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", alignSelectedSection);
+    };
   }, [section]);
 
   const primaryAction: ProjectedAction | null = serverAction && !["execution", "findings"].includes(section)

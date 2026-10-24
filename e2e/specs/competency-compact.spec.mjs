@@ -80,6 +80,16 @@ async function selectIaf(page, code) {
   await page.locator('.ant-select-item-option').filter({ hasText: `IAF ${code} —` }).click();
 }
 
+async function chooseMobileOption(page, label, useTouch) {
+  const option = page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: label });
+  await expect(option).toBeVisible();
+  if (!useTouch) {
+    await option.click();
+    return;
+  }
+  await option.tap();
+}
+
 test('compact desktop, canonical multi-IAF and two primary roles', async ({ page }, info) => {
   const h = await fixture(page);
   await page.goto('/resources/experts');
@@ -267,8 +277,9 @@ test('mobile expert development cards keep training and monitoring actions', asy
   const h = await fixture(page, { withDevelopment: true });
   await openAdmin(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('combobox', { name: 'Mục hồ sơ chuyên gia' }).click();
-  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Đào tạo & giám sát' }).click();
+  const expertSection = page.getByRole('combobox', { name: 'Mục hồ sơ chuyên gia' });
+  await expertSection.click();
+  await chooseMobileOption(page, 'Đào tạo & giám sát', info.project.name === 'mobile-390x844');
   await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
 
   const development = page.locator('.expert-development-stack');
@@ -280,8 +291,9 @@ test('mobile expert development cards keep training and monitoring actions', asy
   await expect(training.locator('.cmp-responsive-card').getByRole('button', { name: 'Hủy' })).toBeVisible();
   await page.screenshot({ path: info.outputPath('expert-training-mobile.png') });
 
-  await page.getByRole('combobox', { name: 'Mục đào tạo và giám sát' }).click();
-  await page.locator('.ant-select-dropdown:visible .ant-select-item-option').filter({ hasText: 'Giám sát F.12' }).click();
+  const developmentSection = page.getByRole('combobox', { name: 'Mục đào tạo và giám sát' });
+  await developmentSection.click();
+  await chooseMobileOption(page, 'Giám sát F.12', info.project.name === 'mobile-390x844');
   await expect(page.locator('.ant-select-dropdown:visible')).toHaveCount(0);
   const monitoring = development.getByRole('tabpanel', { name: /Giám sát F.12/ }).locator('.expert-development-responsive');
   await expect(monitoring.locator('.cmp-data-table--responsive')).toBeHidden();
