@@ -903,7 +903,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             { key: "customer-documents", icon: <FileDoneOutlined />, label: "Tài liệu" },
             { key: "customer-results", icon: <FileDoneOutlined />, label: "Kết quả" },
             { key: "certificates", icon: <SafetyCertificateOutlined />, label: "Chứng chỉ" },
-            { key: "governance-cases", icon: <FileSearchOutlined />, label: "Yêu cầu, khiếu nại & kháng nghị" },
+            { key: "governance-cases", className: "main-menu-label--governance", icon: <FileSearchOutlined />, label: "Yêu cầu, khiếu nại & kháng nghị", title: "Yêu cầu, khiếu nại & kháng nghị" },
             { key: "notifications", icon: <NotificationOutlined />, label: "Thông báo" },
           ],
         },

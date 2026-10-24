@@ -431,7 +431,7 @@ interface ReviewItemForm {
   item_code: string;
   content_vi: string;
   content_en?: string;
-  result: "YES" | "NO" | "NA";
+  result?: "YES" | "NO" | "NA";
   comment?: string;
 }
 
@@ -681,73 +681,73 @@ const defaultReviewItems: ReviewItemForm[] = [
     item_code: "REGISTRATION_CLEAR",
     content_vi: "Phiếu đăng ký cung cấp đủ thông tin, rõ ràng",
     content_en: "The registration form provides sufficient and clear information",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "DOCUMENTS_COMPLETE",
     content_vi: "Khách hàng cung cấp đủ các tài liệu kèm theo đăng ký chứng nhận",
     content_en: "The customer provides all documents attached to the certification registration",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "AUDIT_ADDRESS_CONFIRMED",
     content_vi: "Địa điểm đánh giá, hoạt động và nhân sự tại từng địa điểm đã được xác định",
     content_en: "Audit addresses, activities and personnel at each site have been identified",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "AUDIT_FIELD_CONFIRMED",
     content_vi: "Lĩnh vực đánh giá, mã IAF và mã ISIC đã được xác định",
     content_en: "Audit field, IAF code and ISIC code have been identified",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "PROGRAMME_SCOPE_CONFIRMED",
     content_vi: "Chuẩn mực và phạm vi đăng ký thuộc chương trình mà tổ chức chứng nhận có khả năng cung cấp",
     content_en: "The requested standard and scope are within the certification body capability",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "CERTIFICATION_TYPE_CONFIRMED",
     content_vi: "Loại hình chứng nhận và thông tin chu kỳ/chứng chỉ trước đó đã được xác định",
     content_en: "Certification type and previous certification-cycle information have been determined",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "PERSONNEL_AND_SITES_CONFIRMED",
     content_vi: "Nhân sự hiệu dụng, ca làm việc và điều kiện nhiều địa điểm đã được xem xét",
     content_en: "Effective personnel, shifts and multi-site conditions have been reviewed",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "OUTSOURCING_CONFIRMED",
     content_vi: "Các quá trình thuê ngoài và nguồn bên ngoài ảnh hưởng đến sự phù hợp đã được xem xét",
     content_en: "Outsourced processes and relevant external providers have been reviewed",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "CB_CAPABILITY_CONFIRMED",
     content_vi: "Năng lực của tổ chức chứng nhận đã được đối chiếu theo chương trình và mã IAF",
     content_en: "Certification body capability has been checked against the programme and IAF scope",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "IMPARTIALITY_CONFIRMED",
     content_vi: "Đã xem xét tính khách quan, hoạt động tư vấn và xung đột lợi ích",
     content_en: "Impartiality, consultancy and conflict-of-interest risks have been reviewed",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "RESOURCE_AND_DATE_CONFIRMED",
     content_vi: "Nguồn lực và thời gian đánh giá dự kiến có khả năng đáp ứng",
     content_en: "Resources and proposed audit dates can be accommodated",
-    result: "YES",
+    result: undefined,
   },
   {
     item_code: "MANDAY_CONFIRMED",
     content_vi: "Ngày công đánh giá đã được tính toán, điều chỉnh và giải trình",
     content_en: "Audit man-days have been calculated, adjusted and justified",
-    result: "YES",
+    result: undefined,
   },
 ];
 
@@ -2141,9 +2141,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       review_items: latestReview?.review_items_json
         ? (() => { try { return JSON.parse(latestReview.review_items_json) as ReviewItemForm[]; } catch { return defaultReviewItems; } })()
         : defaultReviewItems,
-      review_result: (latestReview?.result as ProjectCreationValues["review_result"]) ?? "ACCEPTED",
-      review_comment: latestReview?.comment ?? latestReview?.approver_comment ?? "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
-      conclusion: latestReview?.conclusion ?? "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
+      review_result: (latestReview?.result as ProjectCreationValues["review_result"]) ?? undefined,
+      review_comment: latestReview?.comment ?? latestReview?.approver_comment ?? undefined,
+      conclusion: latestReview?.conclusion ?? undefined,
       reviewer_id: latestReview?.reviewer_id ?? undefined,
       client_code: latestReview?.client_code ?? application.customers?.customer_code,
       proposed_auditor_id: latestReview?.proposed_auditor_id ?? plannedAuditorIds[0] ?? undefined,
@@ -2320,9 +2320,9 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         certificate_languages: ["Tiếng Việt", "Tiếng Anh"],
         declaration_accepted: false,
         review_items: defaultReviewItems,
-        review_result: "ACCEPTED",
-        review_comment: "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
-        conclusion: "Tài liệu và hồ sơ khách hàng cung cấp đạt yêu cầu.",
+        review_result: undefined,
+        review_comment: undefined,
+        conclusion: undefined,
         risk_level: "MEDIUM",
         ems_complexity: "MEDIUM",
         ohsms_complexity: "MEDIUM",
@@ -2770,7 +2770,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     application_id: applicationId,
     submission_action: submissionAction,
     review_date: dayjs().format("YYYY-MM-DD"),
-    result: values.review_result ?? "ACCEPTED",
+    result: values.review_result,
     comment: values.review_comment?.trim() || undefined,
     review_items: values.review_items ?? defaultReviewItems,
     audit_field: values.audit_field?.trim() || values.certification_scope?.trim(),
@@ -2855,6 +2855,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     try {
       setCreationError(null);
       setCreationSubmitting(true);
+      await validateReviewOutcomes();
       const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
       const response = await api.post<{ id: string }>(
@@ -2886,6 +2887,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
     try {
       setCreationError(null);
       setValidationIssues([]);
+      await validateReviewOutcomes();
       await validateCurrentStep(1);
       setCreationSubmitting(true);
       const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
@@ -2908,6 +2910,7 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
   const saveApplicationReviewDraft = async () => {
     try {
       setCreationError(null);
+      await validateReviewOutcomes();
       setCreationSubmitting(true);
       const values = wizardForm.getFieldsValue(true) as ProjectCreationValues;
       const application = await ensureApplicationCreated(values);
@@ -2924,6 +2927,26 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
       setCreationSubmitting(false);
     }
   };
+
+  async function validateReviewOutcomes() {
+    const items = (wizardForm.getFieldValue("review_items") as ReviewItemForm[] | undefined) ?? [];
+    const errors = [
+      ...items.flatMap((item, index) => item?.result ? [] : [{
+        name: ["review_items", index, "result"],
+        errors: ["Chọn kết quả xem xét cho tiêu chí này."],
+      }]),
+      ...(!wizardForm.getFieldValue("review_result") ? [{
+        name: ["review_result"],
+        errors: ["Chọn kết quả xem xét đơn đăng ký."],
+      }] : []),
+    ];
+    if (errors.length) throw { errorFields: errors };
+
+    await wizardForm.validateFields([
+      "review_result",
+      ...items.map((_, index) => ["review_items", index, "result"]),
+    ]);
+  }
 
   const submitWorkflowAction = async (action: "RETURN" | "APPROVE") => {
     const reviewId = latestWorkflowReview?.id;

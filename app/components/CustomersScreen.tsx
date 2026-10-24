@@ -367,7 +367,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       title: "Mã khách hàng",
       dataIndex: "customer_code",
       key: "customer_code",
-      width: 145,
+      width: 125,
       render: (value: string, record) => (
         <button className="project-code-link" onClick={() => setSelectedCustomerId(record.id)} type="button">
           {value}
@@ -377,9 +377,10 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
     {
       title: "Tổ chức",
       key: "organization",
+      width: 225,
       render: (_, record) => (
         <div className="customer-name-cell">
-          <strong>{record.company_name}</strong>
+          <strong title={record.company_name}>{record.company_name}</strong>
           <small>{record.tax_code ? `${taxIdentifierLabel(record.country_code)} ${record.tax_code}` : `Chưa cập nhật ${taxIdentifierLabel(record.country_code).toLowerCase()}`}</small>
         </div>
       ),
@@ -388,6 +389,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       title: "Liên hệ",
       key: "contact",
       responsive: ["lg"],
+      width: 240,
       render: (_, record) => (
         <div className="customer-contact-cell">
           <span><PhoneOutlined /> {record.phone || "Chưa cập nhật"}</span>
@@ -398,7 +400,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
     {
       title: "Hồ sơ chứng nhận",
       key: "projects",
-      width: 150,
+      width: 120,
       align: "center",
       render: (_, record) => <Tag icon={<FolderOpenOutlined />}>{projectsByCustomer.get(record.id)?.length ?? 0} hồ sơ</Tag>,
     },
@@ -406,7 +408,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
-      width: 155,
+      width: 135,
       render: (value: string | null) => <CustomerStatusTag status={value} />,
     },
     {
@@ -414,7 +416,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
       dataIndex: "updated_at",
       key: "updated_at",
       responsive: ["xl"],
-      width: 110,
+      width: 100,
       render: (value: string) => dayjs(value).format("DD/MM/YYYY"),
     },
     {
@@ -559,7 +561,7 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
               onChange: setCustomerPage,
             }}
             rowKey="id"
-            scroll={{ x: 920 }}
+            scroll={{ x: 1035 }}
           />
         )}
       </Card>

@@ -231,7 +231,19 @@ input { font: inherit; }
   white-space: nowrap;
 }
 .side-brand-copy strong { font-size: 14px; }
-.side-brand-copy small { font-size: 12px; margin-top: 2px; opacity: .86; }
+.side-brand-copy small {
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.2;
+  margin-top: 2px;
+  max-height: 2.4em;
+  opacity: .86;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 
 .main-menu { border-inline-end: 0 !important; flex: 1; padding: 8px 7px 0; }
 .main-menu .ant-menu-item-group-title { color: var(--cmp-navigation-group-text) !important; font-size: 10px; letter-spacing: .08em; padding-top: 18px !important; text-transform: uppercase; }
@@ -6984,8 +6996,18 @@ input { font: inherit; }
   gap: 2px;
 }
 
+.customer-name-cell strong {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .customer-contact-cell {
   gap: 2px;
+}
+
+.customer-contact-cell small {
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .customer-name-cell small,
