@@ -80,6 +80,10 @@ interface CertificateReport {
 interface CertificateRecord {
   certificate_series?: { project_id?: string };
   id: string;
+  fixture_only?: boolean;
+  legal_effect?: boolean;
+  public_verification_enabled?: boolean;
+  preview_watermark?: string | null;
   verification_code?: string | null;
   technical_review_id: string;
   certificate_series_id?: string | null;
@@ -218,6 +222,10 @@ function certificateStandard(certificate: CertificateRecord) {
     ?? "Chưa cập nhật tiêu chuẩn";
 }
 
+function isFixtureCertificatePreview(certificate: CertificateRecord | null | undefined) {
+  return Boolean(certificate && (certificate.fixture_only === true || certificate.legal_effect === false));
+}
+
 async function optionalRequest<T>(request: Promise<{ data: T }>, fallback: T): Promise<T> {
   try {
     const response = await request;
@@ -344,9 +352,12 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
       dataIndex: "cert_number",
       key: "cert_number",
       render: (value: string, record) => (
-        <Button className="certificate-code-button" onClick={() => record.certificate_series?.project_id && onOpenPath ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`) : setSelectedCertificateId(record.id)} type="link">
-          {value}
-        </Button>
+        <Space align="start" className="certificate-number-cell" orientation="vertical" size={0}>
+          <Button className="certificate-code-button" onClick={() => record.certificate_series?.project_id && onOpenPath ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`) : setSelectedCertificateId(record.id)} type="link">
+            {value}
+          </Button>
+          {isFixtureCertificatePreview(record) ? <Tag color="gold">FIXTURE_10Y · BẢN MÔ PHỎNG</Tag> : null}
+        </Space>
       ),
     },
     {
@@ -410,15 +421,18 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
   const responsiveCertificateCards: ResponsiveCardItem[] = pageCertificates.map((record) => ({
     key: record.id,
     title: (
-      <Button
-        className="certificate-code-button"
-        onClick={() => record.certificate_series?.project_id && onOpenPath
-          ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`)
-          : setSelectedCertificateId(record.id)}
-        type="link"
-      >
-        {record.cert_number}
-      </Button>
+      <Space align="start" className="certificate-number-cell" orientation="vertical" size={0}>
+        <Button
+          className="certificate-code-button"
+          onClick={() => record.certificate_series?.project_id && onOpenPath
+            ? onOpenPath(`/certifications/${encodeURIComponent(record.certificate_series.project_id)}/certificates/${encodeURIComponent(record.id)}`)
+            : setSelectedCertificateId(record.id)}
+          type="link"
+        >
+          {record.cert_number}
+        </Button>
+        {isFixtureCertificatePreview(record) ? <Tag color="gold">FIXTURE_10Y · BẢN MÔ PHỎNG</Tag> : null}
+      </Space>
     ),
     status: <CertificateStatusTag status={record.status} />,
     fields: [
@@ -460,9 +474,13 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
   const decision = selectedCertificate?.technical_reviews?.certification_decision;
   const notification = selectedCertificate?.technical_reviews?.audit_result_notification;
   const report = selectedCertificate?.technical_reviews?.reports;
-  const certificatePdf = workspaceQuery.data?.documents.find((file) => file.document_type === "certificate_pdf")
-    ?? workspaceQuery.data?.documents[0];
-  const canUsePublicLinks = normalize(selectedCertificate?.status) === "active"
+  const selectedCertificateIsFixturePreview = isFixtureCertificatePreview(selectedCertificate);
+  const certificateDocuments = selectedCertificateIsFixturePreview ? [] : workspaceQuery.data?.documents ?? [];
+  const certificatePdf = certificateDocuments.find((file) => file.document_type === "certificate_pdf")
+    ?? certificateDocuments[0];
+  const canUsePublicLinks = !selectedCertificateIsFixturePreview
+    && selectedCertificate?.public_verification_enabled !== false
+    && normalize(selectedCertificate?.status) === "active"
     && Boolean(selectedCertificate?.verification_code)
     && Boolean(certificatePdf);
   const publicPdfUrl = selectedCertificate?.verification_code
@@ -481,6 +499,16 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
         </div>
         <Button icon={<ReloadOutlined />} loading={certificatesQuery.isFetching} onClick={() => void certificatesQuery.refetch()}>Làm mới</Button>
       </div>
+
+      {certificates.some(isFixtureCertificatePreview) ? (
+        <Alert
+          className="certificate-fixture-warning"
+          title="Đang hiển thị dữ liệu mô phỏng FIXTURE_10Y"
+          description="Các bản xem trước này không phải chứng chỉ đã cấp, không có giá trị chứng nhận và không được xác minh công khai."
+          showIcon
+          type="warning"
+        />
+      ) : null}
 
       <section className="certificate-summary-grid" aria-label="Tổng hợp chứng chỉ">
         <Card><Statistic prefix={<SafetyCertificateOutlined />} title="Tổng chứng chỉ" value={certificates.length} /></Card>
@@ -587,6 +615,15 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
                   <CertificateStatusTag status={selectedCertificate.status} />
                 </div>
               </div>
+              {selectedCertificateIsFixturePreview ? (
+                <Alert
+                  className="certificate-fixture-warning"
+                  title={selectedCertificate.preview_watermark ?? "FIXTURE_10Y — BẢN MÔ PHỎNG, KHÔNG CÓ GIÁ TRỊ CHỨNG NHẬN"}
+                  description="Không mở PDF chính thức hoặc đường dẫn tra cứu công khai từ dữ liệu mô phỏng."
+                  showIcon
+                  type="warning"
+                />
+              ) : null}
               <Descriptions column={2} size="small">
                 <Descriptions.Item label="Tổ chức" span={2}>{certificateOrganization(selectedCertificate)}</Descriptions.Item>
                 <Descriptions.Item label="Tiêu chuẩn">{certificateStandard(selectedCertificate)}</Descriptions.Item>
@@ -632,10 +669,10 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
             <section className="certificate-detail-section certificate-document-section">
               <div className="certificate-section-heading">
                 <div><strong>Tệp chứng chỉ</strong><span>Các phiên bản hiện hành đang được lưu trong hệ thống</span></div>
-                <Tag>{workspaceQuery.data?.documents.length ?? 0} tệp</Tag>
+                <Tag>{certificateDocuments.length} tệp</Tag>
               </div>
               <List
-                dataSource={workspaceQuery.data?.documents ?? []}
+                dataSource={certificateDocuments}
                 locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tệp chứng chỉ" /> }}
                 renderItem={(file) => (
                   <List.Item actions={[<Button key="open" loading={openingDocumentId === file.id} onClick={() => void openDocument(file)} size="small">Mở tệp</Button>]}>

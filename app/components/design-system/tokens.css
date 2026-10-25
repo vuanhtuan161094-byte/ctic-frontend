@@ -195,7 +195,10 @@
   .cmp-responsive-card-list { display: grid; gap: var(--cmp-space-3); }
   .cmp-next-action-bar,
   .cmp-search-toolbar { align-items: stretch; flex-direction: column; }
-  .cmp-search-toolbar__search { max-width: none; }
+  .cmp-search-toolbar__search { max-width: none; width: 100%; }
+  .cmp-search-toolbar__search.ant-input-search { display: flex; width: 100%; }
+  .cmp-search-toolbar__search.ant-input-search > .ant-input-affix-wrapper { flex: 1 1 auto !important; min-width: 0; width: auto !important; }
+  .cmp-search-toolbar__search.ant-input-search > .ant-input-search-btn { flex: 0 0 40px !important; width: 40px !important; }
   .cmp-next-action-bar__actions > * { flex: 1 1 auto; }
   .cmp-section-header { align-items: flex-start; flex-direction: column; }
 }

@@ -2167,9 +2167,26 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
 
   const selectedCompetency = competencyGovernanceQuery.data;
   const experts = expertsQuery.data ?? [];
-  const expertPageCount = Math.max(1, Math.ceil(experts.length / 10));
+  const normalizedExpertSearch = search.trim().toLocaleLowerCase("vi");
+  const filteredExperts = experts.filter((expert) => {
+    const matchesStatus = status === "all" || normalize(expert.status) === normalize(status);
+    const searchable = [
+      expert.full_name,
+      expert.employee_code,
+      expert.email,
+      expert.phone,
+      expert.organization,
+      expert.job_title,
+      expert.user_account?.username,
+      expert.user_account?.email,
+      expert.user_account?.full_name,
+    ].filter(Boolean).join(" ").toLocaleLowerCase("vi");
+    return matchesStatus && (!normalizedExpertSearch || searchable.includes(normalizedExpertSearch));
+  });
+  const expertPageCount = Math.max(1, Math.ceil(filteredExperts.length / 10));
   const visibleExpertPage = Math.min(expertPage, expertPageCount);
-  const visibleExperts = experts.slice((visibleExpertPage - 1) * 10, visibleExpertPage * 10);
+  const visibleExperts = filteredExperts.slice((visibleExpertPage - 1) * 10, visibleExpertPage * 10);
+  const expertEmptyDescription = experts.length ? "Không tìm thấy chuyên gia phù hợp" : "Chưa có hồ sơ chuyên gia";
   const accountOptions = (accountOptionsQuery.data ?? []).filter(
     (account) => account.available || account.id === selectedExpert?.user_id,
   ).map((account) => ({
@@ -2247,8 +2264,8 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                   </article>
                 ))}
               </div>
-            ) : <Empty description="Chưa có hồ sơ chuyên gia" />}
-            {experts.length > 10 ? (
+            ) : <Empty description={expertEmptyDescription} />}
+            {filteredExperts.length > 10 ? (
               <Pagination
                 className="compact-mobile-pagination"
                 current={visibleExpertPage}
@@ -2257,7 +2274,7 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
                 responsive
                 showSizeChanger={false}
                 showTotal={(total) => `${total} chuyên gia`}
-                total={experts.length}
+                total={filteredExperts.length}
               />
             ) : null}
           </>
@@ -2265,9 +2282,9 @@ function ManagedExpertsScreen({ roles, currentUserId }: ExpertsScreenProps) {
           <Table
             columns={expertColumns}
             size="small"
-            dataSource={experts}
+            dataSource={filteredExperts}
             loading={expertsQuery.isLoading}
-            locale={{ emptyText: <Empty description="Chưa có hồ sơ chuyên gia" /> }}
+            locale={{ emptyText: <Empty description={expertEmptyDescription} /> }}
             pagination={{ pageSize: 10, showTotal: (total) => `${total} chuyên gia` }}
             rowKey="id"
             scroll={{ x: 1180 }}
