@@ -19,6 +19,7 @@ export const DOMAIN_STATUS_VOCABULARY: StatusVocabulary = {
     RETURNED: definition("Đã trả lại để bổ sung", "attention"), APPROVED: definition("Đã phê duyệt", "positive"),
   },
   reviewResult: {
+    DRAFT: definition("Chưa có kết quả", "neutral"),
     ACCEPTED: definition("Đủ điều kiện", "positive"), REJECTED: definition("Không đủ điều kiện", "critical"),
     NEED_MORE_INFO: definition("Cần thêm thông tin", "attention"),
   },

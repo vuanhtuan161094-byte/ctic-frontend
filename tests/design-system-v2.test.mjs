@@ -14,6 +14,7 @@ test("DomainStatusBadge requires a domain and resolves status within that domain
   assert.match(status, /interface DomainStatusBadgeProps \{[\s\S]*domain: StatusDomain;[\s\S]*code: string;/);
   assert.match(status, /DOMAIN_STATUS_VOCABULARY\[domain\]\[code\]/);
   assert.match(status, /applicationReview:[\s\S]*APPROVED: definition\("Đã phê duyệt", "positive"\)/);
+  assert.match(status, /reviewResult:[\s\S]*DRAFT: definition\("Chưa có kết quả", "neutral"\)/);
   assert.match(status, /quotation:[\s\S]*APPROVED: definition\("Đã duyệt", "positive"\)/);
   assert.match(types, /export type StatusDomain =/);
   assert.doesNotMatch(status, /const\s+APPROVED\s*=/);

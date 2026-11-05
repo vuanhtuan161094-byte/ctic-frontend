@@ -2949,21 +2949,26 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         const localDraftKey = savedApplication?.id ?? values.existing_application_id ?? "new";
         localReviewDraftsRef.current.set(localDraftKey, cloneLocalReviewDraftValue(values));
         setLocalReviewDraftSaved(true);
-        message.info("Bản nháp chưa đủ kết quả được giữ trong phiên màn hình này; chưa lưu lên máy chủ.");
-        return;
+      } else {
+        await validateReviewOutcomes();
       }
-      await validateReviewOutcomes();
       setCreationSubmitting(true);
       const application = await ensureApplicationCreated(values);
+      if (hasIncompleteOutcomes) {
+        localReviewDraftsRef.current.set(application.id, cloneLocalReviewDraftValue(values));
+      }
       const response = await api.post<{ id: string }>("/application-reviews", buildReviewPayload(application.id, values, "SAVE_DRAFT"));
       setDraftReviewId(response.data.id);
+      localReviewDraftsRef.current.delete(savedApplication?.id ?? values.existing_application_id ?? "new");
       localReviewDraftsRef.current.delete(application.id);
       setLocalReviewDraftSaved(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["certification-applications"] }),
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
       ]);
-      message.success("Đã lưu bản nháp Application Review.");
+      message.success(hasIncompleteOutcomes
+        ? "Đã lưu bản nháp thẩm xét; kết quả còn thiếu chưa được mặc định."
+        : "Đã lưu bản nháp Application Review.");
     } catch (error) {
       handleCreationFailure(error);
     } finally {

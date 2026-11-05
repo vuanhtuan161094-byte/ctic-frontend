@@ -52,23 +52,22 @@ test("organization capability check is read-only and runs before review persiste
   assert.doesNotMatch(precheck, /ensureApplicationCreated|validateReviewOutcomes|api\.post\("\/application-reviews"/);
 });
 
-test("incomplete review draft stays in the current UI session and is not sent to the API", async () => {
+test("incomplete review draft is durably sent to the API without a default outcome", async () => {
   const source = await readFile(reviewScreenUrl, "utf8");
   const start = source.indexOf("const saveApplicationReviewDraft = async () => {");
   const end = source.indexOf("async function validateReviewOutcomes()", start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   const draftSaver = source.slice(start, end);
-  const incompleteStart = draftSaver.indexOf("if (hasIncompleteOutcomes) {");
-  const incompleteEnd = draftSaver.indexOf("await validateReviewOutcomes()", incompleteStart);
-  assert.notEqual(incompleteStart, -1);
-  assert.notEqual(incompleteEnd, -1);
-  const incompleteBranch = draftSaver.slice(incompleteStart, incompleteEnd);
-  assert.match(incompleteBranch, /localReviewDraftsRef\.current\.set/);
-  assert.match(incompleteBranch, /setLocalReviewDraftSaved\(true\)/);
-  assert.match(incompleteBranch, /chưa lưu lên máy chủ/);
-  assert.match(incompleteBranch, /return;/);
-  assert.doesNotMatch(incompleteBranch, /ensureApplicationCreated|api\.post|ACCEPTED/);
+  assert.match(draftSaver, /if \(hasIncompleteOutcomes\) \{[\s\S]*?localReviewDraftsRef\.current\.set/);
+  assert.match(draftSaver, /api\.post<\{ id: string \}>\("\/application-reviews", buildReviewPayload\(application\.id, values, "SAVE_DRAFT"\)\)/);
+  assert.match(draftSaver, /kết quả còn thiếu chưa được mặc định/);
+  assert.doesNotMatch(draftSaver, /if \(hasIncompleteOutcomes\) \{[\s\S]*?return;/);
+  const payloadStart = source.indexOf("const buildReviewPayload = (");
+  const payloadEnd = source.indexOf("const ensureApplicationCreated =", payloadStart);
+  const payload = source.slice(payloadStart, payloadEnd);
+  assert.match(payload, /result: values\.review_result/);
+  assert.doesNotMatch(payload, /review_result\s*\?\?\s*["']ACCEPTED/);
   assert.match(source, /Bản nháp cục bộ chưa lưu máy chủ/);
 });
 
