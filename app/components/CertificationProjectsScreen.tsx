@@ -2967,8 +2967,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
         queryClient.invalidateQueries({ queryKey: ["application-reviews"] }),
       ]);
       message.success(hasIncompleteOutcomes
-        ? "Đã lưu bản nháp thẩm xét; kết quả còn thiếu chưa được mặc định."
-        : "Đã lưu bản nháp Application Review.");
+        ? "Đã lưu nháp. Hãy bổ sung các kết quả còn thiếu trước khi gửi thẩm xét."
+        : "Đã lưu nháp xem xét đơn đăng ký.");
     } catch (error) {
       handleCreationFailure(error);
     } finally {
@@ -4783,8 +4783,8 @@ export function CertificationProjectsScreen({ onOpenProject, mode = "projects", 
                           {localReviewDraftSaved ? (
                             <Alert
                               className="application-review-local-draft-notice"
-                              message="Bản nháp cục bộ chưa lưu máy chủ"
-                              description="Nội dung chỉ được giữ trong phiên màn hình hiện tại. Nếu tải lại trang hoặc đóng ứng dụng, bản nháp này sẽ mất."
+                              message="Có thay đổi chưa lưu"
+                              description="Nội dung này đang được giữ tạm trên màn hình. Hãy nhấn Lưu nháp trước khi rời trang."
                               showIcon
                               type="info"
                             />
