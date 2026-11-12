@@ -27,11 +27,11 @@ test("commercial cards preserve currency grouping and precise labels", () => {
   assert.match(cockpit, /cockpit\.commercial\.by_currency\.map/);
   assert.match(cockpit, /Pipeline/);
   assert.match(cockpit, /Đã lập tham chiếu hóa đơn/);
-  assert.match(cockpit, /không gọi contract value là revenue recognized/);
+  assert.match(cockpit, /Giá trị hợp đồng không đồng nghĩa với doanh thu đã ghi nhận/);
 });
 
 test("quotation UI cannot submit technical mandays", () => {
-  assert.match(cockpit, /Manday kỹ thuật.*backend.*Application Review APPROVED/s);
+  assert.match(cockpit, /Ngày công đánh giá được lấy từ kết quả xem xét đơn đã phê duyệt/);
   assert.doesNotMatch(cockpit, /name="technical_approved_mandays"/);
   assert.match(cockpit, /\/quotations\//);
 });
@@ -68,6 +68,6 @@ test("export uses the same server filters and authenticated API client", () => {
 
 test("resource analytics refuses to fabricate utilization percentage", () => {
   assert.match(cockpit, /utilization_percentage: null/);
-  assert.match(cockpit, /Không suy diễn utilization %/);
+  assert.match(cockpit, /Chưa tính tỷ lệ sử dụng/);
   assert.match(cockpit, /cockpit\.resource\.utilization_note/);
 });
