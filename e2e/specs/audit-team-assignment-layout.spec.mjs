@@ -207,6 +207,17 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
 
   await page.goto(`/certification-projects/${projectId}?dossier_key=initial_certification`);
   await expect(page.getByRole("heading", { name: project.project_code })).toBeVisible();
+  if (testInfo.project.name === "mobile-390x844") {
+    const info = await page.locator(".dossier-next-action").evaluate((alert) => {
+      const content = alert.querySelector(".ant-alert-content");
+      const action = alert.querySelector(".ant-alert-action");
+      return { contentWidth: content?.getBoundingClientRect().width ?? 0,
+        actionRight: action?.getBoundingClientRect().right ?? 0 };
+    });
+    expect(info.contentWidth, "Next-action explanation must remain readable").toBeGreaterThanOrEqual(200);
+    expect(info.actionRight, "Next-action button must remain inside the mobile viewport").toBeLessThanOrEqual(391);
+    await captureVisualBaseline(page, testInfo, "dossier-next-action-mobile", { fullPage: false });
+  }
   await page.locator(".dossier-next-action-button").click();
   const dialog = page.locator(".appointment-editor-modal");
   await expect(dialog).toBeVisible({ timeout: 15_000 });

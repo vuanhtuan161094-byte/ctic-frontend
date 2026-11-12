@@ -10237,3 +10237,40 @@ input { font: inherit; }
     white-space: normal;
   }
 }
+
+
+/* CMP UX-V10c — keep next-action message legible before opening F.04 on mobile.
+   An inline CTA previously reduced the message column to a few characters. */
+@media (max-width: 767px) {
+  .project-detail-screen .dossier-next-action.ant-alert {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .project-detail-screen .dossier-next-action .ant-alert-icon {
+    flex: 0 0 auto;
+  }
+  .project-detail-screen .dossier-next-action .ant-alert-content {
+    flex: 1 1 calc(100% - 44px);
+    max-width: 100%;
+    min-width: 0;
+  }
+  .project-detail-screen .dossier-next-action .ant-alert-action {
+    flex: 1 1 100%;
+    margin: 10px 0 0 0;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .project-detail-screen .dossier-next-action .ant-alert-action .ant-btn {
+    min-height: 40px;
+    height: auto;
+    white-space: normal;
+    width: 100%;
+  }
+  .project-detail-screen .dossier-next-action .ant-alert-message,
+  .project-detail-screen .dossier-next-action .ant-alert-description {
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+}
