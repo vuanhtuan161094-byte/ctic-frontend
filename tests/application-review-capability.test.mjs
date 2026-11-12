@@ -61,14 +61,14 @@ test("incomplete review draft is durably sent to the API without a default outco
   const draftSaver = source.slice(start, end);
   assert.match(draftSaver, /if \(hasIncompleteOutcomes\) \{[\s\S]*?localReviewDraftsRef\.current\.set/);
   assert.match(draftSaver, /api\.post<\{ id: string \}>\("\/application-reviews", buildReviewPayload\(application\.id, values, "SAVE_DRAFT"\)\)/);
-  assert.match(draftSaver, /kết quả còn thiếu chưa được mặc định/);
+  assert.match(draftSaver, /bổ sung các kết quả còn thiếu trước khi gửi thẩm xét/);
   assert.doesNotMatch(draftSaver, /if \(hasIncompleteOutcomes\) \{[\s\S]*?return;/);
   const payloadStart = source.indexOf("const buildReviewPayload = (");
   const payloadEnd = source.indexOf("const ensureApplicationCreated =", payloadStart);
   const payload = source.slice(payloadStart, payloadEnd);
   assert.match(payload, /result: values\.review_result/);
   assert.doesNotMatch(payload, /review_result\s*\?\?\s*["']ACCEPTED/);
-  assert.match(source, /Bản nháp cục bộ chưa lưu máy chủ/);
+  assert.match(source, /Có thay đổi chưa lưu/);
 });
 
 test("proposed experts are required only for IAF MD11 calculation and remain excluded from CB capability", async () => {
