@@ -49,15 +49,39 @@ export async function expectNoHorizontalOverflow(page) {
   const metrics = await page.evaluate(() => {
     const root = document.documentElement;
     const body = document.body;
-    return {
-      clientWidth: root.clientWidth,
-      scrollWidth: Math.max(root.scrollWidth, body?.scrollWidth ?? 0),
-    };
+    const clientWidth = root.clientWidth;
+    const scrollWidth = Math.max(root.scrollWidth, body?.scrollWidth ?? 0);
+    // Capture geometry only on failure; no text, credentials or form values leave the browser.
+    const offenders = scrollWidth > clientWidth + 1
+      ? Array.from(document.querySelectorAll("body *"))
+          .filter((node) => {
+            const style = getComputedStyle(node);
+            if (style.display === "none" || style.visibility === "hidden") return false;
+            const rect = node.getBoundingClientRect();
+            return rect.width > 0 && (rect.right > clientWidth + 1 || rect.left < -1);
+          })
+          .map((node) => {
+            const rect = node.getBoundingClientRect();
+            return {
+              tag: node.tagName.toLowerCase(),
+              className: typeof node.className === "string" ? node.className.slice(0, 100) : "",
+              parentClass: typeof node.parentElement?.className === "string" ? node.parentElement.className.slice(0, 60) : "",
+              left: Math.round(rect.left),
+              right: Math.round(rect.right),
+              width: Math.round(rect.width),
+              scrollWidth: node.scrollWidth,
+              clientWidth: node.clientWidth,
+            };
+          })
+          .sort((a, b) => b.right - a.right)
+          .slice(0, 14)
+      : [];
+    return { clientWidth, scrollWidth, offenders };
   });
 
   expect(
     metrics.scrollWidth,
-    `Horizontal overflow detected: scrollWidth=${metrics.scrollWidth}, clientWidth=${metrics.clientWidth}`,
+    `Horizontal overflow detected: scrollWidth=${metrics.scrollWidth}, clientWidth=${metrics.clientWidth}; offending geometry=${JSON.stringify(metrics.offenders)}`,
   ).toBeLessThanOrEqual(metrics.clientWidth + 1);
 }
 
