@@ -209,8 +209,8 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
   await expect(page.getByRole("heading", { name: project.project_code })).toBeVisible();
   if (testInfo.project.name === "mobile-390x844") {
     const info = await page.locator(".dossier-next-action").evaluate((alert) => {
-      const content = alert.querySelector(".ant-alert-content");
-      const action = alert.querySelector(".ant-alert-action");
+      const content = alert.querySelector(".ant-alert-section");
+      const action = alert.querySelector(".ant-alert-actions");
       return { contentWidth: content?.getBoundingClientRect().width ?? 0,
         actionRight: action?.getBoundingClientRect().right ?? 0 };
     });

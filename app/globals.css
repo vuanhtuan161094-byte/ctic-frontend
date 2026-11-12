@@ -10250,25 +10250,25 @@ input { font: inherit; }
   .project-detail-screen .dossier-next-action .ant-alert-icon {
     flex: 0 0 auto;
   }
-  .project-detail-screen .dossier-next-action .ant-alert-content {
+  .project-detail-screen .dossier-next-action .ant-alert-section {
     flex: 1 1 calc(100% - 44px);
     max-width: 100%;
     min-width: 0;
   }
-  .project-detail-screen .dossier-next-action .ant-alert-action {
+  .project-detail-screen .dossier-next-action .ant-alert-actions {
     flex: 1 1 100%;
     margin: 10px 0 0 0;
     min-width: 0;
     max-width: 100%;
     width: 100%;
   }
-  .project-detail-screen .dossier-next-action .ant-alert-action .ant-btn {
+  .project-detail-screen .dossier-next-action .ant-alert-actions .ant-btn {
     min-height: 40px;
     height: auto;
     white-space: normal;
     width: 100%;
   }
-  .project-detail-screen .dossier-next-action .ant-alert-message,
+  .project-detail-screen .dossier-next-action .ant-alert-title,
   .project-detail-screen .dossier-next-action .ant-alert-description {
     overflow-wrap: break-word;
     word-break: normal;
