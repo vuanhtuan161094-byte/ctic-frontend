@@ -1,0 +1,216 @@
+/* CMP UX-V9 — restrained enterprise polish. Existing brand tokens remain authoritative.
+   Scope: application shell, personal dashboard, reports, task list and business forms.
+   All animation is optional; no images, new libraries, or business-state changes. */
+
+.application-shell .application-content.dashboard-v2 {
+  background:
+    radial-gradient(ellipse 650px 280px at 91% -80px,
+      color-mix(in srgb, var(--cmp-brand-primary) 5%, transparent), transparent 76%),
+    var(--cmp-surface-canvas);
+}
+
+.application-shell .top-header-v2 {
+  background: var(--cmp-surface-raised);
+  border-bottom: 1px solid var(--cmp-border-default);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--cmp-brand-strong) 3%, transparent);
+}
+
+.application-shell .desktop-sider {
+  background: linear-gradient(175deg,
+    var(--cmp-brand-strong),
+    color-mix(in srgb, var(--cmp-brand-strong) 85%, #061c3a));
+}
+
+.application-shell .side-brand {
+  border-bottom-color: rgba(255, 255, 255, .14);
+}
+
+.application-shell .main-menu-v2.ant-menu-dark .ant-menu-item-selected {
+  border-radius: 9px;
+  box-shadow: inset 3px 0 0 var(--cmp-brand-accent);
+}
+
+.application-content :is(.page-heading, .module-page-heading) {
+  gap: 12px;
+}
+
+.application-content :is(.page-heading, .module-page-heading) h2.ant-typography {
+  color: var(--cmp-text-primary);
+  font-weight: 700;
+  letter-spacing: -.025em;
+  line-height: 1.25;
+}
+
+.application-content .eyebrow {
+  color: var(--cmp-brand-primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .065em;
+}
+
+.application-content :is(
+  .personal-dashboard .dashboard-card,
+  .reports-screen .ant-card,
+  .management-cockpit-screen .ant-card,
+  .my-tasks-screen-v2 .my-tasks-table-card-v2
+) {
+  background: var(--cmp-surface-raised);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+  box-shadow: 0 3px 12px rgba(21, 50, 86, .035);
+}
+
+.application-content :is(
+  .personal-dashboard .dashboard-card,
+  .reports-screen .ant-card,
+  .management-cockpit-screen .ant-card
+) .ant-card-head {
+  border-bottom-color: color-mix(in srgb, var(--cmp-border-default) 78%, transparent);
+  min-height: 52px;
+}
+
+.application-content :is(
+  .personal-dashboard .dashboard-card,
+  .reports-screen .ant-card,
+  .management-cockpit-screen .ant-card
+) .ant-card-head-title {
+  color: var(--cmp-text-primary);
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+.personal-dashboard .personal-kpi-card {
+  background: linear-gradient(154deg,
+    var(--cmp-surface-raised) 56%,
+    color-mix(in srgb, var(--cmp-brand-primary) 4%, var(--cmp-surface-raised)));
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+  box-shadow: 0 3px 12px rgba(21, 50, 86, .045);
+  overflow: hidden;
+  position: relative;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.personal-dashboard .personal-kpi-card::before {
+  background: linear-gradient(90deg, var(--cmp-brand-primary),
+    color-mix(in srgb, var(--cmp-brand-accent) 60%, white));
+  border-radius: var(--cmp-radius-lg) var(--cmp-radius-lg) 0 0;
+  content: "";
+  height: 3px;
+  inset: 0 0 auto;
+  position: absolute;
+}
+
+.personal-dashboard .personal-kpi-card:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--cmp-brand-primary) 29%, var(--cmp-border-default));
+  box-shadow: 0 8px 20px rgba(21, 50, 86, .075);
+  transform: translateY(-2px);
+}
+
+.personal-dashboard .personal-kpi-card:focus-visible {
+  outline: 3px solid var(--cmp-focus-ring);
+  outline-offset: 3px;
+}
+
+.personal-dashboard .personal-dashboard-list-item {
+  border-radius: 8px;
+  margin-inline: -8px;
+  padding-inline: 8px;
+  transition: background-color 150ms ease;
+}
+
+.personal-dashboard .personal-dashboard-list-item:hover {
+  background: color-mix(in srgb, var(--cmp-brand-primary) 3.5%, var(--cmp-surface-raised));
+}
+
+.application-content :is(
+  .reports-screen, .management-cockpit-screen, .my-tasks-screen-v2,
+  .projects-screen, .customers-screen, .experts-screen
+) :is(.ant-input-affix-wrapper, .ant-select-selector, .ant-picker) {
+  border-radius: 8px;
+}
+
+.application-content :is(.reports-screen, .management-cockpit-screen, .my-tasks-screen-v2)
+  .ant-table-thead > tr > th {
+  background: color-mix(in srgb, var(--cmp-brand-primary) 3.5%, var(--cmp-surface-raised));
+  color: var(--cmp-text-primary);
+  font-weight: 650;
+}
+
+.application-content :is(.reports-screen, .management-cockpit-screen, .my-tasks-screen-v2)
+  .ant-table-tbody > tr > td {
+  transition: background-color 130ms ease;
+}
+
+.application-content :is(.reports-screen, .management-cockpit-screen, .my-tasks-screen-v2)
+  .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--cmp-brand-primary) 4%, var(--cmp-surface-raised));
+}
+
+.application-content :is(.reports-screen, .management-cockpit-screen, .my-tasks-screen-v2)
+  .ant-pagination-item-active {
+  border-color: var(--cmp-brand-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cmp-brand-primary) 7%, transparent);
+}
+
+.application-content :is(.reports-screen, .management-cockpit-screen, .my-tasks-screen-v2)
+  .ant-tag {
+  border-radius: 6px;
+  font-weight: 550;
+}
+
+.application-content .report-mobile-card {
+  box-shadow: 0 3px 9px rgba(21, 50, 86, .045);
+}
+
+.application-content .report-mobile-card:focus-within {
+  border-color: var(--cmp-brand-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cmp-brand-primary) 12%, transparent);
+}
+
+.application-content :is(.application-wizard-modal, .project-wizard-modal)
+  .ant-form-item-label > label {
+  color: var(--cmp-text-primary);
+  font-weight: 600;
+}
+
+.application-content :is(.ant-btn-primary, .ant-btn-default):focus-visible,
+.application-content :is(.ant-input, .ant-input-affix-wrapper, .ant-select-selector):focus-visible {
+  outline: 2px solid var(--cmp-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Subtle entry animation is limited to dashboard identity cards. */
+@keyframes cmp-v9-card-reveal {
+  from { opacity: .6; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 769px) {
+  .personal-dashboard .personal-kpi-card {
+    animation: cmp-v9-card-reveal 240ms cubic-bezier(.2, .68, .3, 1) both;
+  }
+  .personal-dashboard .personal-kpi-card:nth-child(2) { animation-delay: 35ms; }
+  .personal-dashboard .personal-kpi-card:nth-child(3) { animation-delay: 65ms; }
+  .personal-dashboard .personal-kpi-card:nth-child(n+4) { animation-delay: 85ms; }
+}
+
+@media (max-width: 768px) {
+  .application-shell .application-content.dashboard-v2 { background: var(--cmp-surface-canvas); }
+  .personal-dashboard .personal-kpi-card:not(:disabled):hover { transform: none; }
+  .application-content :is(.page-heading, .module-page-heading) h2.ant-typography {
+    letter-spacing: -.015em;
+  }
+  .application-content .report-mobile-card { box-shadow: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personal-dashboard .personal-kpi-card,
+  .personal-dashboard .personal-dashboard-list-item,
+  .application-content .ant-table-tbody > tr > td {
+    animation: none !important;
+    transition: none !important;
+  }
+  .personal-dashboard .personal-kpi-card:not(:disabled):hover { transform: none; }
+}
