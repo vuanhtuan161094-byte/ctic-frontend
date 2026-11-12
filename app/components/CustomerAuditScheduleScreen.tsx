@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { auditTypeLabel } from "../lib/audit-type-label";
 
 const { Text, Title } = Typography;
 
@@ -36,21 +37,6 @@ function formatDate(value?: string | null) {
   if (!value) return "—";
   const parsed = dayjs(value);
   return parsed.isValid() ? parsed.format("DD/MM/YYYY") : "—";
-}
-
-function auditTypeLabel(value?: string | null) {
-  const key = (value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  const labels: Record<string, string> = {
-    stage1: "Giai đoạn 1",
-    stage2: "Giai đoạn 2",
-    surveillance1: "Giám sát lần 1",
-    surveillance_1: "Giám sát lần 1",
-    surveillance2: "Giám sát lần 2",
-    surveillance_2: "Giám sát lần 2",
-    recertification: "Tái chứng nhận",
-    special: "Đánh giá đặc biệt",
-  };
-  return labels[key] ?? (value || "Đánh giá");
 }
 
 function planStatusLabel(value?: string | null) {
@@ -120,7 +106,15 @@ export function CustomerAuditScheduleScreen() {
 
   if (query.isLoading) return <Card><Skeleton active paragraph={{ rows: 10 }} /></Card>;
   if (query.isError) {
-    return <Alert message="Không tải được lịch đánh giá" description={getErrorMessage(query.error)} showIcon type="error" />;
+    return (
+      <Alert
+        action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>}
+        description={getErrorMessage(query.error)}
+        message="Không tải được lịch đánh giá"
+        showIcon
+        type="error"
+      />
+    );
   }
 
   const plans = query.data ?? [];

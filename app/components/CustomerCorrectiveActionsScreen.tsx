@@ -28,6 +28,7 @@ import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { auditTypeLabel } from "../lib/audit-type-label";
 import CorrectiveActionWorkspaceModal from "./CorrectiveActionWorkspaceModal";
 
 const { Text, Title } = Typography;
@@ -124,7 +125,7 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
       render: (_, workspace) => (
         <div className="table-primary-cell">
           <strong>{workspace.plan.plan_code ?? "Chưa cấp mã"}</strong>
-          <small>{workspace.plan.audit_type ?? "Đánh giá"} · {formatDate(workspace.plan.planned_start_date)}</small>
+          <small>{auditTypeLabel(workspace.plan.audit_type)} · {formatDate(workspace.plan.planned_start_date)}</small>
         </div>
       ),
     },
@@ -211,7 +212,7 @@ export function CustomerCorrectiveActionsScreen({ roles, onOpenPath }: CustomerC
                       <Tag color={workspace.finding_summary.open > 0 ? "orange" : "green"}>{workspace.finding_summary.open} đang xử lý</Tag>
                     </div>
                     <div className="portal-mobile-card__meta">
-                      <span><strong>Kế hoạch:</strong> {workspace.plan.plan_code ?? "Chưa cấp mã"} · {workspace.plan.audit_type ?? "Đánh giá"}</span>
+                      <span><strong>Kế hoạch:</strong> {workspace.plan.plan_code ?? "Chưa cấp mã"} · {auditTypeLabel(workspace.plan.audit_type)}</span>
                       <span><strong>Thời gian:</strong> {formatDate(workspace.plan.planned_start_date)} – {formatDate(workspace.plan.planned_end_date)}</span>
                       <span><strong>Tổng NC:</strong> {workspace.finding_summary.total}</span>
                       {workspace.finding_summary.overdue > 0 ? <span><strong>Quá hạn:</strong> {workspace.finding_summary.overdue}</span> : null}

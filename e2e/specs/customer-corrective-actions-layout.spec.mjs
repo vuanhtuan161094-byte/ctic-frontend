@@ -146,6 +146,11 @@ test("customer NC/CAP workspace keeps findings and response actions usable at al
     } else {
       await expect(page.locator(".ant-table-tbody > .ant-table-row")).toHaveCount(10);
     }
+    const listContent = size.width < 992
+      ? page.locator('[aria-label="Các kế hoạch có hành động khắc phục"]')
+      : page.locator(".ant-table-tbody");
+    await expect(listContent).toContainText("Đánh giá giám sát");
+    await expect(listContent).not.toContainText("GIAM_SAT");
     await captureVisualBaseline(page, testInfo, `customer-cap-list-${size.width}`);
 
     const openWorkspace = page.getByRole("button", { name: "Mở khắc phục" }).first();
