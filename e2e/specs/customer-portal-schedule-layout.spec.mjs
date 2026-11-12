@@ -79,6 +79,10 @@ test("customer schedule shows full Vietnamese audit types on desktop, laptop and
       : page.locator(".ant-table-tbody");
     await expect(list).toContainText("Đánh giá giám sát");
     await expect(list).not.toContainText("GIAM_SAT");
+    if (size.width >= 992) {
+      const secondaryFontSize = await list.locator(".table-primary-cell small").first().evaluate((item) => parseFloat(getComputedStyle(item).fontSize));
+      expect(secondaryFontSize, "Desktop audit plan metadata should use a readable size").toBeGreaterThanOrEqual(12);
+    }
     if (size.width < 992) {
       await expect(list.locator(".portal-mobile-card")).toHaveCount(10);
     } else {

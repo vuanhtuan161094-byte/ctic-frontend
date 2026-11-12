@@ -375,7 +375,7 @@ input { font: inherit; }
 .projects-card .ant-table-cell { white-space: nowrap; }
 .table-primary-cell span,
 .table-primary-cell small { display: block; }
-.table-primary-cell small { color: var(--ctic-muted); margin-top: 2px; }
+.table-primary-cell small { color: var(--ctic-muted); font-size: 12px; line-height: 1.4; margin-top: 2px; }
 
 .alerts-card .ant-list-item { padding: 13px 0; }
 .alert-item { align-items: flex-start; display: flex; gap: 11px; width: 100%; }
@@ -795,7 +795,7 @@ input { font: inherit; }
 }
 .projects-card .ant-table-tbody > tr > td { padding: 11px 9px; }
 .table-primary-cell { display: flex; flex-direction: column; gap: 2px; }
-.table-primary-cell small { color: #8491a3; }
+
 .code-value { color: #102d59; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; }
 
 .audit-list-v2 .ant-list-item {
