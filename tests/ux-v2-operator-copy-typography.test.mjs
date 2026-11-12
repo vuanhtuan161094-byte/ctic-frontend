@@ -12,7 +12,8 @@ test("Vietnamese operator copy is concise without changing business actions", ()
     assert.match(dashboard, new RegExp(label));
   }
   assert.doesNotMatch(dashboard, /Ngoại lệ cần chú ý|TỔNG QUAN VẬN HÀNH/);
-  assert.match(shell, /tìm khách hàng, hồ sơ hoặc công việc/);
+  assert.match(shell, /Tìm trong dữ liệu gần đây/);
+  assert.doesNotMatch(shell, /Tìm kiếm toàn cục/);
   assert.match(dashboard, /onOpenPath\(item\.destination_path, item\.context\)/);
 });
 test("One locally available font stack is shared by CSS tokens and Ant Design theme", () => {
