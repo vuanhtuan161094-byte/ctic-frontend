@@ -4,6 +4,7 @@ import "./fonts";
 import "antd/dist/reset.css";
 import "../app/globals.css";
 import "./expert-overlay-layering.css";
+import "../app/components/design-system/enterprise-polish-v9.css";
 
 import { CticApplication } from "../app/components/CticApplication";
 
