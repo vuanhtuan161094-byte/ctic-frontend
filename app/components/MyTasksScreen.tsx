@@ -30,11 +30,17 @@ import {
   message,
 } from "antd";
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
 const { Text, Title } = Typography;
+
+function activateKpiWithKeyboard(event: KeyboardEvent<HTMLDivElement>, activate: () => void) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  activate();
+}
 
 type TaskPriority = "URGENT" | "HIGH" | "NORMAL" | "LOW";
 type TimeFilter = "all" | "overdue" | "due_soon" | "no_due";
@@ -512,6 +518,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       <section className="my-tasks-kpi-grid my-tasks-kpi-grid-v2">
         <Card
           className={timeFilter === "all" ? "task-kpi-active" : ""}
+          role="button"
+          tabIndex={0}
+          aria-pressed={timeFilter === "all"}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("all"))}
           onClick={() => setTimeFilter("all")}
         >
           <Statistic
@@ -522,6 +532,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         </Card>
         <Card
           className={timeFilter === "overdue" ? "task-kpi-active" : ""}
+          role="button"
+          tabIndex={0}
+          aria-pressed={timeFilter === "overdue"}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("overdue"))}
           onClick={() => setTimeFilter("overdue")}
         >
           <Statistic
@@ -533,6 +547,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         </Card>
         <Card
           className={timeFilter === "due_soon" ? "task-kpi-active" : ""}
+          role="button"
+          tabIndex={0}
+          aria-pressed={timeFilter === "due_soon"}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("due_soon"))}
           onClick={() => setTimeFilter("due_soon")}
         >
           <Statistic
@@ -543,6 +561,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         </Card>
         <Card
           className={priorityFilter === "important" ? "task-kpi-active" : ""}
+          role="button"
+          tabIndex={0}
+          aria-pressed={priorityFilter === "important"}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setPriorityFilter(priorityFilter === "important" ? "all" : "important"))}
           onClick={() =>
             setPriorityFilter(priorityFilter === "important" ? "all" : "important")
           }
@@ -554,6 +576,16 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           />
         </Card>
       </section>
+
+      {summary.total > items.length ? (
+        <Alert
+          className="my-tasks-limited-notice"
+          message="Danh sách chưa hiển thị đủ công việc"
+          description={`Đang tải ${items.length} trong ${summary.total} công việc. Các bộ lọc bên dưới chỉ áp dụng cho danh sách đã tải.`}
+          showIcon
+          type="info"
+        />
+      ) : null}
 
       <Card className="my-tasks-table-card my-tasks-table-card-v2" title="Danh sách công việc">
         <div className="my-tasks-filters my-tasks-filters-v2">
