@@ -9937,3 +9937,160 @@ input { font: inherit; }
 .resource-calendar-empty .ant-empty-image { height: 68px; margin-bottom: 4px; }
 .resource-calendar-empty .cmp-empty-illustration { height: 64px; width: 92px; }
 @media (max-width:720px) { .cmp-empty-illustration { height: 68px; width: 98px; } .personal-dashboard .ant-empty-image, .customers-screen .ant-empty-image { height: 72px; } }
+
+/* CMP UX-V8 | Subtle enterprise polish and CSS-only motion.
+   Uses existing design tokens; no decorative media, no new runtime dependency. */
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen, .customer-portal-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid, .project-summary-grid) > .ant-card {
+  background: linear-gradient(155deg,
+    var(--cmp-surface-raised) 70%,
+    color-mix(in srgb, var(--cmp-brand-primary) 3%, var(--cmp-surface-raised)) 100%);
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+  box-shadow: 0 2px 12px rgba(15, 43, 77, .045);
+  min-width: 0;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+:where(.reports-screen, .management-cockpit-screen, .customer-portal-screen)
+  :where(.report-kpi-grid, .management-kpi-grid, .project-summary-grid) > .ant-card:hover {
+  border-color: color-mix(in srgb, var(--cmp-brand-primary) 26%, var(--cmp-border-default));
+  box-shadow: 0 8px 24px rgba(15, 43, 77, .085);
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) .ant-statistic-title {
+  color: var(--cmp-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) .ant-statistic-content {
+  color: var(--cmp-text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.025em;
+}
+
+.my-tasks-kpi-grid-v2 > .ant-card[role="button"] {
+  cursor: pointer;
+  outline: none;
+  position: relative;
+}
+
+.my-tasks-kpi-grid-v2 > .ant-card[role="button"]:hover {
+  border-color: color-mix(in srgb, var(--cmp-brand-primary) 35%, var(--cmp-border-default));
+  box-shadow: 0 7px 21px rgba(15, 43, 77, .10);
+  transform: translateY(-2px);
+}
+
+.my-tasks-kpi-grid-v2 > .ant-card[role="button"]:focus-visible,
+.customer-portal-screen .clickable-summary-card:focus-visible {
+  border-color: var(--cmp-brand-accent);
+  outline: 3px solid var(--cmp-focus-ring);
+  outline-offset: 3px;
+}
+
+.my-tasks-kpi-grid-v2 > .ant-card[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--cmp-brand-primary) 50%, var(--cmp-border-default));
+  box-shadow: inset 0 3px 0 var(--cmp-brand-accent), 0 3px 14px rgba(15, 43, 77, .07);
+}
+
+.my-tasks-limited-notice {
+  border-radius: var(--cmp-radius-md);
+  margin: 0;
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-table-card, .my-tasks-table-card-v2, .management-detail-grid .ant-card) {
+  border-color: var(--cmp-border-default);
+  border-radius: var(--cmp-radius-lg);
+}
+
+.reports-screen .report-table-card .ant-table-thead > tr > th,
+.my-tasks-screen-v2 .ant-table-thead > tr > th {
+  background: color-mix(in srgb, var(--cmp-brand-primary) 4%, var(--cmp-surface-raised));
+  border-bottom: 1px solid var(--cmp-border-default);
+  color: var(--cmp-text-primary);
+  font-weight: 650;
+}
+
+.reports-screen .report-table-card .ant-table-tbody > tr:hover > td,
+.my-tasks-screen-v2 .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--cmp-brand-primary) 4%, var(--cmp-surface-raised));
+}
+
+.top-header-v2 .global-search-trigger {
+  background: linear-gradient(125deg, var(--cmp-surface-subtle), var(--cmp-surface-raised));
+  border-color: var(--cmp-border-default);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.top-header-v2 .global-search-trigger:hover,
+.top-header-v2 .global-search-trigger:focus-visible {
+  background: var(--cmp-surface-raised);
+  border-color: color-mix(in srgb, var(--cmp-brand-accent) 55%, var(--cmp-border-default));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cmp-brand-accent) 10%, transparent);
+}
+
+.application-content :where(.ant-btn-primary):not(:disabled):not(.ant-btn-loading) {
+  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.application-content :where(.ant-btn-primary):not(:disabled):not(.ant-btn-loading):hover {
+  box-shadow: 0 4px 13px color-mix(in srgb, var(--cmp-brand-primary) 19%, transparent);
+}
+
+.application-content :where(.ant-btn, .ant-select-selector, .ant-input):focus-visible {
+  outline: 2px solid var(--cmp-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Micro-motion emphasizes new information, not every row or counter. */
+@keyframes cmp-v8-arrive {
+  from { opacity: .3; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card {
+  animation: cmp-v8-arrive 300ms cubic-bezier(.2, .7, .25, 1) both;
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+:where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+  :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card:nth-child(n+4) {
+  animation-delay: 95ms;
+}
+
+@media (max-width: 768px) {
+  :where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+    :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card {
+    border-radius: var(--cmp-radius-md);
+  }
+  .my-tasks-kpi-grid-v2 > .ant-card[role="button"]:hover { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen)
+    :where(.report-kpi-grid, .my-tasks-kpi-grid-v2, .management-kpi-grid) > .ant-card {
+    animation: none;
+  }
+  :where(.reports-screen, .my-tasks-screen-v2, .management-cockpit-screen, .customer-portal-screen)
+    .ant-card,
+  .application-content .ant-btn-primary,
+  .top-header-v2 .global-search-trigger {
+    transition: none;
+  }
+  .my-tasks-kpi-grid-v2 > .ant-card[role="button"]:hover { transform: none; }
+}
