@@ -36,6 +36,12 @@ for (const section of sections) {
     for (const size of sizes) {
       await page.setViewportSize(size);
       await expectNoHorizontalOverflow(page);
+      if (section.key === "team" && size.width <= 767) {
+        const memberMeta = page.locator(".cmp-audit-team-list .ant-list-item-meta").first();
+        await expect(memberMeta).toBeVisible();
+        const bounds = await memberMeta.boundingBox();
+        expect(bounds?.width ?? 0, "Team members need a readable label width").toBeGreaterThanOrEqual(200);
+      }
       const sectionTop = await page.locator(".cmp-audit-section").evaluate((element) => element.getBoundingClientRect().top);
       if (size.width >= 1280) {
         expect(sectionTop, "Audit content should start early enough to use the desktop viewport").toBeLessThan(420);

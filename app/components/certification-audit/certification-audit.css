@@ -231,3 +231,11 @@
     width: 100%;
   }
 }
+
+/* CMP UX-V10: stacked mobile team rows should use the full card width. */
+@media (max-width: 768px) {
+  .cmp-audit-team-list .ant-list-item { align-items: stretch; }
+  .cmp-audit-team-list .ant-list-item-meta { align-self: stretch; flex: 0 1 auto; max-width: 100%; min-width: 0; width: 100%; }
+  .cmp-audit-team-list .ant-list-item-meta-content { min-width: 0; overflow-wrap: anywhere; width: 100%; }
+  .cmp-audit-team-list .ant-list-item > .ant-tag { align-self: flex-start; margin-inline-end: 0; max-width: 100%; }
+}

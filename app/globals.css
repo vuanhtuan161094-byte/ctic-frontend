@@ -10158,3 +10158,26 @@ input { font: inherit; }
     transform: none;
   }
 }
+
+/* CMP UX-V10: scope the 390px overflow fix to dossier header layout. */
+@media (max-width: 767px) {
+  .dossier-workspace-card > .ant-card-head { min-width: 0; }
+  .dossier-workspace-card > .ant-card-head .ant-card-head-wrapper {
+    align-items: stretch; display: flex; flex-direction: column; gap: 8px; min-width: 0; width: 100%;
+  }
+  .dossier-workspace-card > .ant-card-head .ant-card-head-title {
+    flex: 0 1 auto; max-width: 100%; min-width: 0; overflow-wrap: anywhere; white-space: normal; width: 100%;
+  }
+  .dossier-workspace-card .dossier-workspace-title,
+  .dossier-workspace-card .dossier-workspace-title > div:first-child {
+    max-width: 100%; min-width: 0; overflow-wrap: anywhere; width: 100%;
+  }
+  .dossier-workspace-card > .ant-card-head .ant-card-extra {
+    margin-inline-start: 0; max-width: 100%; min-width: 0; width: 100%;
+  }
+  .dossier-workspace-card > .ant-card-head .ant-card-extra .ant-space {
+    display: flex; flex-wrap: wrap; max-width: 100%; min-width: 0; width: 100%;
+  }
+  .dossier-workspace-card .dossier-workspace-title strong,
+  .dossier-workspace-card .dossier-workspace-title span { overflow-wrap: anywhere; }
+}

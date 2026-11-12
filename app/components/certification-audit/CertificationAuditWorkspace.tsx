@@ -318,7 +318,7 @@ export function CertificationAuditWorkspaceView({
               { label: "Đến ngày", value: formatCaseDate(teamDates.end) },
             ]} />
           </div>
-          {readinessError ? <Alert showIcon type="warning" title="Không tải được readiness của đoàn" description={readinessError} /> : null}
+          {readinessError ? <Alert showIcon type="warning" title="Không tải được trạng thái sẵn sàng của đoàn đánh giá" description={readinessError} /> : null}
           <ReadinessBlockerPanel blockers={blockers} readyMessage="Đoàn đánh giá đáp ứng điều kiện ban hành." />
           <List
             className="cmp-audit-team-list"
@@ -355,7 +355,7 @@ export function CertificationAuditWorkspaceView({
         { label: "Tiêu chí", value: plan.audit_criteria ?? "Chưa cập nhật" },
         { label: "Phạm vi", value: plan.audit_scope ?? "Chưa cập nhật" },
       ]} />
-      {readinessError ? <Alert showIcon type="warning" title="Không tải được readiness của đoàn" description={readinessError} /> : null}
+      {readinessError ? <Alert showIcon type="warning" title="Không tải được trạng thái sẵn sàng của đoàn đánh giá" description={readinessError} /> : null}
       <ReadinessBlockerPanel blockers={blockers} readyMessage="Chưa ghi nhận điều kiện cản trở kế hoạch và đoàn đánh giá." />
     </section>
   ) : section === "execution" ? (
@@ -424,7 +424,7 @@ export function CertificationAuditWorkspaceView({
           { label: "Ngày công kế hoạch", value: plan.audit_event?.planned_mandays == null ? "Chưa ghi nhận" : `${Number(plan.audit_event.planned_mandays).toFixed(1)} MD` },
         ]} />
       </div>
-      {readinessError ? <Alert showIcon type="warning" title="Không tải được readiness của đoàn" description={readinessError} /> : null}
+      {readinessError ? <Alert showIcon type="warning" title="Không tải được trạng thái sẵn sàng của đoàn đánh giá" description={readinessError} /> : null}
       <ReadinessBlockerPanel blockers={blockers} readyMessage="Chưa ghi nhận điều kiện cản trở cuộc đánh giá." />
     </section>
   );

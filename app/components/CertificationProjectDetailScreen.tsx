@@ -360,6 +360,7 @@ const documentManageRoles = new Set([
 
 const projectStatusLabels: Record<string, string> = {
   draft: "Khởi tạo",
+  not_started: "Chưa bắt đầu",
   in_progress: "Đang thực hiện",
   pending: "Chờ xử lý",
   pending_technical_review: "Chờ thẩm xét",

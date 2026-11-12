@@ -221,6 +221,14 @@ test("project team assignment form fits desktop and mobile workspaces", async ({
   for (const size of sizes) {
     await page.setViewportSize(size);
     await expectNoHorizontalOverflow(page);
+    if (size.width <= 767) {
+      const edges = await page.locator(".dossier-workspace-card > .ant-card-head").evaluate((head) => ({
+        title: head.querySelector(".dossier-workspace-title")?.getBoundingClientRect().right ?? 0,
+        action: head.querySelector(".ant-card-extra")?.getBoundingClientRect().right ?? 0,
+      }));
+      expect(edges.title, "Mobile dossier title must remain within the viewport").toBeLessThanOrEqual(size.width + 1);
+      expect(edges.action, "Mobile dossier actions must remain within the viewport").toBeLessThanOrEqual(size.width + 1);
+    }
     await modalBody.evaluate((element) => { element.scrollTop = 0; });
     const layout = await dialog.evaluate((element) => {
       const body = element.querySelector(".ant-modal-body");
