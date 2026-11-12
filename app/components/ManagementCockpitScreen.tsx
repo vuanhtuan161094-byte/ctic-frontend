@@ -128,7 +128,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
         commercial_notes: values.commercial_notes,
         lines: [{ description: values.line_description.trim(), quantity: String(values.quantity), unit_price: String(values.unit_price) }],
       });
-      message.success("Đã tạo báo giá DRAFT.");
+      message.success("Đã lưu báo giá nháp.");
       setQuotationOpen(false); quotationForm.resetFields();
       await Promise.all([quotationsQuery.refetch(), cockpitQuery.refetch()]);
     } catch (error) { if (error instanceof Error || (error && typeof error === "object" && "response" in error)) message.error(getErrorMessage(error)); }
@@ -152,7 +152,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
         planned_date: values.planned_date?.format("YYYY-MM-DD"), note: values.note,
       });
       setBillingOpen(false); billingForm.resetFields();
-      await Promise.all([billingQuery.refetch(), cockpitQuery.refetch()]); message.success("Đã tạo billing milestone.");
+      await Promise.all([billingQuery.refetch(), cockpitQuery.refetch()]); message.success("Đã tạo mốc thanh toán.");
     } catch (error) { if (error instanceof Error || (error && typeof error === "object" && "response" in error)) message.error(getErrorMessage(error)); }
     finally { setSaving(false); }
   };
@@ -224,22 +224,22 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
   }));
   return <div className="management-cockpit-screen">
     <div className="page-heading management-cockpit-heading">
-      <div><span className="eyebrow">ĐIỀU HÀNH & KINH DOANH</span><Title level={2}>Buồng lái quản trị</Title><Text type="secondary">Số liệu tổng hợp từ các hồ sơ chứng nhận, nguồn lực và giao dịch đã ghi nhận.</Text></div>
+      <div><span className="eyebrow">ĐIỀU HÀNH & KINH DOANH</span><Title level={2}>Tổng quan điều hành</Title><Text type="secondary">Số liệu tổng hợp từ các hồ sơ chứng nhận, nguồn lực và giao dịch đã ghi nhận.</Text></div>
       <Space wrap>
         <Select aria-label="Khoảng báo cáo" value={preset} onChange={setPreset} options={[
           { value: "TODAY", label: "Hôm nay" }, { value: "THIS_WEEK", label: "Tuần này" }, { value: "THIS_MONTH", label: "Tháng này" },
           { value: "QUARTER", label: "Quý này" }, { value: "YEAR", label: "Năm nay" }, { value: "CUSTOM", label: "Tùy chỉnh" },
         ]} />
         {preset === "CUSTOM" ? <RangePicker aria-label="Khoảng tùy chỉnh" value={customRange} onChange={(value) => setCustomRange(value as [Dayjs, Dayjs] | null)} /> : null}
-        <Select allowClear aria-label="Lọc scheme" placeholder="Tất cả scheme" value={schemeId} onChange={setSchemeId} options={(schemesQuery.data ?? []).map((scheme) => ({ value: scheme.id, label: `${scheme.code} · ${scheme.name}` }))} />
+        <Select allowClear aria-label="Lọc chương trình chứng nhận" placeholder="Tất cả chương trình" value={schemeId} onChange={setSchemeId} options={(schemesQuery.data ?? []).map((scheme) => ({ value: scheme.id, label: `${scheme.code} · ${scheme.name}` }))} />
         <Button icon={<DownloadOutlined />} disabled={!cockpit} onClick={() => void exportCsv()}>Xuất CSV</Button>
         <Button icon={<ReloadOutlined />} loading={cockpitQuery.isFetching} onClick={() => void refresh()}>Làm mới</Button>
       </Space>
     </div>
-    {cockpitQuery.isError ? <Alert showIcon type="error" message="Không thể tải cockpit" description={getErrorMessage(cockpitQuery.error)} /> : null}
+    {cockpitQuery.isError ? <Alert showIcon type="error" message="Không tải được báo cáo điều hành" description={getErrorMessage(cockpitQuery.error)} /> : null}
     {cockpit ? <Tabs items={[
       { key: "executive", label: "Điều hành", children: <>
-        <section className="management-kpi-grid" aria-label="KPI điều hành">{cockpit.executive.map((kpi) => <Card key={kpi.key} title={kpi.label}><Statistic value={kpi.value} /><Text type="secondary">{kpi.definition}</Text>{kpi.denominator !== undefined ? <div><Tag>{kpi.numerator}/{kpi.denominator}</Tag></div> : null}</Card>)}</section>
+        <section className="management-kpi-grid" aria-label="Chỉ số điều hành">{cockpit.executive.map((kpi) => <Card key={kpi.key} title={kpi.label}><Statistic value={kpi.value} /><Text type="secondary">{kpi.definition}</Text>{kpi.denominator !== undefined ? <div><Tag>{kpi.numerator}/{kpi.denominator}</Tag></div> : null}</Card>)}</section>
         <section className="management-detail-grid">
           <Card title="Vận hành chứng nhận"><Descriptions column={1}><Descriptions.Item label="NC đang mở">{cockpit.operations.open_nc}</Descriptions.Item><Descriptions.Item label="NC quá hạn">{cockpit.operations.overdue_nc}</Descriptions.Item><Descriptions.Item label="Chờ thẩm xét kỹ thuật">{cockpit.operations.pending_technical_reviews}</Descriptions.Item></Descriptions></Card>
           <Card title="Chất lượng & quản trị"><Descriptions column={1}><Descriptions.Item label="Yêu cầu thay đổi đang xử lý">{cockpit.governance.open_changes}</Descriptions.Item><Descriptions.Item label="Khiếu nại đang xử lý">{cockpit.governance.open_complaints}</Descriptions.Item><Descriptions.Item label="Kháng nghị đang xử lý">{cockpit.governance.open_appeals}</Descriptions.Item></Descriptions></Card>
@@ -250,7 +250,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
         <section className="commercial-currency-grid">{cockpit.commercial.by_currency.map((item) => <Card key={item.currency} title={`Kinh doanh · ${item.currency}`}><Descriptions column={1}><Descriptions.Item label="Pipeline">{money(item.pipeline_value, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã ký">{money(item.contracted_value, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã lập tham chiếu hóa đơn">{money(item.invoiced, item.currency)}</Descriptions.Item><Descriptions.Item label="Đã thu">{money(item.collected, item.currency)}</Descriptions.Item><Descriptions.Item label="Còn phải thu">{money(item.outstanding, item.currency)}</Descriptions.Item></Descriptions></Card>)}</section>
         {!cockpit.commercial.by_currency.length ? <Card>Chưa có dữ liệu kinh doanh trong khoảng đã chọn.</Card> : null}
       </> },
-      { key: "resource", label: "Nguồn lực", children: <Card title="Khối lượng phân công chuyên gia" extra={<Tag color="orange">Chưa tính tỷ lệ sử dụng</Tag>}><Alert showIcon type="warning" message={cockpit.resource.utilization_note} /><div className="cmp-data-table--responsive"><Table pagination={{ current: currentWorkloadPage, pageSize: 10, showSizeChanger: false }} onChange={(pagination) => setWorkloadPage(pagination.current ?? 1)} rowKey="expert_id" dataSource={workload} columns={[{ title: "Chuyên gia", dataIndex: "expert_name" }, { title: "Ngày công phân công", dataIndex: "assigned_mandays" }, { title: "Ngày công hoàn tất", dataIndex: "completed_mandays" }, { title: "Lượt phân công", dataIndex: "engagement_count" }]} /></div><ResponsiveCardList empty={<Text type="secondary">Chưa có dữ liệu workload.</Text>} items={workloadCards} />{workload.length > 10 ? <div className="management-mobile-pagination"><Pagination current={currentWorkloadPage} onChange={setWorkloadPage} pageSize={10} showSizeChanger={false} total={workload.length} /></div> : null}</Card> },
+      { key: "resource", label: "Nguồn lực", children: <Card title="Khối lượng phân công chuyên gia" extra={<Tag color="orange">Chưa tính tỷ lệ sử dụng</Tag>}><Alert showIcon type="warning" message={cockpit.resource.utilization_note} /><div className="cmp-data-table--responsive"><Table pagination={{ current: currentWorkloadPage, pageSize: 10, showSizeChanger: false }} onChange={(pagination) => setWorkloadPage(pagination.current ?? 1)} rowKey="expert_id" dataSource={workload} columns={[{ title: "Chuyên gia", dataIndex: "expert_name" }, { title: "Ngày công phân công", dataIndex: "assigned_mandays" }, { title: "Ngày công hoàn tất", dataIndex: "completed_mandays" }, { title: "Lượt phân công", dataIndex: "engagement_count" }]} /></div><ResponsiveCardList empty={<Text type="secondary">Chưa có dữ liệu phân công chuyên gia.</Text>} items={workloadCards} />{workload.length > 10 ? <div className="management-mobile-pagination"><Pagination current={currentWorkloadPage} onChange={setWorkloadPage} pageSize={10} showSizeChanger={false} total={workload.length} /></div> : null}</Card> },
       { key: "quotations", label: "Báo giá", children: <Card title="Danh sách báo giá" extra={canManageCommercial ? <Button icon={<FileAddOutlined />} type="primary" onClick={() => setQuotationOpen(true)}>Tạo báo giá</Button> : null}><div className="cmp-data-table--responsive"><Table columns={quotationColumns} dataSource={quotationRows} loading={quotationsQuery.isLoading} onChange={(pagination) => setQuotationPage(pagination.current ?? 1)} pagination={{ current: quotationPage, total: quotationsQuery.data?.total, pageSize: quotationPageSize }} rowKey="id" scroll={{ x: 1100 }} /></div><ResponsiveCardList items={quotationCards} />{(quotationsQuery.data?.total ?? 0) > quotationPageSize ? <div className="management-mobile-pagination"><Pagination current={quotationPage} onChange={setQuotationPage} pageSize={quotationPageSize} showSizeChanger={false} total={quotationsQuery.data?.total ?? 0} /></div> : null}</Card> },
       { key: "billing", label: "Thanh toán", children: <Card title="Mốc lập hóa đơn / thanh toán" extra={canManageCommercial ? <Button icon={<DollarOutlined />} onClick={() => setBillingOpen(true)}>Thêm mốc</Button> : null}><div className="cmp-data-table--responsive"><Table columns={billingColumns} dataSource={billingRows} loading={billingQuery.isLoading} onChange={(pagination) => setBillingPage(pagination.current ?? 1)} pagination={{ current: billingPage, total: billingQuery.data?.total, pageSize: billingPageSize }} rowKey="id" /></div><ResponsiveCardList items={billingCards} />{(billingQuery.data?.total ?? 0) > billingPageSize ? <div className="management-mobile-pagination"><Pagination current={billingPage} onChange={setBillingPage} pageSize={billingPageSize} showSizeChanger={false} total={billingQuery.data?.total ?? 0} /></div> : null}</Card> },
     ]} /> : <Card loading={cockpitQuery.isLoading}><BarChartOutlined /> Chưa có số liệu phù hợp bộ lọc.</Card>}
@@ -264,7 +264,7 @@ export function ManagementCockpitScreen({ roles }: { roles: string[] }) {
         <Form.Item label="Dòng dịch vụ" name="line_description" rules={[{ required: true }]}><Input /></Form.Item>
         <Space><Form.Item label="Số lượng" name="quantity" rules={[{ required: true }]}><Input inputMode="decimal" /></Form.Item><Form.Item label="Đơn giá" name="unit_price" rules={[{ required: true }]}><Input inputMode="decimal" /></Form.Item><Form.Item label="Chiết khấu" name="discount_amount"><Input inputMode="decimal" /></Form.Item><Form.Item label="Số tiền thuế dự kiến" name="tax_amount"><Input inputMode="decimal" /></Form.Item></Space>
         <Form.Item label="Ghi chú báo giá" name="commercial_notes"><Input.TextArea rows={2} /></Form.Item>
-        <Alert showIcon type="info" message="Manday kỹ thuật (nếu có) được backend đọc từ Application Review APPROVED; form commercial không được nhập/sửa manday." />
+        <Alert showIcon type="info" message="Ngày công đánh giá được lấy từ kết quả xem xét đơn đã phê duyệt; không điều chỉnh ngày công tại bước lập báo giá." />
       </Form>
     </Modal>
     <Modal title="Tạo mốc thanh toán" open={billingOpen} onCancel={() => setBillingOpen(false)} onOk={() => void createBilling()} confirmLoading={saving}>
