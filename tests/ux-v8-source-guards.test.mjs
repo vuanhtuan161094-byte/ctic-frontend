@@ -8,6 +8,8 @@ const file = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 test("reports list and CSV use the same complete filtered set", async () => {
   const source = await file("app/components/ReportsScreen.tsx");
   assert.match(source, /dataSource=\{filteredReports\}/);
+  assert.match(source, /useMobileReportCards/);
+  assert.match(source, /report-mobile-card__heading/);
   assert.match(source, /exportCsv\(filteredReports\)/);
   assert.match(source, /showTotal:\s*\(total, range\)/);
   assert.doesNotMatch(source, /filteredReports\.slice\(0,\s*50\)/);
