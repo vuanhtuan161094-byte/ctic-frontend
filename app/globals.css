@@ -10094,3 +10094,67 @@ input { font: inherit; }
   }
   .my-tasks-kpi-grid-v2 > .ant-card[role="button"]:hover { transform: none; }
 }
+
+/* Report list: mobile-first records with visible status and one primary action. */
+.report-mobile-list .ant-list-item {
+  border-bottom: 0;
+  display: block;
+  padding: 5px 0;
+}
+
+.report-mobile-card {
+  background: linear-gradient(150deg, var(--cmp-surface-raised),
+    color-mix(in srgb, var(--cmp-brand-primary) 2%, var(--cmp-surface-raised)));
+  border: 1px solid var(--cmp-border-default);
+  border-radius: var(--cmp-radius-md);
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+}
+
+.report-mobile-card__heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.report-mobile-card__heading strong {
+  color: var(--cmp-text-primary);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.report-mobile-card__heading .ant-tag { margin-inline-end: 0; }
+
+.report-mobile-card__details {
+  color: var(--cmp-text-secondary);
+  display: grid;
+  font-size: 12px;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-mobile-card__details span:first-child {
+  color: var(--cmp-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.report-mobile-card > .ant-btn { justify-self: start; }
+
+.report-mobile-list .ant-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .customer-portal-screen .clickable-summary-card:hover {
+    transform: none;
+  }
+}
