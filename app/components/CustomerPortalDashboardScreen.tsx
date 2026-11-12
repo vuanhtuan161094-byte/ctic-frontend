@@ -141,7 +141,7 @@ export function CustomerPortalDashboardScreen({
     : `${data.customers.length} tổ chức được phân quyền`;
 
   return (
-    <div className="projects-screen customer-portal-screen">
+    <div className="projects-screen customer-portal-screen customer-portal-dashboard">
       <div className="module-page-heading">
         <div>
           <span className="eyebrow">{branding.platformName}</span>

@@ -151,6 +151,18 @@ test("customer NC/CAP workspace keeps findings and response actions usable at al
       : page.locator(".ant-table-tbody");
     await expect(listContent).toContainText("Đánh giá giám sát");
     await expect(listContent).not.toContainText("GIAM_SAT");
+    if (size.width <= 680) {
+      const cards = page.locator('[aria-label="Tổng hợp hành động khắc phục"] > .ant-card');
+      await expect(cards).toHaveCount(4);
+      const positions = await cards.evaluateAll((nodes) => nodes.map((node) => ({
+        top: node.getBoundingClientRect().top,
+        width: node.getBoundingClientRect().width,
+      })));
+      expect(Math.abs(positions[0].top - positions[1].top), "First two KPIs share a row").toBeLessThan(2);
+      expect(Math.abs(positions[2].top - positions[3].top), "Final two KPIs share a row").toBeLessThan(2);
+      expect(positions[2].top, "Second row is below the first").toBeGreaterThan(positions[0].top + 20);
+      expect(Math.abs(positions[2].width - positions[3].width), "KPI columns remain balanced").toBeLessThan(3);
+    }
     await captureVisualBaseline(page, testInfo, `customer-cap-list-${size.width}`);
 
     const openWorkspace = page.getByRole("button", { name: "Mở khắc phục" }).first();

@@ -246,7 +246,7 @@
 }
 
 @media (max-width: 680px) {
-  .customer-portal-screen .project-summary-grid > .ant-card:last-child {
+  .customer-portal-dashboard .project-summary-grid > .ant-card:last-child {
     grid-column: 1 / -1;
   }
 
