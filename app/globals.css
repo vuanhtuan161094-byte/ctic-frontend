@@ -10181,3 +10181,59 @@ input { font: inherit; }
   .dossier-workspace-card .dossier-workspace-title strong,
   .dossier-workspace-card .dossier-workspace-title span { overflow-wrap: anywhere; }
 }
+
+
+/* CMP UX-V10b — all dossier detail card headers can wrap their action/status row.
+   The first mobile fix resolved the title overflow, but AntD's card extra still
+   retained a 359px min-content width at a 390px viewport. */
+@media (max-width: 767px) {
+  .project-detail-screen {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .project-detail-screen .ant-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .project-detail-screen .ant-card-head {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .project-detail-screen .ant-card-head .ant-card-head-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .project-detail-screen .ant-card-head .ant-card-head-title,
+  .project-detail-screen .ant-card-head .ant-card-extra {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+    margin-inline-start: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .project-detail-screen .ant-card-head .ant-card-extra .ant-space {
+    display: flex;
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .project-detail-screen .ant-card-head .ant-card-extra .ant-space-item {
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 1 auto;
+  }
+  .project-detail-screen .ant-card-head .ant-card-extra .ant-tag {
+    display: inline-flex;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}
