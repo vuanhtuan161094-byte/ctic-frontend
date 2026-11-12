@@ -155,7 +155,7 @@ export function CustomerCasesScreen() {
   });
 
   const columns: TableColumnsType<PortalCase> = [
-    { title: "Số case", key: "number", width: 190, render: (_, record) => <Text strong>{caseNumber(record)}</Text> },
+    { title: "Mã hồ sơ", key: "number", width: 190, render: (_, record) => <Text strong>{caseNumber(record)}</Text> },
     { title: "Nội dung", key: "summary", render: (_, record) => caseSummary(record) },
     { title: "Ngày gửi", dataIndex: "created_at", key: "created", width: 130, render: (value) => dayjs(value).format("DD/MM/YYYY") },
     { title: "Trạng thái", dataIndex: "status", key: "status", width: 160, render: (value) => <DomainStatusBadge code={value} domain={portalDomainMeta[domain].statusDomain} /> },
@@ -241,14 +241,15 @@ export function CustomerCasesScreen() {
           <Input.Search
             allowClear
             onChange={(event) => { setSearch(event.target.value); setCasePage(1); }}
-            placeholder="Tìm mã case hoặc nội dung"
+            aria-label="Tìm kiếm hồ sơ theo mã hoặc nội dung"
+            placeholder="Tìm mã hồ sơ hoặc nội dung"
             style={{ maxWidth: 360, width: "100%" }}
             value={search}
           />
-          <Text type="secondary">{filteredCases.length} case</Text>
+          <Text type="secondary">{filteredCases.length} hồ sơ</Text>
         </div>
-        {query.isError ? <Alert action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>} description={getErrorMessage(query.error)} showIcon title="Không tải được case" type="error" /> : query.isLoading ? (
-          <Alert showIcon title="Đang tải danh sách case..." type="info" />
+        {query.isError ? <Alert action={<Button icon={<ReloadOutlined />} onClick={() => void query.refetch()}>Thử lại</Button>} description={getErrorMessage(query.error)} showIcon title="Không tải được danh sách hồ sơ" type="error" /> : query.isLoading ? (
+          <Alert showIcon title="Đang tải danh sách hồ sơ..." type="info" />
         ) : (
           useCompactPortalList ? (
             visibleCases.length ? (
@@ -274,11 +275,11 @@ export function CustomerCasesScreen() {
                     </article>
                   ))}
                 </div>
-                {filteredCases.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleCasePage} onChange={setCasePage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} case`} total={filteredCases.length} /> : null}
+                {filteredCases.length > 10 ? <Pagination className="compact-mobile-pagination" current={visibleCasePage} onChange={setCasePage} pageSize={10} responsive showSizeChanger={false} showTotal={(total) => `${total} hồ sơ`} total={filteredCases.length} /> : null}
               </>
-            ) : <Empty description={normalizedSearch ? "Không tìm thấy case phù hợp" : "Chưa có case"} />
+            ) : <Empty description={normalizedSearch ? "Không tìm thấy hồ sơ phù hợp" : "Chưa có hồ sơ"} />
           ) : (
-            <Table columns={columns} dataSource={filteredCases} locale={{ emptyText: <Empty description={normalizedSearch ? "Không tìm thấy case phù hợp" : "Chưa có case"} /> }} pagination={{ pageSize: 10, hideOnSinglePage: true }} rowKey="id" size="small" />
+            <Table columns={columns} dataSource={filteredCases} locale={{ emptyText: <Empty description={normalizedSearch ? "Không tìm thấy hồ sơ phù hợp" : "Chưa có hồ sơ"} /> }} pagination={{ pageSize: 10, hideOnSinglePage: true }} rowKey="id" size="small" />
           )
         )}
       </Card>
@@ -287,10 +288,10 @@ export function CustomerCasesScreen() {
         onClose={() => { setSelected(null); setAdditionalEvidenceFiles([]); }}
         open={Boolean(selected)}
         size={breakpoints.md ? "large" : "default"}
-        title={selected ? caseNumber(selected) : "Chi tiết case"}
+        title={selected ? caseNumber(selected) : "Chi tiết hồ sơ"}
       >
         {selected ? <Space orientation="vertical" size={16} style={{ width: "100%" }}>
-          {selected.overdue ? <Alert title="Case đang quá hạn" showIcon type="warning" /> : null}
+          {selected.overdue ? <Alert title="Hồ sơ đang quá hạn" showIcon type="warning" /> : null}
           <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Trạng thái"><DomainStatusBadge code={selected.status} domain={portalDomainMeta[domain].statusDomain} /></Descriptions.Item>
             <Descriptions.Item label="Nội dung">{caseSummary(selected)}</Descriptions.Item>

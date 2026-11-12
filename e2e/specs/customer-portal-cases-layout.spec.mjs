@@ -102,7 +102,7 @@ test("customer case workspace is searchable, localized, and fits desktop and mob
     await expectNoHorizontalOverflow(page);
     if (size.width < 992) {
       await expect(page.locator('[aria-label="Danh sách yêu cầu và phản hồi"] .portal-mobile-card')).toHaveCount(10);
-      await expect(page.locator(".compact-mobile-pagination")).toContainText("12 case");
+      await expect(page.locator(".compact-mobile-pagination")).toContainText("12 hồ sơ");
     } else {
       await expect(page.locator(".ant-table-tbody > .ant-table-row")).toHaveCount(10);
     }
@@ -118,7 +118,7 @@ test("customer case workspace is searchable, localized, and fits desktop and mob
     await page.getByRole("tab", { name: "Khiếu nại" }).click();
   }
   await expect(page.getByText("Đã tiếp nhận", { exact: true })).toBeVisible();
-  const search = page.getByPlaceholder("Tìm mã case hoặc nội dung");
+  const search = page.getByPlaceholder("Tìm mã hồ sơ hoặc nội dung");
   await search.fill("KN-2026-0007");
   if (testInfo.project.name === "mobile-390x844") {
     await expect(page.locator('[aria-label="Danh sách yêu cầu và phản hồi"] .portal-mobile-card')).toHaveCount(1);
