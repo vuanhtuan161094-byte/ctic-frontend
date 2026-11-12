@@ -407,7 +407,7 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
             </Card>
           </section>
 
-          <Card className="report-table-card" title="Báo cáo đánh giá gần đây" extra={<Text type="secondary">Dữ liệu nghiệp vụ đã ghi nhận</Text>}>
+          <Card className="report-table-card" title={<Space size={8}><span>Danh sách báo cáo đánh giá</span><Tag>{filteredReports.length} báo cáo</Tag></Space>} extra={<Text type="secondary">Dữ liệu nghiệp vụ đã ghi nhận</Text>}>
             {canReadAuditReports ? (
               <>
                 <div className="report-toolbar">
@@ -415,7 +415,7 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
                   <Select aria-label="Lọc tiêu chuẩn" onChange={setStandardFilter} options={[{ value: "all", label: "Tất cả tiêu chuẩn" }, ...standards.map((item) => ({ value: item, label: item }))]} value={standardFilter} />
                 </div>
                 {reportsQuery.isError ? <Alert description={getErrorMessage(reportsQuery.error)} message="Không thể tải danh sách báo cáo đánh giá" showIcon type="warning" /> : null}
-                <Table columns={columns} dataSource={filteredReports.slice(0, 50)} locale={{ emptyText: "Không có báo cáo phù hợp bộ lọc" }} pagination={{ pageSize: 10, showSizeChanger: false }} rowKey="id" scroll={{ x: 1220 }} />
+                <Table columns={columns} dataSource={filteredReports} locale={{ emptyText: "Không có báo cáo phù hợp bộ lọc" }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} báo cáo` }} rowKey="id" scroll={{ x: 1220 }} />
               </>
             ) : (
               <Empty description="Vai trò hiện tại chỉ được xem số liệu tổng hợp." />
