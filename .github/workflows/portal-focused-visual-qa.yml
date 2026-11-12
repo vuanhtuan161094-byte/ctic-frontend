@@ -1,0 +1,66 @@
+name: CMP Portal Focused Visual QA
+
+on:
+  push:
+    branches:
+      - "feature/**"
+    paths:
+      - "app/components/Customer*.tsx"
+      - "app/globals.css"
+      - "app/lib/audit-type-label.ts"
+      - "e2e/specs/customer-*.spec.mjs"
+      - ".github/workflows/portal-focused-visual-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cmp-portal-focused-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
+      - name: Install application dependencies
+        run: npm ci
+      - name: Install Playwright dependencies
+        run: npm --prefix e2e ci
+      - name: Install Chromium
+        run: cd e2e && npx playwright install --with-deps chromium
+      - name: Portal layout, responsive states and axe
+        run: |
+          cd e2e
+          ./node_modules/.bin/playwright test \
+            specs/customer-portal-dashboard-layout.spec.mjs \
+            specs/customer-portal-applications-layout.spec.mjs \
+            specs/customer-portal-documents-layout.spec.mjs \
+            specs/customer-portal-profile-layout.spec.mjs \
+            specs/customer-portal-users-layout.spec.mjs \
+            specs/customer-portal-cases-layout.spec.mjs \
+            specs/customer-corrective-actions-layout.spec.mjs \
+            specs/customer-certificates-results-layout.spec.mjs \
+            specs/customer-portal-schedule-layout.spec.mjs \
+            --workers=1 --retries=0
+      - name: Upload Portal screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cmp-portal-visual-${{ github.run_attempt }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 14

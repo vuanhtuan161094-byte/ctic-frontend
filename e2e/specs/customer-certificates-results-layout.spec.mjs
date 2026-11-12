@@ -84,6 +84,16 @@ test("customer certificates and results stay searchable and compact across targe
     await expect(page.getByRole("heading", { name: "Chứng chỉ" })).toBeVisible();
     await expect(page.locator(".customer-records-toolbar").getByText("12 chứng chỉ")).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    if (size.width < 992) {
+      const mobileText = await page.locator(".portal-mobile-card").first().evaluate((card) => ({
+        meta: parseFloat(getComputedStyle(card.querySelector(".portal-mobile-card__meta")).fontSize),
+        secondary: parseFloat(getComputedStyle(card.querySelector(".portal-mobile-card__identity small")).fontSize),
+        badge: parseFloat(getComputedStyle(card.querySelector(".portal-mobile-card__heading > .ant-tag")).fontSize),
+      }));
+      expect(mobileText.meta, "Portal record metadata must remain legible on 390px mobile").toBeGreaterThanOrEqual(12);
+      expect(mobileText.secondary, "Portal secondary text must remain legible on 390px mobile").toBeGreaterThanOrEqual(12);
+      expect(mobileText.badge, "Status badges must remain readable on mobile").toBeGreaterThanOrEqual(11);
+    }
     await captureVisualBaseline(page, testInfo, `customer-certificates-${size.width}`);
 
     const certificateSearch = page.getByRole("textbox", { name: "Tìm chứng chỉ" });

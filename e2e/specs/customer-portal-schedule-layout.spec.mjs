@@ -66,7 +66,7 @@ async function routeSchedule(page, getSchedule) {
 
 test("customer schedule shows full Vietnamese audit types on desktop, laptop and mobile", async ({ page }, testInfo) => {
   await routeSchedule(page, () => ({ status: 200, body: plans }));
-  await page.goto("/portal/schedule");
+  await page.goto("/portal/calendar");
   await expect(page.getByRole("heading", { name: "Lịch đánh giá" })).toBeVisible();
   const sizes = testInfo.project.name === "desktop-1440x900"
     ? [{ width: 1440, height: 900 }, { width: 1366, height: 768 }]
@@ -91,7 +91,7 @@ test("customer schedule shows full Vietnamese audit types on desktop, laptop and
 
 test("customer schedule has a distinguishable empty state", async ({ page }, testInfo) => {
   await routeSchedule(page, () => ({ status: 200, body: [] }));
-  await page.goto("/portal/schedule");
+  await page.goto("/portal/calendar");
   await expect(page.getByText("Chưa có lịch đánh giá được công bố")).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await captureVisualBaseline(page, testInfo, "customer-audit-schedule-empty");
@@ -102,7 +102,7 @@ test("customer schedule provides a retry after a loading error", async ({ page }
   await routeSchedule(page, () => failing
     ? { status: 503, body: { message: "Không thể tải lịch đánh giá" } }
     : { status: 200, body: plans });
-  await page.goto("/portal/schedule");
+  await page.goto("/portal/calendar");
   await expect(page.getByText("Không tải được lịch đánh giá")).toBeVisible({ timeout: 30000 });
   await expect(page.getByRole("button", { name: "Thử lại" })).toBeVisible();
   await captureVisualBaseline(page, testInfo, "customer-audit-schedule-error", { fullPage: false });
