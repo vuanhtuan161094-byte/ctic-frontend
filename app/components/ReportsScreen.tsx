@@ -19,6 +19,7 @@ import {
   Button,
   Card,
   Empty,
+  Grid,
   Input,
   List,
   Progress,
@@ -220,6 +221,8 @@ function DistributionPanel({ data }: { data: StatusCount[] }) {
 }
 
 export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
+  const screen = Grid.useBreakpoint();
+  const useMobileReportCards = !screen.md;
   const [warningDays, setWarningDays] = useState(90);
   const [standardFilter, setStandardFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -415,7 +418,39 @@ export function ReportsScreen({ roles, onOpenProject }: ReportsScreenProps) {
                   <Select aria-label="Lọc tiêu chuẩn" onChange={setStandardFilter} options={[{ value: "all", label: "Tất cả tiêu chuẩn" }, ...standards.map((item) => ({ value: item, label: item }))]} value={standardFilter} />
                 </div>
                 {reportsQuery.isError ? <Alert description={getErrorMessage(reportsQuery.error)} message="Không thể tải danh sách báo cáo đánh giá" showIcon type="warning" /> : null}
-                <Table columns={columns} dataSource={filteredReports} locale={{ emptyText: "Không có báo cáo phù hợp bộ lọc" }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} báo cáo` }} rowKey="id" scroll={{ x: 1220 }} />
+                {useMobileReportCards ? (
+                  <List<AuditReport>
+                    className="report-mobile-list"
+                    dataSource={filteredReports}
+                    locale={{ emptyText: <Empty description="Không có báo cáo phù hợp bộ lọc" /> }}
+                    pagination={{ pageSize: 10, showSizeChanger: false, size: "small", showTotal: (total) => `${total} báo cáo` }}
+                    renderItem={(report) => {
+                      const projectId = reportProjectId(report);
+                      const project = report.audit_plans?.certification_projects;
+                      const customer = project?.certification_applications?.customers?.company_name;
+                      return (
+                        <List.Item key={report.id}>
+                          <article className="report-mobile-card">
+                            <div className="report-mobile-card__heading">
+                              <strong>{report.report_code}</strong>
+                              <Tag color={statusColor(report.status)}>{statusLabel(report.status)}</Tag>
+                            </div>
+                            <div className="report-mobile-card__details">
+                              <span>{customer ?? "Khách hàng chưa xác định"}</span>
+                              <span>{project?.project_code ?? "Chưa liên kết hồ sơ"} · {reportStandard(report)}</span>
+                              <span>Ngày báo cáo: {report.report_date ? dayjs(report.report_date).format("DD/MM/YYYY") : "Chưa cập nhật"}</span>
+                            </div>
+                            <Button size="small" disabled={!projectId} onClick={() => projectId && onOpenProject(projectId)}>
+                              Mở hồ sơ
+                            </Button>
+                          </article>
+                        </List.Item>
+                      );
+                    }}
+                  />
+                ) : (
+                  <Table columns={columns} dataSource={filteredReports} locale={{ emptyText: "Không có báo cáo phù hợp bộ lọc" }} pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (total, range) => `${range[0]}–${range[1]} / ${total} báo cáo` }} rowKey="id" scroll={{ x: 1220 }} />
+                )}
               </>
             ) : (
               <Empty description="Vai trò hiện tại chỉ được xem số liệu tổng hợp." />
