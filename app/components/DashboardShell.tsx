@@ -1210,7 +1210,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         <Header className="top-header top-header-v2">
           <div className="header-left">
             {!isDesktop ? <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setMobileMenuOpen(true)} type="text" /> : null}
-            <button className="global-search-trigger" onClick={() => setSearchOpen(true)} type="button"><SearchOutlined /><span>Tìm khách hàng, mã hồ sơ, chứng chỉ...</span><kbd>Ctrl K</kbd></button>
+            <button className="global-search-trigger" onClick={() => setSearchOpen(true)} type="button"><SearchOutlined /><span>Tìm hồ sơ và công việc gần đây...</span><kbd>Ctrl K</kbd></button>
           </div>
           <Space size={isDesktop ? 14 : 8}>
             <NotificationCenter
@@ -1493,10 +1493,10 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         </Content>
       </Layout>
 
-      <Modal footer={null} onCancel={() => { setSearchOpen(false); setSearchTerm(""); }} open={searchOpen} title="Tìm kiếm nhanh" width={680} afterOpenChange={(open) => { if (open) window.setTimeout(() => searchInputRef.current?.focus(), 50); }}>
-        <Input ref={searchInputRef} allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Nhập mã hồ sơ, khách hàng, chứng chỉ hoặc NC/CAP..." prefix={<SearchOutlined />} size="large" value={searchTerm} />
+      <Modal footer={null} onCancel={() => { setSearchOpen(false); setSearchTerm(""); }} open={searchOpen} title="Tìm trong dữ liệu gần đây" width={680} afterOpenChange={(open) => { if (open) window.setTimeout(() => searchInputRef.current?.focus(), 50); }}>
+        <Input ref={searchInputRef} allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm mã hồ sơ, chứng chỉ hoặc công việc gần đây..." prefix={<SearchOutlined />} size="large" value={searchTerm} />
         <div className="search-result-area">
-          {searchTerm.trim().length < 2 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm khách hàng, hồ sơ hoặc công việc" /> : <List dataSource={searchResults} locale={{ emptyText: "Không tìm thấy kết quả phù hợp" }} renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />}
+          {searchTerm.trim().length < 2 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm trong các hồ sơ và công việc gần đây" /> : <List dataSource={searchResults} locale={{ emptyText: "Không có kết quả trong dữ liệu gần đây. Hãy thử danh sách nghiệp vụ." }} renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />}
         </div>
       </Modal>
     </Layout>
