@@ -161,6 +161,7 @@ export function CustomerPortalDashboardScreen({
       </section>
 
       <Card
+        className="customer-portal-upcoming-audits"
         extra={<Button onClick={onOpenSchedule}>Xem toàn bộ lịch</Button>}
         title="Lịch đánh giá sắp tới"
       >

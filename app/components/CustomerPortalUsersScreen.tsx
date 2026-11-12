@@ -390,8 +390,15 @@ export function CustomerPortalUsersScreen() {
           />
           {activeAccessSection === "users" ? (
           <Card
+            className="customer-portal-users__organization-card"
             extra={useCompactPortalList ? null : <Button icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">Đề nghị bổ sung người dùng</Button>}
-            title={<Space><UserOutlined /><span>{selectedGroup.company_name}</span><Tag>{selectedGroup.customer_code}</Tag></Space>}
+            title={(
+              <div className="customer-portal-users__organization-title">
+                <UserOutlined aria-hidden="true" />
+                <span className="customer-portal-users__organization-name">{selectedGroup.company_name}</span>
+                <Tag>{selectedGroup.customer_code}</Tag>
+              </div>
+            )}
           >
             {useCompactPortalList ? (
               <Button className="customer-portal-users__mobile-add" icon={<PlusOutlined />} onClick={() => openRequest("ADD_USER")} type="primary">

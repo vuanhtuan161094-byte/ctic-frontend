@@ -214,3 +214,61 @@
   }
   .personal-dashboard .personal-kpi-card:not(:disabled):hover { transform: none; }
 }
+
+/* CMP UX-V11-A01: keep organization names and upcoming-audit actions readable.
+   Scoped to Portal components; existing brand tokens and reduced-motion rules apply. */
+.customer-portal-users__organization-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  white-space: normal;
+}
+
+.customer-portal-users__organization-name {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.customer-portal-users__organization-title .ant-tag {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
+}
+
+.customer-portal-users__organization-card > .ant-card-head .ant-card-head-title {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+@media (max-width: 680px) {
+  .customer-portal-screen .project-summary-grid > .ant-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .customer-portal-upcoming-audits > .ant-card-head .ant-card-head-wrapper {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding-block: 12px;
+  }
+
+  .customer-portal-upcoming-audits > .ant-card-head .ant-card-head-title {
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .customer-portal-upcoming-audits > .ant-card-head .ant-card-extra {
+    margin: 0;
+  }
+
+  .customer-portal-upcoming-audits > .ant-card-head .ant-card-extra .ant-btn {
+    width: 100%;
+  }
+}

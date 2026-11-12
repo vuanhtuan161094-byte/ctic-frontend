@@ -114,6 +114,15 @@ test("portal access administration handles dense data and keeps its request acti
       const userRows = page.locator(".ant-table").first().locator(".ant-table-tbody > .ant-table-row");
       await expect(userRows).toHaveCount(10);
     }
+    const organizationName = page.locator(".customer-portal-users__organization-name");
+    await expect(organizationName).toHaveText(group.company_name);
+    const organizationLayout = await organizationName.evaluate((element) => ({
+      whiteSpace: getComputedStyle(element).whiteSpace,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+    }));
+    expect(organizationLayout.whiteSpace).toBe("normal");
+    expect(organizationLayout.scrollWidth, "The full company name must wrap without being clipped").toBeLessThanOrEqual(organizationLayout.clientWidth + 1);
     await captureVisualBaseline(page, testInfo, `customer-portal-access-users-${size.width}`);
 
     await page.getByRole("tab", { name: "Yêu cầu" }).click();

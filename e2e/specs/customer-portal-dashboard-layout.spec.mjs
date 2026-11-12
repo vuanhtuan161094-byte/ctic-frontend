@@ -106,6 +106,34 @@ test("customer portal dashboard fits dense data and supports keyboard shortcuts"
     } else {
       expect(geometry.rows).toBe(3);
     }
+    const auditsHeader = page.locator(".customer-portal-upcoming-audits > .ant-card-head");
+    const auditsTitle = auditsHeader.locator(".ant-card-head-title");
+    const scheduleButton = auditsHeader.getByRole("button", { name: "Xem toàn bộ lịch" });
+    await expect(auditsTitle).toHaveText("Lịch đánh giá sắp tới");
+    const headerGeometry = await auditsHeader.evaluate((header) => {
+      const title = header.querySelector(".ant-card-head-title");
+      const action = header.querySelector(".ant-card-extra .ant-btn");
+      const titleRect = title.getBoundingClientRect();
+      const actionRect = action.getBoundingClientRect();
+      return {
+        titleScrollWidth: title.scrollWidth,
+        titleClientWidth: title.clientWidth,
+        titleBottom: titleRect.bottom,
+        actionTop: actionRect.top,
+        actionWidth: actionRect.width,
+        headerWidth: header.getBoundingClientRect().width,
+      };
+    });
+    expect(headerGeometry.titleScrollWidth, "The entire upcoming-audit heading must fit without ellipsis").toBeLessThanOrEqual(headerGeometry.titleClientWidth + 1);
+    if (size.width < 681) {
+      expect(headerGeometry.actionTop, "The schedule action must occupy its own row below the full title").toBeGreaterThanOrEqual(headerGeometry.titleBottom - 1);
+      expect(headerGeometry.actionWidth, "The mobile action should be easy to tap").toBeGreaterThan(200);
+      const fifthCard = summaryCards.nth(4);
+      const gridWidth = await page.locator(".customer-portal-screen .project-summary-grid").evaluate((element) => element.getBoundingClientRect().width);
+      const fifthWidth = await fifthCard.evaluate((element) => element.getBoundingClientRect().width);
+      expect(fifthWidth, "The final summary card should use the otherwise empty mobile row").toBeGreaterThanOrEqual(gridWidth - 2);
+    }
+    await expect(scheduleButton).toBeVisible();
     await captureVisualBaseline(page, testInfo, `customer-portal-dashboard-${size.width}`, { fullPage: false });
   }
 
