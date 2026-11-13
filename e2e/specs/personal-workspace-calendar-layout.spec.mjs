@@ -284,7 +284,9 @@ test("global search uses authorized API paging and opens an exact customer and c
   await expect(page.locator(".search-result-area")).toContainText("CERT-2026-500");
   expect(queries.some((query) => query.type === "all" && query.q === "dong a")).toBe(true);
   await page.locator(".global-search-controls .ant-select").click();
-  await page.getByTitle("Khách hàng").last().click();
+  const categoryOption = page.locator(".global-search-category-popup:visible").getByTitle("Khách hàng");
+  await expect(categoryOption).toBeVisible();
+  await categoryOption.click();
   await expect(page.locator(".search-result-area")).toContainText("23 kết quả");
   await page.locator(".search-result-area .ant-pagination-item-2").click();
   await expect.poll(() => queries.some((query) => query.type === "customer" && query.pageNo === 2)).toBe(true);

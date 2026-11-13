@@ -23,7 +23,6 @@ import {
   Drawer,
   Empty,
   Input,
-  List,
   Pagination,
   Select,
   Skeleton,
@@ -603,7 +602,7 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath, roles }: 
             <strong>{selectedCertificate?.cert_number ?? "Đang tải dữ liệu..."}</strong>
           </div>
         )}
-        width={780}
+        size={780}
       >
         {workspaceQuery.isLoading ? <Skeleton active paragraph={{ rows: 16 }} /> : null}
         {workspaceQuery.isError ? (
@@ -637,15 +636,15 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath, roles }: 
                   type="warning"
                 />
               ) : null}
-              <Descriptions column={2} size="small">
-                <Descriptions.Item label="Tổ chức" span={2}>{certificateOrganization(selectedCertificate)}</Descriptions.Item>
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="Tổ chức">{certificateOrganization(selectedCertificate)}</Descriptions.Item>
                 <Descriptions.Item label="Tiêu chuẩn">{certificateStandard(selectedCertificate)}</Descriptions.Item>
                 <Descriptions.Item label="Phiên bản">{selectedCertificate.version_no ?? 1}</Descriptions.Item>
                 <Descriptions.Item label="Hệ thống">{selectedCertificate.management_system ?? decision?.management_system ?? "—"}</Descriptions.Item>
                 <Descriptions.Item label="Ngày cấp">{formatDate(selectedCertificate.issue_date)}</Descriptions.Item>
                 <Descriptions.Item label="Hết hạn">{formatDate(selectedCertificate.expire_date)}</Descriptions.Item>
-                <Descriptions.Item label="Phạm vi" span={2}>{selectedCertificate.certification_scope ?? decision?.certification_scope ?? "Chưa cập nhật phạm vi"}</Descriptions.Item>
-                <Descriptions.Item label="Mã xác minh" span={2}><Text copyable={Boolean(selectedCertificate.verification_code)}>{selectedCertificate.verification_code ?? "Chưa có"}</Text></Descriptions.Item>
+                <Descriptions.Item label="Phạm vi">{selectedCertificate.certification_scope ?? decision?.certification_scope ?? "Chưa cập nhật phạm vi"}</Descriptions.Item>
+                <Descriptions.Item label="Mã xác minh"><Text copyable={Boolean(selectedCertificate.verification_code)}>{selectedCertificate.verification_code ?? "Chưa có"}</Text></Descriptions.Item>
               </Descriptions>
             </section>
 
@@ -709,19 +708,20 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath, roles }: 
                 <div><strong>Tệp chứng chỉ</strong><span>Các phiên bản hiện hành đang được lưu trong hệ thống</span></div>
                 <Tag>{certificateDocuments.length} tệp</Tag>
               </div>
-              <List
-                dataSource={certificateDocuments}
-                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tệp chứng chỉ" /> }}
-                renderItem={(file) => (
-                  <List.Item actions={[<Button key="open" loading={openingDocumentId === file.id} onClick={() => void openDocument(file)} size="small">Mở tệp</Button>]}>
-                    <List.Item.Meta
-                      avatar={<FilePdfOutlined className="certificate-file-icon" />}
-                      description={`Phiên bản ${file.version_no} · ${formatDate(file.created_at)}`}
-                      title={file.original_name}
-                    />
-                  </List.Item>
-                )}
-              />
+              {certificateDocuments.length ? (
+                <div className="certificate-file-list" role="list" aria-label="Tệp chứng chỉ">
+                  {certificateDocuments.map((file) => (
+                    <div className="certificate-file-row" role="listitem" key={file.id}>
+                      <FilePdfOutlined className="certificate-file-icon" />
+                      <div className="certificate-file-meta">
+                        <strong>{file.original_name}</strong>
+                        <span>{`Phiên bản ${file.version_no} · ${formatDate(file.created_at)}`}</span>
+                      </div>
+                      <Button loading={openingDocumentId === file.id} onClick={() => void openDocument(file)} size="small">Mở tệp</Button>
+                    </div>
+                  ))}
+                </div>
+              ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có tệp chứng chỉ" />}
             </section>
 
             <section className="certificate-detail-section">
@@ -732,7 +732,7 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath, roles }: 
                 <Timeline
                   items={workspaceQuery.data.history.map((item) => ({
                     color: normalize(item.to_status) === "active" ? "green" : "orange",
-                    children: (
+                    content: (
                       <div className="certificate-history-item">
                         <strong>{statusLabel(item.from_status)} → {statusLabel(item.to_status)}</strong>
                         <span>{item.certification_decision?.decision_number ? `Quyết định ${item.certification_decision.decision_number} · ` : ""}{item.reason}</span>

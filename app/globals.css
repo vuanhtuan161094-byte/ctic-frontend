@@ -10295,3 +10295,16 @@ input { font: inherit; }
     word-break: normal;
   }
 }
+
+
+/* Scoped overlay prevents the mobile modal's scrolling result rows from
+   intercepting search-category selections. */
+.global-search-category-popup { z-index: 2100 !important; }
+.global-search-controls { position: relative; z-index: 1; }
+.certificate-file-list { display: grid; }
+.certificate-file-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #e9edf4; }
+.certificate-file-row:last-child { border-bottom: 0; }
+.certificate-file-row .certificate-file-icon { flex: 0 0 auto; }
+.certificate-file-row .certificate-file-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.certificate-file-row .certificate-file-meta span { color: var(--cmp-text-secondary, #68778c); font-size: 12px; }
+.certificate-file-row > .ant-btn { flex: 0 0 auto; }
