@@ -33,6 +33,7 @@ import {
   List,
   Menu,
   Modal,
+  Pagination,
   Select,
   Space,
   Tag,
@@ -237,6 +238,30 @@ interface SearchResult {
   entityId?: string | null;
 }
 
+type GlobalSearchCategory = 'all' | 'customer' | 'application' | 'project' | 'certificate' | 'work';
+interface GlobalSearchRecord {
+  key: string;
+  type: Exclude<GlobalSearchCategory, 'all'>;
+  title: string;
+  description: string;
+  entity_id: string;
+  project_id: string | null;
+  destination_path: string | null;
+}
+interface GlobalSearchResponse {
+  items: GlobalSearchRecord[];
+  totals: Record<string, number>;
+  pagination: { page: number; page_size: number; total: number; page_count: number; has_more: boolean; grouped_preview: boolean };
+}
+const globalSearchCategoryLabels: Record<GlobalSearchCategory, string> = {
+  all: "Tất cả",
+  customer: "Khách hàng",
+  application: "Đơn đăng ký",
+  project: "Hồ sơ chứng nhận",
+  certificate: "Chứng chỉ",
+  work: "Công việc",
+};
+
 interface WorkTaskPreview {
   id: string;
   title: string;
@@ -372,6 +397,10 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchCategory, setSearchCategory] = useState<GlobalSearchCategory>("all");
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchCustomerId, setSearchCustomerId] = useState<string | null>(null);
   const warningDays = 30;
   const searchInputRef = useRef<InputRef>(null);
   const historyReadyRef = useRef(false);
@@ -584,6 +613,23 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [activeView, selectedProjectId, selectedCertificateId, selectedAuditPlanId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  const globalSearchQuery = useQuery({
+    queryKey: ["me", "global-search", session.user.id, debouncedSearch, searchCategory, searchPage],
+    enabled: searchOpen && !customerPortalMode && !accessQuery.isLoading && debouncedSearch.length >= 2,
+    queryFn: async () => (
+      await api.get<GlobalSearchResponse>("/me/global-search", {
+        params: { q: debouncedSearch, type: searchCategory, page: searchPage, limit: 10 },
+      })
+    ).data,
+    staleTime: 15_000,
+    retry: 1,
+  });
 
   const data = overviewQuery.data;
   const taskCount = taskSummaryQuery.data?.summary.total ?? 0;
@@ -884,6 +930,29 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
     }
 
     await openResolvedTask(result.entityType, result.entityId, result.key);
+  };
+
+  const openGlobalSearchRecord = (record: GlobalSearchRecord) => {
+    setSearchOpen(false);
+    setSearchTerm("");
+    setDebouncedSearch("");
+    setSearchPage(1);
+
+    if (record.type === "customer") {
+      setSearchCustomerId(record.entity_id);
+      setActiveView("customers");
+    } else if (record.type === "application") {
+      openTaskDestination("applications");
+    } else if (record.type === "project") {
+      openTaskDestination("project-detail", record.project_id ?? record.entity_id);
+    } else if (record.type === "certificate") {
+      if (record.destination_path) openWorkspacePath(record.destination_path);
+      else openTaskDestination("certificates", record.entity_id);
+    } else if (record.destination_path) {
+      openWorkspacePath(record.destination_path);
+    } else {
+      setActiveView("my-tasks");
+    }
   };
 
   const navigationItems: MenuProps["items"] = (() => {
@@ -1210,7 +1279,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         <Header className="top-header top-header-v2">
           <div className="header-left">
             {!isDesktop ? <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setMobileMenuOpen(true)} type="text" /> : null}
-            <button className="global-search-trigger" onClick={() => setSearchOpen(true)} type="button"><SearchOutlined /><span>Tìm hồ sơ và công việc gần đây...</span><kbd>Ctrl K</kbd></button>
+            <button className="global-search-trigger" onClick={() => setSearchOpen(true)} type="button"><SearchOutlined /><span>{customerPortalMode ? "Tìm trong dữ liệu gần đây..." : "Tìm toàn hệ thống..."}</span><kbd>Ctrl K</kbd></button>
           </div>
           <Space size={isDesktop ? 14 : 8}>
             <NotificationCenter
@@ -1338,6 +1407,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <CustomerPortalUsersScreen />
           ) : activeView === "customers" ? (
             <CustomersScreen
+              initialCustomerId={searchCustomerId}
               onOpenProject={(projectId) => {
                 setSelectedProjectId(projectId);
                 setSelectedProjectDossierKey(null);
@@ -1493,10 +1563,52 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
         </Content>
       </Layout>
 
-      <Modal footer={null} onCancel={() => { setSearchOpen(false); setSearchTerm(""); }} open={searchOpen} title="Tìm trong dữ liệu gần đây" width={680} afterOpenChange={(open) => { if (open) window.setTimeout(() => searchInputRef.current?.focus(), 50); }}>
-        <Input ref={searchInputRef} allowClear onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm mã hồ sơ, chứng chỉ hoặc công việc gần đây..." prefix={<SearchOutlined />} size="large" value={searchTerm} />
+      <Modal footer={null} onCancel={() => { setSearchOpen(false); setSearchTerm(""); setSearchCategory("all"); setSearchPage(1); }} open={searchOpen} title={customerPortalMode ? "Tìm trong dữ liệu gần đây" : "Tìm kiếm toàn hệ thống"} width={720} afterOpenChange={(open) => { if (open) window.setTimeout(() => searchInputRef.current?.focus(), 50); }}>
+        <div className="global-search-controls">
+          <Input
+            ref={searchInputRef} allowClear aria-label="Từ khóa tìm kiếm" prefix={<SearchOutlined />} size="large"
+            onChange={(event) => { setSearchTerm(event.target.value); setSearchPage(1); }}
+            placeholder={customerPortalMode ? "Tìm hồ sơ và công việc gần đây..." : "Tìm khách hàng, đơn, hồ sơ, chứng chỉ, công việc..."} value={searchTerm}
+          />
+          {!customerPortalMode ? (
+            <Select
+              aria-label="Nhóm dữ liệu" value={searchCategory}
+              onChange={(value: GlobalSearchCategory) => { setSearchCategory(value); setSearchPage(1); }}
+              options={(Object.keys(globalSearchCategoryLabels) as GlobalSearchCategory[]).map((value) => ({ value, label: globalSearchCategoryLabels[value] }))}
+              style={{ width: "100%", maxWidth: 230 }}
+            />
+          ) : null}
+        </div>
         <div className="search-result-area">
-          {searchTerm.trim().length < 2 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm trong các hồ sơ và công việc gần đây" /> : <List dataSource={searchResults} locale={{ emptyText: "Không có kết quả trong dữ liệu gần đây. Hãy thử danh sách nghiệp vụ." }} renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />}
+          {searchTerm.trim().length < 2 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Nhập ít nhất 2 ký tự để tìm kiếm" />
+          ) : customerPortalMode ? (
+            <List dataSource={searchResults} locale={{ emptyText: "Không có kết quả trong dữ liệu gần đây." }}
+              renderItem={(item) => <List.Item actions={[<Button key="open" loading={openingAlertId === item.key} onClick={() => void openSearchResult(item)} size="small">Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{item.type}</Tag> {item.title}</span>} /></List.Item>} />
+          ) : debouncedSearch !== searchTerm.trim() || globalSearchQuery.isLoading ? (
+            <LoadingSkeleton variant="list" rows={5} />
+          ) : globalSearchQuery.isError ? (
+            <Alert showIcon type="error" title="Không tìm kiếm được" description={getErrorMessage(globalSearchQuery.error)}
+              action={<Button onClick={() => void globalSearchQuery.refetch()} size="small">Thử lại</Button>} />
+          ) : (
+            <>
+              <List
+                loading={globalSearchQuery.isFetching}
+                dataSource={globalSearchQuery.data?.items ?? []}
+                locale={{ emptyText: "Không tìm thấy bản ghi được phép xem. Hãy thử mã hồ sơ hoặc chọn nhóm dữ liệu khác." }}
+                renderItem={(item) => <List.Item actions={[<Button key="open" size="small" onClick={() => openGlobalSearchRecord(item)}>Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{globalSearchCategoryLabels[item.type]}</Tag> {item.title}</span>} /></List.Item>}
+              />
+              {globalSearchQuery.data ? (
+                <div className="global-search-footer">
+                  <span>{globalSearchQuery.data.pagination.total} kết quả {searchCategory === "all" ? "trong các nhóm được phép xem · tối đa 5 mỗi nhóm" : ""}</span>
+                  {searchCategory !== "all" && globalSearchQuery.data.pagination.page_count > 1 ? (
+                    <Pagination size="small" current={searchPage} total={globalSearchQuery.data.pagination.total}
+                      pageSize={globalSearchQuery.data.pagination.page_size} showSizeChanger={false} onChange={setSearchPage} />
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </Modal>
     </Layout>

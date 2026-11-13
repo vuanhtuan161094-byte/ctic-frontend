@@ -40,7 +40,7 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
@@ -143,6 +143,7 @@ interface PortalPasswordResetResult {
 }
 
 interface CustomersScreenProps {
+  initialCustomerId?: string | null;
   onOpenProject: (projectId: string) => void;
   roles: string[];
 }
@@ -172,7 +173,7 @@ function CustomerStatusTag({ status }: { status?: string | null }) {
   );
 }
 
-export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) {
+export function CustomersScreen({ initialCustomerId, onOpenProject, roles }: CustomersScreenProps) {
   const { message, modal } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<CustomerFormValues>();
@@ -181,7 +182,10 @@ export function CustomersScreen({ onOpenProject, roles }: CustomersScreenProps) 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [customerPage, setCustomerPage] = useState(1);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId ?? null);
+  useEffect(() => {
+    if (initialCustomerId) setSelectedCustomerId(initialCustomerId);
+  }, [initialCustomerId]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [countryChoice, setCountryChoice] = useState("VN");

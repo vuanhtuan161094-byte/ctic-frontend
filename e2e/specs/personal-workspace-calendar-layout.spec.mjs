@@ -246,3 +246,50 @@ test("my work retrieves page 2 and searches beyond the first page", async ({ pag
   expect(writes).toEqual([]);
   runtime.assertClean();
 });
+
+
+// The global-search fixture exercises live UI wiring, not real SQL search results.
+test("global search uses authorized API paging and opens an exact customer and certificate", async ({ page }, testInfo) => {
+  const { runtime, writes } = await openWorkspace(page);
+  const queries = [];
+  await page.route(/\/me\/global-search(?:\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    const q = url.searchParams.get("q") ?? "";
+    const type = url.searchParams.get("type") ?? "all";
+    const pageNo = Number(url.searchParams.get("page") ?? "1");
+    queries.push({ q, type, pageNo });
+    const types = type === "all" ? ["customer", "certificate"] : [type];
+    const items = types.flatMap((kind) => kind === "customer"
+      ? [{ key: "customer:client-100", type: "customer", title: "Công ty Đông Á", description: "Khách hàng · C100", entity_id: "client-100", project_id: null, destination_path: null }]
+      : kind === "certificate" ? [{
+        key: "certificate:cert-500", type: "certificate", title: "CERT-2026-500",
+        description: "Công ty Đông Á · ISO 9001 · active", entity_id: "cert-500", project_id: "case-500",
+        destination_path: "/certifications/case-500/certificates/cert-500",
+      }] : []);
+    await route.fulfill({
+      status: 200, contentType: "application/json",
+      body: JSON.stringify({ query: q, type, items,
+        totals: { customer: 23, certificate: 1 },
+        pagination: { page: pageNo, page_size: type === "all" ? 5 : 10,
+          total: type === "customer" ? 23 : items.length, page_count: type === "customer" ? 3 : 1,
+          has_more: type === "customer" && pageNo < 3, grouped_preview: type === "all" },
+      }),
+    });
+  });
+  await page.goto("/");
+  await page.locator(".global-search-trigger").click();
+  await expect(page.getByText("Tìm kiếm toàn hệ thống", { exact: true })).toBeVisible();
+  await page.getByPlaceholder("Tìm khách hàng, đơn, hồ sơ, chứng chỉ, công việc...").fill("dong a");
+  await expect(page.locator(".search-result-area")).toContainText("Công ty Đông Á");
+  await expect(page.locator(".search-result-area")).toContainText("CERT-2026-500");
+  expect(queries.some((query) => query.type === "all" && query.q === "dong a")).toBe(true);
+  await page.locator(".global-search-controls .ant-select").click();
+  await page.getByTitle("Khách hàng").last().click();
+  await expect(page.locator(".search-result-area")).toContainText("23 kết quả");
+  await page.locator(".search-result-area .ant-pagination-item-2").click();
+  await expect.poll(() => queries.some((query) => query.type === "customer" && query.pageNo === 2)).toBe(true);
+  await expectNoHorizontalOverflow(page);
+  await captureVisualBaseline(page, testInfo, "global-search-paged", { fullPage: false });
+  expect(writes).toEqual([]);
+  runtime.assertClean();
+});

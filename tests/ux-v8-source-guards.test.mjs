@@ -61,3 +61,12 @@ test("F.04 deep-link shows a responsive modal loading state while editor chunk l
   assert.match(source, /<ScheduleResourcesScreen[\s\S]*?appointmentEditorOnly/);
   assert.doesNotMatch(source, /coordinationTarget \? \(\s*<Suspense fallback=\{null\}>/);
 });
+
+
+test("global search no longer depends on recently loaded dashboard data", async () => {
+  const source = await file("app/components/DashboardShell.tsx");
+  assert.match(source, /api\.get<GlobalSearchResponse>\("\/me\/global-search"/);
+  assert.match(source, /globalSearchQuery\.data\?\.items/);
+  assert.match(source, /Pagination size="small" current=\{searchPage\}/);
+  assert.match(source, /getErrorMessage\(globalSearchQuery\.error\)/);
+});
