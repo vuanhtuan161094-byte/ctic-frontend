@@ -75,7 +75,8 @@ interface QmrApprover {
 
 interface QmrGs1Exception {
   id?: string;
-  status: "none" | "pending" | "approved" | "rejected";
+  status: "none" | "pending" | "approved" | "rejected" | "stale";
+  effective_approved?: boolean;
   approved_at?: string | null;
   approver_id?: string;
   evidence?: {
@@ -1214,6 +1215,7 @@ export default function AuditProgramPanel({
               <Descriptions.Item label="Trạng thái">
                 {currentQmrStatus.status === "approved" ? <Tag color="green">Đã được QMR phê duyệt</Tag>
                   : currentQmrStatus.status === "pending" ? <Tag color="gold">Chờ QMR</Tag>
+                    : currentQmrStatus.status === "stale" ? <Tag color="red">Phê duyệt cũ không còn hiệu lực</Tag>
                     : <Tag color="red">QMR không chấp thuận</Tag>}
               </Descriptions.Item>
               <Descriptions.Item label="Ngày đề nghị">{currentQmrStatus.evidence?.approved_date ? dayjs(currentQmrStatus.evidence.approved_date).format("DD/MM/YYYY") : "—"}</Descriptions.Item>
@@ -1277,7 +1279,12 @@ export default function AuditProgramPanel({
             </Card>
           ) : null}
 
-          {currentQmrStatus?.status === "approved" ? (
+          {currentQmrStatus?.status === "stale" ? (
+            <Alert showIcon type="error" title="Ngoại lệ QMR không còn hiệu lực"
+              description="Quyết định chứng nhận, người QMR được chỉ định hoặc lịch đã duyệt đã thay đổi. Phải lập đề nghị mới, không được dùng lại phê duyệt trước." />
+          ) : null}
+
+          {currentQmrStatus?.status === "approved" && currentQmrStatus.effective_approved ? (
             <Alert type="success" showIcon
               title="Lịch đã được QMR phê duyệt nhưng chưa tự động áp dụng"
               description="Bấm áp dụng để cập nhật đúng ngày đã duyệt trong chương trình; kế hoạch F.05 vẫn phải được đối chiếu độc lập."
