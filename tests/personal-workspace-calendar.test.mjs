@@ -86,7 +86,8 @@ test("global Schedule remains separate from My Calendar", () => {
 
 test("My Work offers status filters without a manual DONE mutation", () => {
   assert.match(tasks, /value: "DONE", label: "Đã hoàn thành"/);
-  assert.match(tasks, /statusFilter === "ACTIVE"/);
+  assert.match(tasks, /statusFilter !== "ACTIVE"/);
+  assert.match(tasks, /params\.set\("status", statusFilter\)/);
   assert.doesNotMatch(tasks, /patch[^\n]*status[^\n]*DONE/i);
   assert.doesNotMatch(tasks, /put[^\n]*status[^\n]*DONE/i);
 });

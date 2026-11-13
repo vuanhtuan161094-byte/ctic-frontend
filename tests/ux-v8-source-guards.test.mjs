@@ -22,8 +22,10 @@ test("task KPI filters are operable with keyboard and expose pressed state", asy
   assert.equal((source.match(/role="button"/g) ?? []).length, 4);
   assert.equal((source.match(/aria-pressed=/g) ?? []).length, 4);
   assert.equal((source.match(/onKeyDown=\{\(event\) => activateKpiWithKeyboard/g) ?? []).length, 4);
-  assert.match(source, /summary\.total > items\.length/);
-  assert.match(source, /Các bộ lọc bên dưới chỉ áp dụng cho danh sách đã tải/);
+  assert.match(source, /pagination\?\.total/);
+  assert.match(source, /params\.set\("search", debouncedSearch\)/);
+  assert.match(source, /current: serverPage/);
+  assert.doesNotMatch(source, /Các bộ lọc bên dưới chỉ áp dụng cho danh sách đã tải/);
 });
 
 test("quick search describes its real recent-data scope", async () => {

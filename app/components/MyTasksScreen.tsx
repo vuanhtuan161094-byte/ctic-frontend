@@ -288,7 +288,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
     high_priority: 0,
   };
 
-  // P.09 groups remain selectable even when current page has no such work type.
+  // Work groups remain selectable even when the current page contains other types.
   const groupOptions = Object.keys(workTypeLabels)
     .sort((left, right) => getWorkTypeLabel(left).localeCompare(getWorkTypeLabel(right), "vi"))
     .map((value) => ({ value, label: getWorkTypeLabel(value) }));
