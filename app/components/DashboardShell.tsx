@@ -1593,12 +1593,17 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
               action={<Button onClick={() => void globalSearchQuery.refetch()} size="small">Thử lại</Button>} />
           ) : (
             <>
-              <List
-                loading={globalSearchQuery.isFetching}
-                dataSource={globalSearchQuery.data?.items ?? []}
-                locale={{ emptyText: "Không tìm thấy bản ghi được phép xem. Hãy thử mã hồ sơ hoặc chọn nhóm dữ liệu khác." }}
-                renderItem={(item) => <List.Item actions={[<Button key="open" size="small" onClick={() => openGlobalSearchRecord(item)}>Mở</Button>]}><List.Item.Meta description={item.description} title={<span><Tag>{globalSearchCategoryLabels[item.type]}</Tag> {item.title}</span>} /></List.Item>}
-              />
+              <div className="global-search-results" role="list" aria-busy={globalSearchQuery.isFetching}>
+                {globalSearchQuery.data?.items.length ? globalSearchQuery.data.items.map((item) => (
+                  <div className="global-search-result-row" role="listitem" key={item.key}>
+                    <div className="global-search-result-meta">
+                      <div className="global-search-result-title"><Tag>{globalSearchCategoryLabels[item.type]}</Tag><strong>{item.title}</strong></div>
+                      <span className="global-search-result-description">{item.description}</span>
+                    </div>
+                    <Button onClick={() => openGlobalSearchRecord(item)} size="small">Mở</Button>
+                  </div>
+                )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tìm thấy bản ghi được phép xem. Hãy thử mã hồ sơ hoặc chọn nhóm dữ liệu khác." />}
+              </div>
               {globalSearchQuery.data ? (
                 <div className="global-search-footer">
                   <span>{globalSearchQuery.data.pagination.total} kết quả {searchCategory === "all" ? "trong các nhóm được phép xem · tối đa 5 mỗi nhóm" : ""}</span>
