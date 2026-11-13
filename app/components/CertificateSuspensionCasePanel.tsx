@@ -145,7 +145,7 @@ export function CertificateSuspensionCasePanel({ certificateId, projectId, roles
           </Descriptions>
           {isLate ? (
             <Alert type="error" showIcon title="Đã vượt quá 6 tháng đình chỉ"
-              description="Bắt buộc xử lý thu hồi/thu hẹp phạm vi theo P.09 qua thẩm xét F.11 và quyết định F.13. Không thể gia hạn lần hai; hệ thống không tự thay đổi hiệu lực chứng chỉ." />
+              description="Bắt buộc xử lý thu hồi hoặc thu hẹp phạm vi theo quy trình thẩm xét và quyết định chứng nhận. Không thể gia hạn lần hai; hệ thống không tự thay đổi hiệu lực chứng chỉ." />
           ) : data.deadline.after_initial && !data.approved_extension ? (
             <Alert type="warning" showIcon title="Đã đến hạn xem xét sau 3 tháng"
               description="Nếu hành động khắc phục chưa đạt, điều phối viên phải trình bằng chứng F.11 để người ra quyết định độc lập xem xét gia hạn một lần tối đa 3 tháng." />
