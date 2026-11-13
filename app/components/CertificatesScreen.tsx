@@ -130,7 +130,16 @@ interface CertificateHistoryItem {
   } | null;
 }
 
+interface SuspensionReview {
+  state: "not_suspended" | "missing_status_history" | "initial_period" | "review_due" | "maximum_window_exceeded";
+  started_at: string | null;
+  initial_review_due_at: string | null;
+  maximum_extension_due_at: string | null;
+  requires_independent_review: boolean;
+}
+
 interface CertificateHistoryResponse {
+  suspension_review?: SuspensionReview;
   certificate: {
     id: string;
     cert_number: string;
@@ -152,6 +161,7 @@ interface CertificateDocument {
 interface CertificateWorkspace {
   certificate: CertificateRecord;
   history: CertificateHistoryItem[];
+  suspension_review?: SuspensionReview;
   documents: CertificateDocument[];
 }
 
@@ -282,6 +292,7 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
       return {
         certificate: certificateResponse.data,
         history: historyResponse.data.history,
+        suspension_review: historyResponse.data.suspension_review,
         documents,
       };
     },
@@ -475,6 +486,7 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
   const notification = selectedCertificate?.technical_reviews?.audit_result_notification;
   const report = selectedCertificate?.technical_reviews?.reports;
   const selectedCertificateIsFixturePreview = isFixtureCertificatePreview(selectedCertificate);
+  const suspensionReview = workspaceQuery.data?.suspension_review;
   const certificateDocuments = selectedCertificateIsFixturePreview ? [] : workspaceQuery.data?.documents ?? [];
   const certificatePdf = certificateDocuments.find((file) => file.document_type === "certificate_pdf")
     ?? certificateDocuments[0];
@@ -635,6 +647,21 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
                 <Descriptions.Item label="Mã xác minh" span={2}><Text copyable={Boolean(selectedCertificate.verification_code)}>{selectedCertificate.verification_code ?? "Chưa có"}</Text></Descriptions.Item>
               </Descriptions>
             </section>
+
+            {normalize(selectedCertificate.status) === "suspended" ? (
+              <Alert
+                showIcon
+                type={suspensionReview?.state === "maximum_window_exceeded" ? "error" : "warning"}
+                title={suspensionReview?.state === "maximum_window_exceeded"
+                  ? "Đã vượt khung theo dõi đình chỉ tối đa 6 tháng"
+                  : suspensionReview?.requires_independent_review
+                    ? "Đến hạn xem xét đình chỉ chứng nhận"
+                    : "Chứng chỉ đang trong thời gian đình chỉ"}
+                description={suspensionReview?.initial_review_due_at
+                  ? `Mốc xem xét 3 tháng: ${formatDate(suspensionReview.initial_review_due_at)}. Mốc 6 tháng: ${formatDate(suspensionReview.maximum_extension_due_at)}. Việc gia hạn, khôi phục hoặc thu hồi phải do người có thẩm quyền quyết định và có hồ sơ, không được tự động thay đổi trạng thái.`
+                  : "Chưa đủ lịch sử hiệu lực đình chỉ để xác định hạn xem xét. Vui lòng kiểm tra quyết định gốc và hồ sơ trước khi xử lý."}
+              />
+            ) : null}
 
             {documentError ? <Alert closable description={documentError} message="Không mở được tài liệu" onClose={() => setDocumentError(null)} showIcon type="error" /> : null}
 
