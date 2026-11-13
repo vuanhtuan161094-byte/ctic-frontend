@@ -18,9 +18,11 @@ import {
   DatePicker,
   Descriptions,
   Empty,
+  Input,
   InputNumber,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Steps,
   Table,
@@ -62,6 +64,27 @@ interface AuditProgramEvent {
     planned_month?: string;
     source?: string;
     [key: string]: unknown;
+  } | null;
+}
+
+interface QmrApprover {
+  id: string;
+  full_name: string | null;
+  username: string;
+}
+
+interface QmrGs1Exception {
+  id?: string;
+  status: "none" | "pending" | "approved" | "rejected";
+  approved_at?: string | null;
+  approver_id?: string;
+  evidence?: {
+    proposed_start_date?: string;
+    approved_date: string;
+    requested_by: string;
+    reason: string;
+    reviewer_comment?: string | null;
+    reviewed_at?: string | null;
   } | null;
 }
 
@@ -334,6 +357,12 @@ export default function AuditProgramPanel({
   const [planEditorEvent, setPlanEditorEvent] = useState<AuditProgramEvent | null>(null);
   const [planStartDate, setPlanStartDate] = useState<Dayjs | null>(null);
   const [planEndDate, setPlanEndDate] = useState<Dayjs | null>(null);
+  const [qmrEvent, setQmrEvent] = useState<AuditProgramEvent | null>(null);
+  const [qmrProposedDate, setQmrProposedDate] = useState<Dayjs | null>(null);
+  const [qmrReason, setQmrReason] = useState("");
+  const [qmrApproverId, setQmrApproverId] = useState<string | undefined>();
+  const [qmrReviewComment, setQmrReviewComment] = useState("");
+  const [qmrBusy, setQmrBusy] = useState(false);
   const canManage = roles.some((role) => manageRoles.has(normalize(role)));
 
   const programsQuery = useQuery({
@@ -407,6 +436,87 @@ export default function AuditProgramPanel({
   );
 
   const activeProgram = programsQuery.data?.[0] ?? null;
+  const qmrExceptionQuery = useQuery({
+    queryKey: ["audit-programs", "gs1-exception", activeProgram?.id, qmrEvent?.id],
+    enabled: Boolean(qmrEvent && activeProgram),
+    queryFn: async () => (
+      await api.get<QmrGs1Exception>(
+        `/audit-programs/${activeProgram!.id}/events/${qmrEvent!.id}/gs1-exception`,
+      )
+    ).data,
+    retry: 1,
+  });
+  const qmrApproversQuery = useQuery({
+    queryKey: ["audit-programs", "gs1-qmr-approvers"],
+    enabled: Boolean(qmrEvent && canManage),
+    queryFn: async () => (await api.get<QmrApprover[]>("/audit-programs/gs1-exception/approvers")).data,
+    staleTime: 60_000,
+  });
+  const currentQmrStatus = qmrExceptionQuery.data;
+  const qmrAdmin = roles.some((role) => normalize(role) === "admin");
+  const openQmrDialog = (event: AuditProgramEvent) => {
+    setQmrEvent(event);
+    const original = dayjs(event.planned_start_date);
+    setQmrProposedDate(original.isValid() ? original : null);
+    setQmrReason("");
+    setQmrApproverId(undefined);
+    setQmrReviewComment("");
+  };
+  const submitQmrRequest = async () => {
+    if (!activeProgram || !qmrEvent || !qmrProposedDate || !qmrProposedDate.isValid()) {
+      message.warning("Chọn ngày bắt đầu giám sát cần xin ngoại lệ.");
+      return;
+    }
+    if (qmrReason.trim().length < 20 || !qmrApproverId) {
+      message.warning("Chọn QMR được chỉ định và mô tả lý do tối thiểu 20 ký tự.");
+      return;
+    }
+    setQmrBusy(true);
+    try {
+      await api.post(
+        `/audit-programs/${activeProgram.id}/events/${qmrEvent.id}/gs1-exception/request`,
+        { proposed_start_date: qmrProposedDate.format("YYYY-MM-DD"), reason: qmrReason.trim(), qmr_approver_id: qmrApproverId },
+      );
+      await qmrExceptionQuery.refetch();
+      message.success("Đã gửi đề nghị để QMR xem xét. Lịch chưa được phê duyệt.");
+    } catch (error) { message.error(getErrorMessage(error)); }
+    finally { setQmrBusy(false); }
+  };
+  const decideQmrRequest = async (decision: "approved" | "rejected") => {
+    if (!activeProgram || !qmrEvent) return;
+    if (qmrReviewComment.trim().length < 20) {
+      message.warning("QMR phải ghi căn cứ quyết định tối thiểu 20 ký tự.");
+      return;
+    }
+    setQmrBusy(true);
+    try {
+      await api.post(
+        `/audit-programs/${activeProgram.id}/events/${qmrEvent.id}/gs1-exception/decide`,
+        { decision, comment: qmrReviewComment.trim() },
+      );
+      await qmrExceptionQuery.refetch();
+      message.success(decision === "approved" ? "QMR đã duyệt đúng ngày đề nghị." : "QMR đã từ chối ngoại lệ.");
+    } catch (error) { message.error(getErrorMessage(error)); }
+    finally { setQmrBusy(false); }
+  };
+  const applyApprovedQmrDate = async () => {
+    const date = currentQmrStatus?.evidence?.approved_date;
+    if (!activeProgram || !qmrEvent || !date || currentQmrStatus?.status !== "approved") return;
+    setQmrBusy(true);
+    try {
+      const previousEnd = dayjs(qmrEvent.planned_end_date);
+      await api.patch(`/audit-programs/${activeProgram.id}/events/${qmrEvent.id}`, {
+        planned_start_date: date,
+        planned_end_date: previousEnd.isValid() && !previousEnd.isBefore(dayjs(date))
+          ? previousEnd.format("YYYY-MM-DD") : date,
+      });
+      await programsQuery.refetch();
+      await onChanged?.();
+      message.success("Đã áp dụng đúng ngày GS1 được QMR duyệt cho chương trình. Kiểm tra lịch kế hoạch F.05 riêng.");
+    } catch (error) { message.error(getErrorMessage(error)); }
+    finally { setQmrBusy(false); }
+  };
+
   const latestCalculation = useMemo(
     () => chooseLatestCalculation(mandayQuery.data ?? []),
     [mandayQuery.data],
@@ -1027,6 +1137,21 @@ export default function AuditProgramPanel({
               rowKey="id"
               size="middle"
             />
+            {canManage && activeProgram.events.some((event) => normalize(event.event_type) === "surveillance1") ? (
+              <Alert
+                showIcon
+                type="info"
+                style={{ marginTop: 12 }}
+                title="Kiểm soát lịch giám sát lần 1"
+                description="Giám sát lần 1 không được bắt đầu quá 12 tháng kể từ quyết định cấp hoặc tái chứng nhận. Trường hợp vượt hạn phải có đề nghị và phê duyệt QMR độc lập, đúng ngày."
+                action={
+                  <Button size="small" onClick={() => {
+                    const gs1 = activeProgram.events.find((event) => normalize(event.event_type) === "surveillance1");
+                    if (gs1) openQmrDialog(gs1);
+                  }}>Ngoại lệ QMR</Button>
+                }
+              />
+            ) : null}
           </>
         ) : (
           <Empty
@@ -1041,6 +1166,103 @@ export default function AuditProgramPanel({
           </Empty>
         )}
       </Card>
+
+      <Modal
+        footer={null}
+        destroyOnHidden
+        open={Boolean(qmrEvent)}
+        onCancel={() => setQmrEvent(null)}
+        width={700}
+        title="Ngoại lệ hạn giám sát lần 1 — QMR"
+      >
+        <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+          <Alert
+            showIcon type="warning"
+            title="Không tự động phê duyệt hoặc sửa lịch quá hạn"
+            description="Chỉ QMR được chỉ định và có quyền ADMIN đang hoạt động mới được phê duyệt. Người đề nghị không được tự duyệt. Việc duyệt không tự sửa F.03/F.05 hoặc cấp chứng chỉ."
+          />
+          {qmrExceptionQuery.isError ? (
+            <Alert showIcon type="error" title="Không tải được lịch sử ngoại lệ" description={getErrorMessage(qmrExceptionQuery.error)}
+              action={<Button size="small" onClick={() => void qmrExceptionQuery.refetch()}>Thử lại</Button>} />
+          ) : null}
+          {qmrExceptionQuery.isLoading ? <Card loading /> : null}
+          {currentQmrStatus?.status && currentQmrStatus.status !== "none" ? (
+            <Descriptions bordered column={1} size="small">
+              <Descriptions.Item label="Trạng thái">
+                {currentQmrStatus.status === "approved" ? <Tag color="green">Đã được QMR phê duyệt</Tag>
+                  : currentQmrStatus.status === "pending" ? <Tag color="gold">Chờ QMR</Tag>
+                    : <Tag color="red">QMR không chấp thuận</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="Ngày đề nghị">{currentQmrStatus.evidence?.approved_date ? dayjs(currentQmrStatus.evidence.approved_date).format("DD/MM/YYYY") : "—"}</Descriptions.Item>
+              <Descriptions.Item label="Lý do">{currentQmrStatus.evidence?.reason ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Ý kiến QMR">{currentQmrStatus.evidence?.reviewer_comment ?? "Chưa quyết định"}</Descriptions.Item>
+            </Descriptions>
+          ) : null}
+
+          {currentQmrStatus?.status !== "pending" ? (
+            <Card size="small" title="Lập đề nghị ngoại lệ">
+              <Space orientation="vertical" style={{ width: "100%" }} size="middle">
+                <div>
+                  <Text strong>Ngày bắt đầu GS1 dự kiến cần phê duyệt</Text>
+                  <DatePicker aria-label="Ngày bắt đầu GS1 xin ngoại lệ"
+                    style={{ width: "100%", marginTop: 6 }} format="DD/MM/YYYY"
+                    value={qmrProposedDate} onChange={setQmrProposedDate}
+                    allowClear={false} />
+                </div>
+                <div>
+                  <Text strong>Nguyên nhân và biện pháp kiểm soát</Text>
+                  <Input.TextArea aria-label="Lý do ngoại lệ GS1" rows={3} maxLength={2000}
+                    value={qmrReason} onChange={(event) => setQmrReason(event.target.value)}
+                    placeholder="Nêu nguyên nhân khách quan, tác động đến hiệu lực chứng nhận và biện pháp giảm thiểu..." />
+                </div>
+                <div>
+                  <Text strong>QMR độc lập được chỉ định</Text>
+                  <Select aria-label="Người phê duyệt QMR" style={{ width: "100%", marginTop: 6 }}
+                    loading={qmrApproversQuery.isFetching}
+                    placeholder="Chọn QMR đang hoạt động"
+                    value={qmrApproverId} onChange={setQmrApproverId}
+                    options={(qmrApproversQuery.data ?? []).map((user) => ({
+                      value: user.id, label: user.full_name ? `${user.full_name} · ${user.username}` : user.username,
+                    }))}
+                  />
+                  {qmrApproversQuery.data?.length === 0 ? (
+                    <Text type="danger">Chưa cấu hình QMR hợp lệ trên backend (P09_QMR_APPROVER_IDS). Không thể phê duyệt.</Text>
+                  ) : null}
+                </div>
+                <Button type="primary" onClick={() => void submitQmrRequest()}
+                  loading={qmrBusy} disabled={!qmrApproversQuery.data?.length || !qmrProposedDate || qmrReason.trim().length < 20 || !qmrApproverId}>
+                  Gửi QMR xem xét
+                </Button>
+              </Space>
+            </Card>
+          ) : null}
+
+          {currentQmrStatus?.status === "pending" && qmrAdmin ? (
+            <Card size="small" title="Quyết định độc lập của QMR">
+              <Space orientation="vertical" style={{ width: "100%" }}>
+                <Text>Chỉ tài khoản QMR được chỉ định trong đề nghị mới có quyền quyết định.</Text>
+                <Input.TextArea aria-label="Ý kiến quyết định QMR" maxLength={2000} rows={3} value={qmrReviewComment}
+                  onChange={(event) => setQmrReviewComment(event.target.value)}
+                  placeholder="Căn cứ xem xét, bằng chứng và ý kiến phê duyệt / từ chối..." />
+                <Space wrap>
+                  <Button type="primary" loading={qmrBusy} disabled={qmrReviewComment.trim().length < 20}
+                    onClick={() => void decideQmrRequest("approved")}>Chấp thuận ngày ngoại lệ</Button>
+                  <Button danger loading={qmrBusy} disabled={qmrReviewComment.trim().length < 20}
+                    onClick={() => void decideQmrRequest("rejected")}>Không chấp thuận</Button>
+                </Space>
+              </Space>
+            </Card>
+          ) : null}
+
+          {currentQmrStatus?.status === "approved" ? (
+            <Alert type="success" showIcon
+              title="Lịch đã được QMR phê duyệt nhưng chưa tự động áp dụng"
+              description="Bấm áp dụng để cập nhật đúng ngày đã duyệt trong chương trình; kế hoạch F.05 vẫn phải được đối chiếu độc lập."
+              action={<Button loading={qmrBusy} onClick={() => void applyApprovedQmrDate()}>Áp dụng ngày đã duyệt</Button>}
+            />
+          ) : null}
+        </Space>
+      </Modal>
 
       <Modal
         cancelText="Hủy"
