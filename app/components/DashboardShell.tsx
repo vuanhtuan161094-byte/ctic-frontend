@@ -1574,7 +1574,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
           {!customerPortalMode ? (
             <Select
               aria-label="Nhóm dữ liệu" value={searchCategory}
-              popupClassName="global-search-category-popup"
+              classNames={{ popup: { root: "global-search-category-popup" } }}
               getPopupContainer={(trigger) => trigger.closest(".ant-modal-content") ?? document.body}
               onChange={(value: GlobalSearchCategory) => { setSearchCategory(value); setSearchPage(1); }}
               options={(Object.keys(globalSearchCategoryLabels) as GlobalSearchCategory[]).map((value) => ({ value, label: globalSearchCategoryLabels[value] }))}
