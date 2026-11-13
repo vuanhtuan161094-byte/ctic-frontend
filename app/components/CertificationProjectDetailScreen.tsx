@@ -2414,7 +2414,11 @@ export function CertificationProjectDetailScreen({
       ) : null}
 
       {coordinationTarget ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={(
+          <Modal centered className="appointment-editor-modal" footer={null} onCancel={() => setCoordinationTarget(null)} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+            <Skeleton active paragraph={{ rows: 8 }} />
+          </Modal>
+        )}>
           <ScheduleResourcesScreen
           appointmentEditorOnly
           initialPlanId={coordinationTarget}
