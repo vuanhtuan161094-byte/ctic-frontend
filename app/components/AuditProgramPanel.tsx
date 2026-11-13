@@ -509,6 +509,11 @@ export default function AuditProgramPanel({
         planned_start_date: date,
         planned_end_date: previousEnd.isValid() && !previousEnd.isBefore(dayjs(date))
           ? previousEnd.format("YYYY-MM-DD") : date,
+        form_data: {
+          planned_month: dayjs(date).format("YYYY-MM"),
+          planning_precision: "DATE",
+          source: "approved_qmr_gs1_exception",
+        },
       });
       await programsQuery.refetch();
       await onChanged?.();
@@ -704,8 +709,26 @@ export default function AuditProgramPanel({
             index,
             existing?.status ?? "planned",
           );
+          // A QMR-approved GS1 day is authoritative. Regenerating a monthly
+          // forecast must not silently reset it to the first of the month.
+          const currentDate = existing?.planned_start_date
+            ? dayjs(existing.planned_start_date) : null;
+          const preserveGs1Date = event.event_type === "surveillance1"
+            && Boolean(existing?.planned_start_date)
+            && currentDate?.isValid()
+            && currentDate.format("YYYY-MM") === event.planned_month.format("YYYY-MM");
+          const scheduledPayload = preserveGs1Date ? {
+            ...payload,
+            planned_start_date: existing!.planned_start_date,
+            planned_end_date: existing!.planned_end_date ?? payload.planned_end_date,
+            form_data: {
+              ...payload.form_data,
+              planning_precision: existing?.form_data?.planning_precision ?? "DATE",
+              source: existing?.form_data?.source ?? "approved_qmr_gs1_exception",
+            },
+          } : payload;
           if (existing) {
-            await api.patch(`/audit-programs/${activeProgram.id}/events/${existing.id}`, payload);
+            await api.patch(`/audit-programs/${activeProgram.id}/events/${existing.id}`, scheduledPayload);
           } else {
             await api.post(`/audit-programs/${activeProgram.id}/events`, payload);
           }
