@@ -14,7 +14,8 @@ const suspended = {
   standard_name: "ISO 9001:2015", certification_scope: "Sản xuất thiết bị",
   status: "suspended", issue_date: "2026-01-01", expire_date: "2029-01-01",
   created_at: "2026-01-01", updated_at: "2026-05-01",
-  fixture_only: false, legal_effect: false,
+  // Controlled browser fixture; not an actual issued certificate.
+  // No fixture_only/legal_effect flags: exercise authorized operational screen.
   verification_code: null,
 };
 const session = {
