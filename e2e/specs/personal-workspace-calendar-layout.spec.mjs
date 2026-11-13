@@ -184,3 +184,65 @@ test("my work filters stay usable with a dense fixture on desktop and mobile", a
   expect(writes).toEqual([]);
   runtime.assertClean();
 });
+
+
+// Server-paged API fixture: this is browser contract QA, not a SQL staging UAT.
+test("my work retrieves page 2 and searches beyond the first page", async ({ page }, testInfo) => {
+  const { runtime, writes } = await openWorkspace(page);
+  const requests = [];
+  const allRows = Array.from({ length: 42 }, (_, index) => {
+    const number = String(index + 1).padStart(3, "0");
+    return {
+      ...tasks[0],
+      id: `paged-task-${number}`,
+      title: `Xử lý hồ sơ mẫu ${number}`,
+      project_code: `DEMO-HS-2026-${number}`,
+      project_id: `demo-case-${number}`,
+      entity_id: `demo-case-${number}`,
+      destination_path: `/certifications/demo-case-${number}`,
+    };
+  });
+  await page.route(/\/my-work(?:\?|$)/, async (route) => {
+    const url = new URL(route.request().url());
+    const requestPage = Number(url.searchParams.get("page") ?? "1");
+    const size = Number(url.searchParams.get("limit") ?? "20");
+    const keyword = (url.searchParams.get("search") ?? "").toLocaleLowerCase("vi");
+    requests.push(Object.fromEntries(url.searchParams));
+    const matched = allRows.filter((item) => !keyword
+      || [item.title, item.project_code, item.organization_name].join(" ").toLocaleLowerCase("vi").includes(keyword));
+    const items = matched.slice((requestPage - 1) * size, requestPage * size);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json; charset=utf-8",
+      body: JSON.stringify({
+        generated_at: workspace.generated_at,
+        summary: { total: allRows.length, overdue: 0, due_soon: 0, high_priority: 0 },
+        filter: { limit: size, page: requestPage },
+        pagination: {
+          page: requestPage, page_size: size, total: matched.length,
+          page_count: Math.ceil(matched.length / size), has_more: requestPage * size < matched.length,
+        },
+        items,
+      }),
+    });
+  });
+
+  await page.goto("/work");
+  await expect(page.getByRole("heading", { name: "Công việc" })).toBeVisible();
+  await expect(page.locator(".my-tasks-screen")).toContainText("DEMO-HS-2026-001");
+  await expect(page.locator(".my-tasks-screen")).not.toContainText("DEMO-HS-2026-021");
+  await page.locator(".my-tasks-screen .ant-pagination-item-2").first().click();
+  await expect(page.locator(".my-tasks-screen")).toContainText("DEMO-HS-2026-021");
+  await expect(page.locator(".my-tasks-screen")).not.toContainText("DEMO-HS-2026-001");
+  expect(requests.some((query) => query.page === "2" && query.limit === "20")).toBe(true);
+  await expectNoHorizontalOverflow(page);
+  await captureVisualBaseline(page, testInfo, "my-work-paged-second-page", { fullPage: false });
+
+  await page.getByPlaceholder("Tìm mã hồ sơ, khách hàng hoặc nội dung công việc...").fill("DEMO-HS-2026-042");
+  await expect(page.locator(".my-tasks-screen")).toContainText("DEMO-HS-2026-042");
+  await expect(page.locator(".my-tasks-screen")).not.toContainText("DEMO-HS-2026-021");
+  expect(requests.some((query) => query.search === "DEMO-HS-2026-042" && query.page === "1")).toBe(true);
+  await expectNoHorizontalOverflow(page);
+  expect(writes).toEqual([]);
+  runtime.assertClean();
+});

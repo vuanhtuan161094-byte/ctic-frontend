@@ -17,6 +17,7 @@ test("My Work consumes durable work items once and opens their exact destination
   assert.match(tasksSource, /params\.set\("work_type", groupFilter\)/);
   assert.match(tasksSource, /params\.set\("due", timeFilter\)/);
   assert.match(tasksSource, /pagination\?\.total/);
+  assert.match(tasksSource, /placeholderData: \(previousData\) => previousData/);
   assert.doesNotMatch(tasksSource, /\/notifications\/me\/tasks/);
   assert.match(tasksSource, /destination_path/);
   assert.match(tasksSource, /can_execute/);

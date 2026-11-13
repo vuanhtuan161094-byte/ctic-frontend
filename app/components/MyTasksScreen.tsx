@@ -278,6 +278,8 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       return response.data;
     },
     staleTime: 20_000,
+    // Keep filters and the search input mounted while a new page is loading.
+    placeholderData: (previousData) => previousData,
   });
 
   const items = useMemo(() => taskQuery.data?.items ?? [], [taskQuery.data?.items]);
@@ -528,6 +530,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
       ) : null}
 
       <Card className="my-tasks-table-card my-tasks-table-card-v2" title="Danh sách công việc">
+        {taskQuery.isFetching ? <Text type="secondary">Đang cập nhật danh sách công việc...</Text> : null}
         <div className="my-tasks-filters my-tasks-filters-v2">
           <Input
             allowClear
@@ -647,6 +650,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           </div>
         ) : (
           <Table<WorkTaskItem>
+            loading={taskQuery.isFetching}
             columns={columns}
             dataSource={filteredItems}
             locale={{
