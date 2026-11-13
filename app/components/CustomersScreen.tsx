@@ -40,7 +40,7 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 import { CustomerPortalAccountModal } from "./CustomerPortalAccountModal";
@@ -183,9 +183,6 @@ export function CustomersScreen({ initialCustomerId, onOpenProject, roles }: Cus
   const [statusFilter, setStatusFilter] = useState("all");
   const [customerPage, setCustomerPage] = useState(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId ?? null);
-  useEffect(() => {
-    if (initialCustomerId) setSelectedCustomerId(initialCustomerId);
-  }, [initialCustomerId]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [countryChoice, setCountryChoice] = useState("VN");

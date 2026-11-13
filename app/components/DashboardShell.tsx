@@ -1407,6 +1407,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <CustomerPortalUsersScreen />
           ) : activeView === "customers" ? (
             <CustomersScreen
+              key={searchCustomerId ?? "customer-list"}
               initialCustomerId={searchCustomerId}
               onOpenProject={(projectId) => {
                 setSelectedProjectId(projectId);
