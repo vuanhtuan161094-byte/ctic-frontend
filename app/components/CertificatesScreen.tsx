@@ -41,6 +41,7 @@ import { api, getErrorMessage } from "../lib/api";
 import { buildPublicApiUrl } from "../lib/deployment-config";
 import { previewDocumentFile } from "../lib/document-file-client";
 import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
+import { CertificateSuspensionCasePanel } from "./CertificateSuspensionCasePanel";
 
 const { Text, Title } = Typography;
 
@@ -247,7 +248,7 @@ async function optionalRequest<T>(request: Promise<{ data: T }>, fallback: T): P
   }
 }
 
-export function CertificatesScreen({ initialCertificateId, onOpenPath }: CertificatesScreenProps) {
+export function CertificatesScreen({ initialCertificateId, onOpenPath, roles }: CertificatesScreenProps) {
   const selectionContext = initialCertificateId ?? null;
   const [certificateSelection, setCertificateSelection] = useState<{
     context: string | null;
@@ -660,6 +661,16 @@ export function CertificatesScreen({ initialCertificateId, onOpenPath }: Certifi
                 description={suspensionReview?.initial_review_due_at
                   ? `Mốc xem xét 3 tháng: ${formatDate(suspensionReview.initial_review_due_at)}. Mốc 6 tháng: ${formatDate(suspensionReview.maximum_extension_due_at)}. Việc gia hạn, khôi phục hoặc thu hồi phải do người có thẩm quyền quyết định và có hồ sơ, không được tự động thay đổi trạng thái.`
                   : "Chưa đủ lịch sử hiệu lực đình chỉ để xác định hạn xem xét. Vui lòng kiểm tra quyết định gốc và hồ sơ trước khi xử lý."}
+              />
+            ) : null}
+
+            {normalize(selectedCertificate.status) === "suspended" && !selectedCertificateIsFixturePreview ? (
+              <CertificateSuspensionCasePanel
+                key={selectedCertificate.id}
+                certificateId={selectedCertificate.id}
+                projectId={selectedCertificate.certificate_series?.project_id}
+                roles={roles}
+                onOpenPath={onOpenPath}
               />
             ) : null}
 
