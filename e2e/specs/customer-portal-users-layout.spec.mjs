@@ -160,11 +160,15 @@ test("portal access administration handles dense data and keeps its request acti
 
 test("portal access screen distinguishes loading from a failed request history", async ({ page }) => {
   await usePortalSession(page);
+  // Hold the actual API response until the loading state is observed.
+  // A fixed sleep makes this assertion race with React hydration on CI.
+  let releaseAccess;
+  const accessGate = new Promise((resolve) => { releaseAccess = resolve; });
   await page.route("http://127.0.0.1:3000/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === "/customer-portal/me/user-access") {
-      await new Promise((resolve) => setTimeout(resolve, 450));
+      await accessGate;
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([group]) });
       return;
     }
@@ -183,8 +187,13 @@ test("portal access screen distinguishes loading from a failed request history",
     await route.fulfill({ status: 200, contentType: "application/json; charset=utf-8", body: JSON.stringify(body) });
   });
 
-  await page.goto("/portal/organization?tab=access");
-  await expect(page.getByText("Đang tải người dùng Portal...", { exact: true })).toBeVisible();
+  try {
+    await page.goto("/portal/organization?tab=access");
+    await expect(page.getByText("Đang tải người dùng Portal...", { exact: true })).toBeVisible();
+  } finally {
+    // Avoid leaving an intercepted request hanging after a failed assertion.
+    releaseAccess();
+  }
   await expect(page.getByRole("heading", { name: "Tài khoản Portal" })).toBeVisible();
   await page.getByRole("tab", { name: "Yêu cầu" }).click();
   await expect(page.getByText("Không tải được lịch sử yêu cầu quản trị tài khoản")).toBeVisible({ timeout: 12_000 });
