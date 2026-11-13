@@ -67,6 +67,15 @@ const ScheduleResourcesScreen = lazy(() =>
 
 const { Text, Title } = Typography;
 
+// Show immediate, actionable feedback before the large resource editor chunk mounts.
+function F04EditorLoadingModal({ onCancel }: { onCancel: () => void }) {
+  return (
+    <Modal centered className="appointment-editor-modal" footer={null} onCancel={onCancel} open title="Chỉ định đoàn đánh giá F.04" width={920}>
+      <Skeleton active paragraph={{ rows: 8 }} />
+    </Modal>
+  );
+}
+
 interface ProjectCustomer {
   id: string;
   customer_code: string;
@@ -2414,11 +2423,7 @@ export function CertificationProjectDetailScreen({
       ) : null}
 
       {coordinationTarget ? (
-        <Suspense fallback={(
-          <Modal centered className="appointment-editor-modal" footer={null} onCancel={() => setCoordinationTarget(null)} open title="Chỉ định đoàn đánh giá F.04" width={920}>
-            <Skeleton active paragraph={{ rows: 8 }} />
-          </Modal>
-        )}>
+        <Suspense fallback={<F04EditorLoadingModal onCancel={() => setCoordinationTarget(null)} />}>
           <ScheduleResourcesScreen
           appointmentEditorOnly
           initialPlanId={coordinationTarget}

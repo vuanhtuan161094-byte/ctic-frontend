@@ -54,7 +54,9 @@ test("new brand polish does not force motion on reduced-motion users", async () 
 
 test("F.04 deep-link shows a responsive modal loading state while editor chunk loads", async () => {
   const source = await file("app/components/CertificationProjectDetailScreen.tsx");
-  assert.match(source, /coordinationTarget \? \([\s\S]*?<Suspense fallback=\{\([\s\S]*?className="appointment-editor-modal"/);
+  assert.match(source, /function F04EditorLoadingModal/);
+  assert.match(source, /className="appointment-editor-modal"/);
+  assert.match(source, /<Suspense fallback=\{<F04EditorLoadingModal/);
   assert.match(source, /<Skeleton active paragraph=\{\{ rows: 8 \}\} \/>/);
   assert.match(source, /<ScheduleResourcesScreen[\s\S]*?appointmentEditorOnly/);
   assert.doesNotMatch(source, /coordinationTarget \? \(\s*<Suspense fallback=\{null\}>/);
