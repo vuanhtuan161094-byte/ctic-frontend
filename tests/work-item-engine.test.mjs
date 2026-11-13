@@ -12,7 +12,11 @@ const shellSource = await readFile(
 );
 
 test("My Work consumes durable work items once and opens their exact destination", () => {
-  assert.match(tasksSource, /\/my-work\?limit=200/);
+  assert.match(tasksSource, /new URLSearchParams/);
+  assert.match(tasksSource, /params\.set\("search", debouncedSearch\)/);
+  assert.match(tasksSource, /params\.set\("work_type", groupFilter\)/);
+  assert.match(tasksSource, /params\.set\("due", timeFilter\)/);
+  assert.match(tasksSource, /pagination\?\.total/);
   assert.doesNotMatch(tasksSource, /\/notifications\/me\/tasks/);
   assert.match(tasksSource, /destination_path/);
   assert.match(tasksSource, /can_execute/);

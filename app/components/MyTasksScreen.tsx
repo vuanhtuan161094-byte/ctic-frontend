@@ -30,7 +30,7 @@ import {
   message,
 } from "antd";
 import dayjs from "dayjs";
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
 
@@ -95,9 +95,8 @@ interface WorkTaskResponse {
     due_soon: number;
     high_priority: number;
   };
-  filter: {
-    limit: number;
-  };
+  filter: { limit: number; };
+  pagination?: { page: number; page_size: number; total: number; page_count: number; has_more: boolean; };
   items: WorkTaskItem[];
 }
 
@@ -256,19 +255,26 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [openingItemId, setOpeningItemId] = useState<string | null>(null);
   const [historyItem, setHistoryItem] = useState<WorkTaskItem | null>(null);
-  const [mobilePage, setMobilePage] = useState(1);
+  const [serverPage, setServerPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const pageSize = 20;
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 300);
+    return () => window.clearTimeout(id);
+  }, [searchTerm]);
   const screens = Grid.useBreakpoint();
   const useMobileTaskCards = !screens.md;
 
   const taskQuery = useQuery({
-    queryKey: ["work-tasks", "me", statusFilter],
+    queryKey: ["work-tasks", "me", statusFilter, timeFilter, priorityFilter, groupFilter, debouncedSearch, serverPage],
     queryFn: async () => {
-      const statusQuery = statusFilter === "ACTIVE"
-        ? ""
-        : `&status=${statusFilter}`;
-      const response = await api.get<WorkTaskResponse>(
-        `/my-work?limit=200${statusQuery}`,
-      );
+      const params = new URLSearchParams({ page: String(serverPage), limit: String(pageSize) });
+      if (statusFilter !== "ACTIVE") params.set("status", statusFilter);
+      if (timeFilter !== "all") params.set("due", timeFilter);
+      if (priorityFilter !== "all") params.set("priority", priorityFilter === "important" ? "IMPORTANT" : priorityFilter);
+      if (groupFilter !== "all") params.set("work_type", groupFilter);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const response = await api.get<WorkTaskResponse>(`/my-work?${params.toString()}`);
       return response.data;
     },
     staleTime: 20_000,
@@ -282,74 +288,14 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
     high_priority: 0,
   };
 
-  const groupOptions = useMemo(
-    () =>
-      Array.from(new Set(items.map((item) => item.work_type)))
-        .sort((left, right) => left.localeCompare(right, "vi"))
-        .map((value) => ({ value, label: getWorkTypeLabel(value) })),
-    [items],
-  );
-
-  const filteredItems = useMemo(() => {
-    const keyword = searchTerm.trim().toLocaleLowerCase("vi");
-    const today = dayjs().startOf("day");
-
-    return items.filter((item) => {
-      if (
-        priorityFilter === "important" &&
-        !["URGENT", "HIGH"].includes(item.priority)
-      ) {
-        return false;
-      }
-
-      if (
-        !["all", "important"].includes(priorityFilter) &&
-        item.priority !== priorityFilter
-      ) {
-        return false;
-      }
-
-      if (groupFilter !== "all" && item.work_type !== groupFilter) {
-        return false;
-      }
-
-      if (timeFilter === "no_due" && item.due_at) {
-        return false;
-      }
-
-      if (timeFilter === "overdue") {
-        if (!item.due_at || !dayjs(item.due_at).startOf("day").isBefore(today)) {
-          return false;
-        }
-      }
-
-      if (timeFilter === "due_soon") {
-        if (!item.due_at) return false;
-        const days = dayjs(item.due_at).startOf("day").diff(today, "day");
-        if (days < 0 || days > 7) return false;
-      }
-
-      if (!keyword) return true;
-
-      return [
-        getTaskTitle(item),
-        item.description,
-        getWorkTypeLabel(item.work_type),
-        item.project_code,
-        item.organization_name,
-        item.assignee,
-        getStatusLabel(item.status),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLocaleLowerCase("vi")
-        .includes(keyword);
-    });
-  }, [groupFilter, items, priorityFilter, searchTerm, timeFilter]);
-
-  const mobilePageCount = Math.max(1, Math.ceil(filteredItems.length / 10));
-  const visibleMobilePage = Math.min(mobilePage, mobilePageCount);
-  const mobilePageItems = filteredItems.slice((visibleMobilePage - 1) * 10, visibleMobilePage * 10);
+  // P.09 groups remain selectable even when current page has no such work type.
+  const groupOptions = Object.keys(workTypeLabels)
+    .sort((left, right) => getWorkTypeLabel(left).localeCompare(getWorkTypeLabel(right), "vi"))
+    .map((value) => ({ value, label: getWorkTypeLabel(value) }));
+  // Search/filter/paging are evaluated server-side after resource scope checks.
+  const filteredItems = items;
+  const matchingTotal = taskQuery.data?.pagination?.total ?? items.length;
+  const mobilePageItems = filteredItems;
 
   const openTask = async (item: WorkTaskItem) => {
     if (!item.can_execute && item.can_view) {
@@ -521,8 +467,8 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           role="button"
           tabIndex={0}
           aria-pressed={timeFilter === "all"}
-          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("all"))}
-          onClick={() => setTimeFilter("all")}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => { setTimeFilter("all"); setServerPage(1); })}
+          onClick={() => { setTimeFilter("all"); setServerPage(1); }}
         >
           <Statistic
             prefix={<CheckCircleOutlined />}
@@ -535,8 +481,8 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           role="button"
           tabIndex={0}
           aria-pressed={timeFilter === "overdue"}
-          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("overdue"))}
-          onClick={() => setTimeFilter("overdue")}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => { setTimeFilter("overdue"); setServerPage(1); })}
+          onClick={() => { setTimeFilter("overdue"); setServerPage(1); }}
         >
           <Statistic
             prefix={<WarningOutlined />}
@@ -550,8 +496,8 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           role="button"
           tabIndex={0}
           aria-pressed={timeFilter === "due_soon"}
-          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setTimeFilter("due_soon"))}
-          onClick={() => setTimeFilter("due_soon")}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => { setTimeFilter("due_soon"); setServerPage(1); })}
+          onClick={() => { setTimeFilter("due_soon"); setServerPage(1); }}
         >
           <Statistic
             prefix={<ClockCircleOutlined />}
@@ -564,9 +510,9 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           role="button"
           tabIndex={0}
           aria-pressed={priorityFilter === "important"}
-          onKeyDown={(event) => activateKpiWithKeyboard(event, () => setPriorityFilter(priorityFilter === "important" ? "all" : "important"))}
+          onKeyDown={(event) => activateKpiWithKeyboard(event, () => { setPriorityFilter(priorityFilter === "important" ? "all" : "important"); setServerPage(1); })}
           onClick={() =>
-            setPriorityFilter(priorityFilter === "important" ? "all" : "important")
+            { setPriorityFilter(priorityFilter === "important" ? "all" : "important"); setServerPage(1); }
           }
         >
           <Statistic
@@ -577,28 +523,22 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
         </Card>
       </section>
 
-      {summary.total > items.length ? (
-        <Alert
-          className="my-tasks-limited-notice"
-          message="Danh sách chưa hiển thị đủ công việc"
-          description={`Đang tải ${items.length} trong ${summary.total} công việc. Các bộ lọc bên dưới chỉ áp dụng cho danh sách đã tải.`}
-          showIcon
-          type="info"
-        />
+      {debouncedSearch ? (
+        <Text type="secondary">Tìm thấy {matchingTotal} công việc trong phạm vi quyền truy cập.</Text>
       ) : null}
 
       <Card className="my-tasks-table-card my-tasks-table-card-v2" title="Danh sách công việc">
         <div className="my-tasks-filters my-tasks-filters-v2">
           <Input
             allowClear
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => { setSearchTerm(event.target.value); setServerPage(1); }}
             placeholder="Tìm mã hồ sơ, khách hàng hoặc nội dung công việc..."
             prefix={<SearchOutlined />}
             value={searchTerm}
           />
           <Select
             aria-label="Lọc thời hạn"
-            onChange={setTimeFilter}
+            onChange={(value) => { setTimeFilter(value); setServerPage(1); }}
             options={[
               { value: "all", label: "Tất cả thời hạn" },
               { value: "overdue", label: "Đã quá hạn" },
@@ -609,7 +549,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           />
           <Select
             aria-label="Lọc trạng thái"
-            onChange={setStatusFilter}
+            onChange={(value) => { setStatusFilter(value); setServerPage(1); }}
             options={[
               { value: "ACTIVE", label: "Đang hoạt động" },
               { value: "OPEN", label: "Mới mở" },
@@ -621,7 +561,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           />
           <Select
             aria-label="Lọc mức ưu tiên"
-            onChange={setPriorityFilter}
+            onChange={(value) => { setPriorityFilter(value); setServerPage(1); }}
             options={[
               { value: "all", label: "Tất cả ưu tiên" },
               { value: "important", label: "Khẩn cấp & ưu tiên cao" },
@@ -634,7 +574,7 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
           />
           <Select
             aria-label="Lọc nhóm nghiệp vụ"
-            onChange={setGroupFilter}
+            onChange={(value) => { setGroupFilter(value); setServerPage(1); }}
             options={[
               { value: "all", label: "Tất cả nghiệp vụ" },
               ...groupOptions,
@@ -693,15 +633,15 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
             }) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có công việc phù hợp bộ lọc" />
             )}
-            {filteredItems.length > 10 ? (
+            {matchingTotal > pageSize ? (
               <Pagination
-                current={visibleMobilePage}
-                onChange={setMobilePage}
-                pageSize={10}
+                current={serverPage}
+                onChange={setServerPage}
+                pageSize={pageSize}
                 showSizeChanger={false}
                 showTotal={(total) => `${total} công việc`}
                 size="small"
-                total={filteredItems.length}
+                total={matchingTotal}
               />
             ) : null}
           </div>
@@ -718,7 +658,10 @@ export function MyTasksScreen({ onOpenPath }: MyTasksScreenProps) {
               ),
             }}
             pagination={{
-              pageSize: 10,
+              current: serverPage,
+              onChange: setServerPage,
+              pageSize,
+              total: matchingTotal,
               showSizeChanger: false,
               showTotal: (total) => `${total} công việc`,
             }}
