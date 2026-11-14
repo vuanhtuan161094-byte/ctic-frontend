@@ -1572,14 +1572,19 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             placeholder={customerPortalMode ? "Tìm hồ sơ và công việc gần đây..." : "Tìm khách hàng, đơn, hồ sơ, chứng chỉ, công việc..."} value={searchTerm}
           />
           {!customerPortalMode ? (
-            <Select
-              aria-label="Nhóm dữ liệu" value={searchCategory}
-              classNames={{ popup: { root: "global-search-category-popup" } }}
-              getPopupContainer={(trigger) => trigger.closest(".global-search-controls") ?? trigger.parentElement ?? document.body}
-              onChange={(value: GlobalSearchCategory) => { setSearchCategory(value); setSearchPage(1); }}
-              options={(Object.keys(globalSearchCategoryLabels) as GlobalSearchCategory[]).map((value) => ({ value, label: globalSearchCategoryLabels[value] }))}
-              style={{ width: "100%", maxWidth: 230 }}
-            />
+            <select
+              aria-label="Nhóm dữ liệu"
+              className="global-search-category-select"
+              value={searchCategory}
+              onChange={(event) => {
+                setSearchCategory(event.target.value as GlobalSearchCategory);
+                setSearchPage(1);
+              }}
+            >
+              {(Object.keys(globalSearchCategoryLabels) as GlobalSearchCategory[]).map((value) => (
+                <option key={value} value={value}>{globalSearchCategoryLabels[value]}</option>
+              ))}
+            </select>
           ) : null}
         </div>
         <div className="search-result-area">
