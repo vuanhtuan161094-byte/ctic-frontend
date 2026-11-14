@@ -286,6 +286,15 @@ test("global search uses authorized API paging and opens an exact customer and c
   await page.locator(".global-search-controls .ant-select").click();
   const categoryOption = page.locator(".global-search-category-popup:visible").getByTitle("Khách hàng");
   await expect(categoryOption).toBeVisible();
+  // Trace regression: a result description previously intercepted the mobile option.
+  // Check actual hit-testing before clicking; do not force the click or rely on retries.
+  await expect.poll(async () => categoryOption.evaluate((option) => {
+    const rect = option.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const topmost = document.elementFromPoint(x, y);
+    return Boolean(topmost && (topmost === option || option.contains(topmost)));
+  }), { message: "Search category option must be the pointer hit target above result rows" }).toBe(true);
   await categoryOption.click();
   await expect(page.locator(".search-result-area")).toContainText("23 kết quả");
   await page.locator(".search-result-area .ant-pagination-item-2").click();
