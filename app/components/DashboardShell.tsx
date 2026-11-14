@@ -1575,7 +1575,7 @@ export function DashboardShell({ session, onLogout }: DashboardShellProps) {
             <Select
               aria-label="Nhóm dữ liệu" value={searchCategory}
               classNames={{ popup: { root: "global-search-category-popup" } }}
-              getPopupContainer={(trigger) => trigger.closest(".ant-modal-content") ?? document.body}
+              getPopupContainer={(trigger) => trigger.closest(".global-search-controls") ?? trigger.parentElement ?? document.body}
               onChange={(value: GlobalSearchCategory) => { setSearchCategory(value); setSearchPage(1); }}
               options={(Object.keys(globalSearchCategoryLabels) as GlobalSearchCategory[]).map((value) => ({ value, label: globalSearchCategoryLabels[value] }))}
               style={{ width: "100%", maxWidth: 230 }}
