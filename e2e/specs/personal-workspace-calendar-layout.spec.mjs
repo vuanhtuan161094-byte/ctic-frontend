@@ -283,19 +283,12 @@ test("global search uses authorized API paging and opens an exact customer and c
   await expect(page.locator(".search-result-area")).toContainText("Công ty Đông Á");
   await expect(page.locator(".search-result-area")).toContainText("CERT-2026-500");
   expect(queries.some((query) => query.type === "all" && query.q === "dong a")).toBe(true);
-  await page.locator(".global-search-controls .ant-select").click();
-  const categoryOption = page.locator(".global-search-category-popup:visible").getByTitle("Khách hàng");
-  await expect(categoryOption).toBeVisible();
-  // Trace regression: a result description previously intercepted the mobile option.
-  // Check actual hit-testing before clicking; do not force the click or rely on retries.
-  await expect.poll(async () => categoryOption.evaluate((option) => {
-    const rect = option.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    const topmost = document.elementFromPoint(x, y);
-    return Boolean(topmost && (topmost === option || option.contains(topmost)));
-  }), { message: "Search category option must be the pointer hit target above result rows" }).toBe(true);
-  await categoryOption.click();
+  // Native selector eliminates the Ant Design popup that was obscured by result rows.
+  // selectOption does not require force-clicks, polling or a retry.
+  const categorySelector = page.getByRole("combobox", { name: "Nhóm dữ liệu" });
+  await expect(categorySelector).toBeVisible();
+  await categorySelector.selectOption("customer");
+  await expect(categorySelector).toHaveValue("customer");
   await expect(page.locator(".search-result-area")).toContainText("23 kết quả");
   await page.locator(".search-result-area .ant-pagination-item-2").click();
   await expect.poll(() => queries.some((query) => query.type === "customer" && query.pageNo === 2)).toBe(true);
