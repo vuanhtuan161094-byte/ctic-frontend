@@ -15,7 +15,7 @@ test("F16 renders marked unsigned Word/PDF, uploads current signed scan and sepa
   assert.match(s, /"signed_scan"/);
   assert.match(s, /canApprove/);
   assert.match(s, /!issueStatusQuery\.data\.official_issued/);
-  assert.match(s, /Đã ký/);
+  assert.match(s, /bản F\.16 đã ký/);
 });
 
 test("F18 only prepares three exact legal-source variants, unverified source buttons disabled", () => {
