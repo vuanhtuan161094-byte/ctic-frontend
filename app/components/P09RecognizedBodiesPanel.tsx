@@ -50,6 +50,7 @@ export function P09RecognizedBodiesPanel() {
   const [approveId, setApproveId] = useState<string | null>(null);
   const [approvalNote, setApprovalNote] = useState("");
   const [signedFile, setSignedFile] = useState<File | null>(null);
+  const [signedInputKey, setSignedInputKey] = useState(0);
   const [issueNote, setIssueNote] = useState("");
   const [issueBusy, setIssueBusy] = useState(false);
   const [exportBusy, setExportBusy] = useState<"docx" | "pdf" | null>(null);
@@ -120,6 +121,7 @@ export function P09RecognizedBodiesPanel() {
       })).data;
       if (!result?.id || !result?.sha256) throw new Error("Bản ký chưa có SHA-256 hợp lệ");
       setSignedFile(null);
+      setSignedInputKey((current) => current + 1);
       await queryClient.invalidateQueries({ queryKey: ["p09", "f16", "issue-status"] });
       message.success("Đã tải bản ký F.16. Cần người khác xác nhận phát hành.");
     } catch (error) { message.error(getErrorMessage(error)); }
@@ -215,7 +217,7 @@ export function P09RecognizedBodiesPanel() {
               {canApprove ? (
                 <Space direction="vertical" style={{ width: "100%" }}>
                   <Typography.Text type="secondary">Tải bản F.16 có chữ ký người lập và người duyệt, sau đó dùng tài khoản độc lập để phát hành.</Typography.Text>
-                  <input aria-label="Bản ký F.16" type="file" accept=".pdf,.jpg,.jpeg,.png"
+                  <input key={signedInputKey} aria-label="Bản ký F.16" type="file" accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(event) => setSignedFile(event.target.files?.[0] ?? null)} />
                   <Button disabled={!signedFile || issueBusy} loading={issueBusy}
                     onClick={() => void submitSignedForm()}>Tải bản F.16 đã ký</Button>
