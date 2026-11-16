@@ -87,7 +87,7 @@ export function P09RecognizedBodiesPanel() {
 
   if (accessQuery.isLoading || readOnly) return null;
   return (
-    <Card title="F.16-P.09 — Danh sách tổ chức được thừa nhận" style={{ marginTop: 16 }}
+    <Card title="F.16 — Danh sách tổ chức được thừa nhận" style={{ marginTop: 16 }}
       extra={<Button icon={<ReloadOutlined />} size="small" onClick={() => void revisionsQuery.refetch()}
         loading={revisionsQuery.isFetching}>Tải lại</Button>}>
       <Space direction="vertical" size={12} style={{ width: "100%" }}>
