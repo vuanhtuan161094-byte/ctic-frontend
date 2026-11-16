@@ -76,6 +76,7 @@ interface F18LanguageSource {
   template_code: string;
   source_ready: boolean;
   source_sha256: string | null;
+  blocked_reason?: string | null;
 }
 interface F18LanguageResult {
   document: DocumentFileVersion;
@@ -534,8 +535,16 @@ export default function CommercialDocumentsPanel({
                   </Button>;
                 })}
               </Space>
-              {!languageSourcesQuery.isLoading && languageSourcesQuery.data?.some((source) => !source.source_ready) ?
-                <Text type="warning">Mẫu chưa có hiệu lực cần được nhập và duyệt tại mục Tài liệu &amp; Mẫu biểu trước khi tạo.</Text> : null}
+              {languageSourcesQuery.data?.filter((source) => source.blocked_reason).map((source) => (
+                <Text key={source.language} type="danger">
+                  {source.language === "vi_cn" ? "Việt–Trung" : source.language}: {source.blocked_reason}
+                </Text>
+              ))}
+              {!languageSourcesQuery.isLoading && languageSourcesQuery.data?.some(
+                (source) => !source.source_ready && !source.blocked_reason,
+              ) ? (
+                <Text type="warning">Mẫu chưa có hiệu lực cần được nhập và duyệt tại mục Tài liệu &amp; Mẫu biểu trước khi tạo.</Text>
+              ) : null}
               {languageSourcesQuery.isError ? <Text type="danger">Không kiểm tra được các mẫu ngôn ngữ.</Text> : null}
             </Space>
           ) : null}
