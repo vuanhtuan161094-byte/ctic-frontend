@@ -46,6 +46,9 @@ test("F.16 approved register and unsigned/signed release gates remain visible ac
       };
     } else if (pathname === "/document-files") {
       result = {items:[],summary:{current:0,archived:0,total:0}};
+    } else if (pathname === "/document-control/v2/template-fields") {
+      result = { total: 0, syntax: {scalar:"{{field}}",repeat:"{{#rows}}"},
+        groups: [] };
     } else if (pathname === "/p09/recognized-certification-bodies") {
       result = [revision];
     } else if (pathname.endsWith("/issue-status")) {
