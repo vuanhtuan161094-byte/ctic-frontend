@@ -137,7 +137,7 @@ export interface AuditDocumentPreview {
     closing_time: string;
     attendance_rows: AttendanceRow[];
     checklists: ChecklistProgram[];
-    audit_note_rows: AuditNoteRow[];
+    audit_note_rows?: AuditNoteRow[];
   };
   documents: AuditDocumentCard[];
 }
@@ -731,7 +731,7 @@ export default function AuditDocumentCenterModal({
                 />
               )}
               </> : null}
-              <Divider orientation="left">F.08-P.09 — Ghi chép đánh giá</Divider>
+              <Divider>F.08-P.09 — Ghi chép đánh giá</Divider>
               <Text type="secondary">
                 Ghi nhận điều khoản, nội dung quan sát và phát hiện theo từng dòng. Đây là dữ liệu hồ sơ;
                 không thay thế kết luận NC/CAP hoặc bản biểu mẫu được phê duyệt.
