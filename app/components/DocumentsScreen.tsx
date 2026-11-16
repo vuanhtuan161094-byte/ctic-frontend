@@ -38,6 +38,7 @@ import { api, getErrorMessage } from "../lib/api";
 import { downloadDocumentFile } from "../lib/document-file-client";
 import { DocumentPreviewModal, type PreviewableFile } from "./DocumentPreviewModal";
 import { ControlledDocumentPanel } from "./ControlledDocumentPanel";
+import { P09RecognizedBodiesPanel } from "./P09RecognizedBodiesPanel";
 import { ResponsiveCardList, type ResponsiveCardItem } from "./design-system";
 import { EmptyWorkspaceIllustration } from "./design-system/EmptyWorkspaceIllustration";
 
@@ -396,6 +397,7 @@ export function DocumentsScreen({ onOpenProject }: DocumentsScreenProps) {
       {documentsQuery.data ? (
         <>
           <ControlledDocumentPanel />
+          <P09RecognizedBodiesPanel />
 
           <Collapse
             className="documents-secondary-catalog"
