@@ -93,7 +93,7 @@ interface GeneratedDocumentFile {
   download_url: string;
 }
 
-export type AuditDocumentType = "audit_program_f03" | "audit_team_assignment_f04" | "audit_plan_f05" | "audit_attendance_f07" | "audit_log_f15" | "audit_monitoring_f17" | "audit_checklist_f06" | "corrective_action_request_f10" | "technical_review_report_f11";
+export type AuditDocumentType = "audit_program_f03" | "audit_team_assignment_f04" | "audit_plan_f05" | "audit_attendance_f07" | "audit_log_f15" | "audit_monitoring_f17" | "audit_checklist_f06" | "audit_note_f08" | "corrective_action_request_f10" | "technical_review_report_f11";
 
 export interface AuditDocumentFocus {
   documentType: AuditDocumentType;
@@ -386,7 +386,7 @@ export default function AuditDocumentCenterModal({
               ? "Bạn đang xem hồ sơ ở chế độ chỉ đọc. Dữ liệu, tài liệu và lịch sử phiên bản vẫn có thể được xem/tải, nhưng không thể lưu hoặc sinh phiên bản mới."
               : focus
                 ? "Không gian này hiển thị dữ liệu, tài liệu và lịch sử phiên bản của biểu mẫu đang chọn."
-                : "Hệ thống sinh F.03, F.04, F.05, F.06, F.07, F.10, F.15 và F.17 từ dữ liệu hồ sơ."}
+                : "Hệ thống sinh F.03, F.04, F.05, F.06, F.07, F.08, F.10, F.11, F.15 và F.17 từ dữ liệu hồ sơ."}
             message={readOnly ? "Chế độ chỉ đọc" : focus ? "Không gian biểu mẫu riêng" : "Trung tâm hồ sơ Word/PDF"}
             showIcon
             type={readOnly ? "warning" : "info"}
