@@ -44,6 +44,10 @@ test("F.16 approved register and unsigned/signed release gates remain visible ac
         priority_work_items:[],calendar_items:[],exceptions:[],recent_records:[],role_kpis:[],
         meta: {due_soon_days:7,sales_assignment_limitation:null},
       };
+    } else if (pathname === "/my-work") {
+      result = { generated_at:"2026-11-16T07:00:00Z", summary:{
+        total:0,overdue:0,due_soon:0,high_priority:0 },
+        filter:{limit:200}, items:[] };
     } else if (pathname === "/document-files") {
       result = {items:[],summary:{current:0,archived:0,total:0}};
     } else if (pathname === "/document-control/v2/template-fields") {
