@@ -214,7 +214,7 @@ export function P09RecognizedBodiesPanel() {
               </Space>
               {canApprove ? (
                 <Space direction="vertical" style={{ width: "100%" }}>
-                  <Text type="secondary">Tải bản F.16 có chữ ký người lập và người duyệt, sau đó dùng tài khoản độc lập để phát hành.</Text>
+                  <Typography.Text type="secondary">Tải bản F.16 có chữ ký người lập và người duyệt, sau đó dùng tài khoản độc lập để phát hành.</Typography.Text>
                   <input aria-label="Bản ký F.16" type="file" accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(event) => setSignedFile(event.target.files?.[0] ?? null)} />
                   <Button disabled={!signedFile || issueBusy} loading={issueBusy}
