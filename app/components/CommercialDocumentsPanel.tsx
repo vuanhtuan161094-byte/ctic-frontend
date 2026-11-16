@@ -71,6 +71,18 @@ interface UploadTarget {
   defaultKind: CommercialFileKind;
 }
 
+interface F18LanguageSource {
+  language: "vi" | "vi_en" | "vi_cn";
+  template_code: string;
+  source_ready: boolean;
+  source_sha256: string | null;
+}
+interface F18LanguageResult {
+  document: DocumentFileVersion;
+  source_sha256: string;
+  unsigned: true;
+}
+
 interface AgreementEvidenceStatus {
   agreement_id: string;
   signed_file: { id: string; version_no: number; sha256: string | null } | null;
@@ -140,6 +152,7 @@ export default function CommercialDocumentsPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [verificationOpen, setVerificationOpen] = useState(false);
   const [verificationNote, setVerificationNote] = useState("");
+  const [preparingLanguage, setPreparingLanguage] = useState<string | null>(null);
 
 
   const contractFilesQuery = useQuery({
@@ -180,6 +193,40 @@ export default function CommercialDocumentsPanel({
       `/certification-agreements/${agreement?.id}/evidence-status`,
     )).data,
   });
+
+  const languageSourcesQuery = useQuery({
+    queryKey: ["p09", "f18", "language-sources"],
+    enabled: Boolean(agreement?.id && canManage),
+    queryFn: async () => (await api.get<F18LanguageSource[]>(
+      "/certification-agreements/language-sources",
+    )).data,
+  });
+
+  const prepareLanguage = async (language: F18LanguageSource["language"]) => {
+    if (!agreement?.id) return;
+    try {
+      setPreparingLanguage(language);
+      setActionError(null);
+      const result = (await api.post<F18LanguageResult>(
+        `/certification-agreements/${agreement.id}/prepare-language`,
+        null, { params: { language, format: "docx" } },
+      )).data;
+      await queryClient.invalidateQueries({
+        queryKey: ["commercial-documents", "certification_agreement", agreement.id],
+      });
+      await openDocumentFile({
+        url: result.document.download_url || `/document-files/${result.document.id}/download`,
+        filename: result.document.original_name,
+        mimeType: result.document.mime_type,
+        title: result.document.original_name,
+      });
+      message.success("Đã tạo bản thỏa thuận chưa ký, giữ nguyên điều khoản từ mẫu gốc.");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setPreparingLanguage(null);
+    }
+  };
 
   const verifyEvidence = async () => {
     if (!agreement?.id || !agreementEvidenceQuery.data?.signed_file?.id ||
@@ -468,6 +515,29 @@ export default function CommercialDocumentsPanel({
                 onClick={() => setVerificationOpen(true)}>
                 Xác minh bản ký
               </Button>
+          ) : null}
+          {!isContract && canManage ? (
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              <Text type="secondary">Soạn thỏa thuận từ mẫu pháp lý đã kiểm soát (bản chưa ký)</Text>
+              <Space wrap>
+                {([
+                  ["vi", "Việt"],
+                  ["vi_en", "Việt–Anh"],
+                  ["vi_cn", "Việt–Trung"],
+                ] as const).map(([language, label]) => {
+                  const source = languageSourcesQuery.data?.find((item) => item.language === language);
+                  return <Button key={language}
+                    disabled={!source?.source_ready || Boolean(preparingLanguage)}
+                    loading={preparingLanguage === language}
+                    onClick={() => void prepareLanguage(language)}>
+                    {label}
+                  </Button>;
+                })}
+              </Space>
+              {!languageSourcesQuery.isLoading && languageSourcesQuery.data?.some((source) => !source.source_ready) ?
+                <Text type="warning">Mẫu chưa có hiệu lực cần được nhập và duyệt tại mục Tài liệu &amp; Mẫu biểu trước khi tạo.</Text> : null}
+              {languageSourcesQuery.isError ? <Text type="danger">Không kiểm tra được các mẫu ngôn ngữ.</Text> : null}
+            </Space>
           ) : null}
           {files.length ? (
             <Button icon={<HistoryOutlined />} onClick={() => setHistoryEntity(type)}>
