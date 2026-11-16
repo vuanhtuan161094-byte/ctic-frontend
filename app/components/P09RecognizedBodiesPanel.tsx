@@ -6,6 +6,7 @@ import { Alert, Button, Card, Collapse, Descriptions, Empty, Form, Input, List, 
 import { useState } from "react";
 
 import { api, getErrorMessage } from "../lib/api";
+import { openDocumentFile } from "../lib/document-file-client";
 
 interface OrganizationRow {
   name: string;
@@ -23,6 +24,22 @@ interface F16Revision {
   manday_reduction_authorized: boolean;
   signed_original_attested: boolean;
 }
+interface F16IssuedStatus {
+  official_issued: boolean;
+  signed_file_id: string | null;
+  signed_file_sha256: string | null;
+  issued_by: string | null;
+}
+interface F16Export {
+  unsigned: boolean;
+  document: { id: string; original_name: string; download_url?: string; mime_type: string };
+}
+interface F16SignedFile {
+  id: string;
+  sha256?: string | null;
+  original_name?: string;
+}
+
 interface FormValues {
   organizations: OrganizationRow[];
   justification: string;
@@ -32,6 +49,10 @@ export function P09RecognizedBodiesPanel() {
   const [form] = Form.useForm<FormValues>();
   const [approveId, setApproveId] = useState<string | null>(null);
   const [approvalNote, setApprovalNote] = useState("");
+  const [signedFile, setSignedFile] = useState<File | null>(null);
+  const [issueNote, setIssueNote] = useState("");
+  const [issueBusy, setIssueBusy] = useState(false);
+  const [exportBusy, setExportBusy] = useState<"docx" | "pdf" | null>(null);
   const queryClient = useQueryClient();
   const accessQuery = useQuery({
     queryKey: ["auth", "f16-panel-access"],
@@ -51,6 +72,75 @@ export function P09RecognizedBodiesPanel() {
   const revisions = revisionsQuery.data ?? [];
   const currentApproved = revisions.find((revision) => revision.status === "approved");
   const pending = revisions.find((revision) => revision.status === "draft");
+
+  const issueStatusQuery = useQuery({
+    queryKey: ["p09", "f16", "issue-status", currentApproved?.id],
+    enabled: Boolean(currentApproved?.id && visible),
+    queryFn: async () => (await api.get<F16IssuedStatus>(
+      `/p09/recognized-certification-bodies/${currentApproved?.id}/issue-status`,
+    )).data,
+  });
+
+  const renderCurrentForm = async (format: "docx" | "pdf") => {
+    if (!currentApproved) return;
+    try {
+      setExportBusy(format);
+      const response = (await api.post<F16Export>(
+        `/p09/recognized-certification-bodies/${currentApproved.id}/render`,
+        null, { params: { format } },
+      )).data;
+      await openDocumentFile({
+        url: response.document.download_url || `/document-files/${response.document.id}/download`,
+        filename: response.document.original_name,
+        mimeType: response.document.mime_type,
+        title: response.document.original_name,
+      });
+      message.success("Đã xuất bản F.16 chưa ký vào lịch sử tài liệu.");
+    } catch (error) {
+      message.error(getErrorMessage(error));
+    } finally { setExportBusy(null); }
+  };
+
+  const submitSignedForm = async () => {
+    if (!currentApproved || !signedFile || !canApprove) return;
+    if (signedFile.size > 20 * 1024 * 1024) {
+      message.error("Bản ký không được vượt quá 20 MB.");
+      return;
+    }
+    try {
+      setIssueBusy(true);
+      const payload = new FormData();
+      payload.append("file", signedFile);
+      payload.append("entity_type", "p09_f16");
+      payload.append("entity_id", currentApproved.id);
+      payload.append("document_type", "recognized_certification_bodies_f16");
+      payload.append("file_kind", "signed_scan");
+      const result = (await api.post<F16SignedFile>("/document-files/upload", payload, {
+        headers: { "Content-Type": "multipart/form-data" }, timeout: 120_000,
+      })).data;
+      if (!result?.id || !result?.sha256) throw new Error("Bản ký chưa có SHA-256 hợp lệ");
+      setSignedFile(null);
+      await queryClient.invalidateQueries({ queryKey: ["p09", "f16", "issue-status"] });
+      message.success("Đã tải bản ký F.16. Cần người khác xác nhận phát hành.");
+    } catch (error) { message.error(getErrorMessage(error)); }
+    finally { setIssueBusy(false); }
+  };
+
+  const issueApprovedForm = async () => {
+    const signedId = issueStatusQuery.data?.signed_file_id;
+    if (!currentApproved || !signedId || issueNote.trim().length < 20 || !canApprove) return;
+    try {
+      setIssueBusy(true);
+      await api.post(`/p09/recognized-certification-bodies/${currentApproved.id}/issue`, {
+        signed_file_id: signedId,
+        issue_note: issueNote.trim(),
+      });
+      setIssueNote("");
+      await queryClient.invalidateQueries({ queryKey: ["p09", "f16", "issue-status"] });
+      message.success("F.16 đã được ghi nhận phát hành theo bản ký hiện hành.");
+    } catch (error) { message.error(getErrorMessage(error)); }
+    finally { setIssueBusy(false); }
+  };
 
   const createMutation = useMutation({
     mutationFn: async (values: FormValues) => {
@@ -109,6 +199,41 @@ export function P09RecognizedBodiesPanel() {
               <Typography.Text type="secondary" style={{ marginLeft: 10 }}>{row.recognition_scope}</Typography.Text>
             </List.Item>} />
         ) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có danh sách F.16 được duyệt" />}
+        {currentApproved ? (
+          <Card size="small" title={`Xuất và phát hành F.16 v${currentApproved.revision_no}`}>
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Alert showIcon type={issueStatusQuery.data?.official_issued ? "success" : "warning"}
+                message={issueStatusQuery.data?.official_issued
+                  ? "Bản F.16 đã được xác nhận phát hành theo SHA-256 hiện hành"
+                  : "Chưa phát hành chính thức theo bản ký"} />
+              <Space wrap>
+                <Button disabled={Boolean(exportBusy)} loading={exportBusy === "docx"}
+                  onClick={() => void renderCurrentForm("docx")}>Xuất Word chưa ký</Button>
+                <Button disabled={Boolean(exportBusy)} loading={exportBusy === "pdf"}
+                  onClick={() => void renderCurrentForm("pdf")}>Xuất PDF chưa ký</Button>
+              </Space>
+              {canApprove ? (
+                <Space direction="vertical" style={{ width: "100%" }}>
+                  <Text type="secondary">Tải bản F.16 có chữ ký người lập và người duyệt, sau đó dùng tài khoản độc lập để phát hành.</Text>
+                  <input aria-label="Bản ký F.16" type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(event) => setSignedFile(event.target.files?.[0] ?? null)} />
+                  <Button disabled={!signedFile || issueBusy} loading={issueBusy}
+                    onClick={() => void submitSignedForm()}>Tải bản F.16 đã ký</Button>
+                  {issueStatusQuery.data?.signed_file_id && !issueStatusQuery.data.official_issued ? (
+                    <>
+                      <Input.TextArea aria-label="Căn cứ phát hành F.16" maxLength={2000}
+                        rows={3} value={issueNote}
+                        onChange={(event) => setIssueNote(event.target.value)}
+                        placeholder="Ghi rõ căn cứ đối chiếu chữ ký, ngày, thẩm quyền..." />
+                      <Button type="primary" disabled={issueBusy || issueNote.trim().length < 20}
+                        onClick={() => void issueApprovedForm()}>Xác nhận phát hành độc lập</Button>
+                    </>
+                  ) : null}
+                </Space>
+              ) : null}
+            </Space>
+          </Card>
+        ) : null}
         {pending && canApprove ? (
           <Button type="primary" onClick={() => setApproveId(pending.id)}>
             Xem xét phê duyệt F.16 v{pending.revision_no}
