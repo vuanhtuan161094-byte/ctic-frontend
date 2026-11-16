@@ -71,6 +71,15 @@ interface UploadTarget {
   defaultKind: CommercialFileKind;
 }
 
+interface AgreementEvidenceStatus {
+  agreement_id: string;
+  signed_file: { id: string; version_no: number; sha256: string | null } | null;
+  evidence_verified: boolean;
+  verified_by: string | null;
+  verified_at: string | null;
+  legal_signatures_independently_validated: boolean;
+}
+
 interface CommercialDocumentsPanelProps {
   projectId: string;
   contract?: CommercialEntity | null;
@@ -129,6 +138,9 @@ export default function CommercialDocumentsPanel({
   const [openingFileId, setOpeningFileId] = useState<string | null>(null);
   const [historyEntity, setHistoryEntity] = useState<CommercialEntityType | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [verificationNote, setVerificationNote] = useState("");
+
 
   const contractFilesQuery = useQuery({
     queryKey: ["commercial-documents", "contract", contract?.id],
@@ -153,6 +165,38 @@ export default function CommercialDocumentsPanel({
     enabled: Boolean(agreement?.id),
     staleTime: 60_000,
   });
+
+  const actorQuery = useQuery({
+    queryKey: ["auth", "f18-evidence-review-actor"],
+    queryFn: async () => (await api.get<{ user: { roles: string[] } }>("/auth/me")).data.user,
+    staleTime: 60000,
+  });
+  const canReviewSignedEvidence = actorQuery.data?.roles.some((role) => role.toUpperCase() === "ADMIN") ?? false;
+
+  const agreementEvidenceQuery = useQuery({
+    queryKey: ["p09", "f18", "signed-evidence", agreement?.id],
+    enabled: Boolean(agreement?.id),
+    queryFn: async () => (await api.get<AgreementEvidenceStatus>(
+      `/certification-agreements/${agreement?.id}/evidence-status`,
+    )).data,
+  });
+
+  const verifyEvidence = async () => {
+    if (!agreement?.id || !agreementEvidenceQuery.data?.signed_file?.id ||
+        verificationNote.trim().length < 20) return;
+    try {
+      await api.post(`/certification-agreements/${agreement.id}/verify-evidence`, {
+        signed_file_id: agreementEvidenceQuery.data.signed_file.id,
+        verification_note: verificationNote.trim(),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["p09", "f18", "signed-evidence", agreement.id] });
+      setVerificationOpen(false);
+      setVerificationNote("");
+      message.success("Đã lưu xác minh độc lập bản ký thỏa thuận.");
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    }
+  };
 
   const contractFiles = useMemo(() => contractFilesQuery.data ?? [], [contractFilesQuery.data]);
   const agreementFiles = useMemo(() => agreementFilesQuery.data ?? [], [agreementFilesQuery.data]);
@@ -227,6 +271,9 @@ export default function CommercialDocumentsPanel({
         }),
         queryClient.invalidateQueries({
           queryKey: ["certification-project", projectId, "workspace"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["p09", "f18", "signed-evidence", uploadTarget.entityId],
         }),
       ]);
 
@@ -364,6 +411,12 @@ export default function CommercialDocumentsPanel({
           </Descriptions.Item>
           <Descriptions.Item label="Bản ký hiện hành">
             {signedFile ? `v${signedFile.version_no} · ${signedFile.original_name}` : "Chưa tải lên"}
+            {!isContract && signedFile ? (
+              <Tag color={agreementEvidenceQuery.data?.evidence_verified ? "green" : "orange"}
+                style={{ marginLeft: 8 }}>
+                {agreementEvidenceQuery.data?.evidence_verified ? "Đã đối chiếu độc lập" : "Chưa đối chiếu độc lập"}
+              </Tag>
+            ) : null}
           </Descriptions.Item>
           <Descriptions.Item label="Tệp bổ sung hiện hành">
             {currentAttachment ? `v${currentAttachment.version_no} · ${currentAttachment.original_name}` : "Chưa có"}
@@ -409,6 +462,13 @@ export default function CommercialDocumentsPanel({
             </>
           ) : null}
 
+          {!isContract && signedFile && canReviewSignedEvidence &&
+            !agreementEvidenceQuery.data?.evidence_verified ? (
+              <Button disabled={!agreementEvidenceQuery.data?.signed_file?.sha256}
+                onClick={() => setVerificationOpen(true)}>
+                Xác minh bản ký
+              </Button>
+          ) : null}
           {files.length ? (
             <Button icon={<HistoryOutlined />} onClick={() => setHistoryEntity(type)}>
               Lịch sử ({files.length})
@@ -536,6 +596,23 @@ export default function CommercialDocumentsPanel({
             type="warning"
           />
         </Space>
+      </Modal>
+
+      <Modal
+        open={verificationOpen}
+        title="Đối chiếu bản ký thỏa thuận"
+        okText="Ghi nhận xác minh"
+        cancelText="Hủy"
+        okButtonProps={{ disabled: verificationNote.trim().length < 20 }}
+        onOk={() => void verifyEvidence()}
+        onCancel={() => { setVerificationOpen(false); setVerificationNote(""); }}
+      >
+        <Alert showIcon type="warning" style={{ marginBottom: 12 }}
+          description="Chỉ xác minh khi bản quét đã đủ chữ ký của CTIC và đại diện khách hàng có thẩm quyền. Đây là bước đối chiếu bằng chứng, không phải chức năng ký thay." />
+        <Input.TextArea rows={4} value={verificationNote} maxLength={2000}
+          aria-label="Căn cứ xác minh bản ký"
+          onChange={(event) => setVerificationNote(event.target.value)}
+          placeholder="Ghi rõ số bản ký, các bên ký, căn cứ xác minh..." />
       </Modal>
 
       <Modal
