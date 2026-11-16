@@ -35,7 +35,16 @@ test("F.16 approved register and unsigned/signed release gates remain visible ac
     }
     let result = [];
     if (pathname === "/auth/me") result = {user:actor};
-    else if (pathname === "/document-files") {
+    else if (pathname.startsWith("/notifications")) {
+      result = { items: [], summary: {total:0,unread:0,critical:0,warning:0} };
+    } else if (pathname === "/me/workspace") {
+      result = {
+        user_context: {personas:["ADMIN"], current_user: actor},
+        work_summary: {open:0,in_progress:0,overdue:0,due_soon:0,high_priority:0},
+        priority_work_items:[],calendar_items:[],exceptions:[],recent_records:[],role_kpis:[],
+        meta: {due_soon_days:7,sales_assignment_limitation:null},
+      };
+    } else if (pathname === "/document-files") {
       result = {items:[],summary:{current:0,archived:0,total:0}};
     } else if (pathname === "/p09/recognized-certification-bodies") {
       result = [revision];
