@@ -43,6 +43,12 @@ import { downloadDocumentFile } from "../lib/document-file-client";
 
 const { Text, Title } = Typography;
 
+interface AuditNoteRow {
+  clause: string;
+  content: string;
+  finding: string;
+}
+
 interface ScheduleRow {
   time: string;
   content: string;
@@ -131,6 +137,7 @@ export interface AuditDocumentPreview {
     closing_time: string;
     attendance_rows: AttendanceRow[];
     checklists: ChecklistProgram[];
+    audit_note_rows: AuditNoteRow[];
   };
   documents: AuditDocumentCard[];
 }
@@ -145,6 +152,7 @@ interface DocumentDataFormValues {
   closing_time: string;
   attendance_rows: AttendanceRow[];
   checklists: ChecklistProgram[];
+  audit_note_rows: AuditNoteRow[];
 }
 
 interface GenerateResponse {
@@ -204,6 +212,7 @@ export default function AuditDocumentCenterModal({
       closing_time: data.closing_time || "16:30",
       attendance_rows: data.attendance_rows,
       checklists: data.checklists,
+      audit_note_rows: data.audit_note_rows ?? [],
     });
   }, [form, open, previewQuery.data]);
 
@@ -214,6 +223,7 @@ export default function AuditDocumentCenterModal({
       const scheduleRows = values.schedule_rows ?? supplemental?.schedule_rows ?? [];
       const attendanceRows = values.attendance_rows ?? supplemental?.attendance_rows ?? [];
       const checklists = values.checklists ?? supplemental?.checklists ?? [];
+      const auditNotes = values.audit_note_rows ?? supplemental?.audit_note_rows ?? [];
       const openingDate = values.opening_date ?? dayjs(supplemental?.opening_date);
       const closingDate = values.closing_date ?? dayjs(supplemental?.closing_date);
       return (
@@ -235,6 +245,11 @@ export default function AuditDocumentCenterModal({
             department_title: row.department_title.trim(),
             opening_attended: Boolean(row.opening_attended),
             closing_attended: Boolean(row.closing_attended),
+          })),
+          audit_note_rows: auditNotes.map((row) => ({
+            clause: row.clause.trim(),
+            content: row.content.trim(),
+            finding: (row.finding ?? "").trim(),
           })),
           checklists: checklists.map((checklist) => ({
             program_key: checklist.program_key,
@@ -716,6 +731,46 @@ export default function AuditDocumentCenterModal({
                 />
               )}
               </> : null}
+              <Divider orientation="left">F.08-P.09 — Ghi chép đánh giá</Divider>
+              <Text type="secondary">
+                Ghi nhận điều khoản, nội dung quan sát và phát hiện theo từng dòng. Đây là dữ liệu hồ sơ;
+                không thay thế kết luận NC/CAP hoặc bản biểu mẫu được phê duyệt.
+              </Text>
+              <Form.List name="audit_note_rows">
+                {(fields, { add, remove }) => (
+                  <Space direction="vertical" size={10} style={{ width: "100%", marginTop: 12 }}>
+                    {fields.map((field, index) => (
+                      <Card key={field.key} size="small" title={`Ghi chép ${index + 1}`}
+                        extra={<Button danger type="text" disabled={readOnly}
+                          onClick={() => remove(field.name)} icon={<DeleteOutlined />} aria-label={`Xóa ghi chép ${index + 1}`} />}>
+                        <Row gutter={10}>
+                          <Col md={8} xs={24}>
+                            <Form.Item name={[field.name, "clause"]} label="Điều khoản"
+                              rules={[{ required: true, whitespace: true, message: "Nhập điều khoản" }]}>
+                              <Input maxLength={50} placeholder="Ví dụ: 8.5.1" />
+                            </Form.Item>
+                          </Col>
+                          <Col md={16} xs={24}>
+                            <Form.Item name={[field.name, "content"]} label="Nội dung đánh giá"
+                              rules={[{ required: true, whitespace: true, message: "Nhập nội dung" }]}>
+                              <Input.TextArea maxLength={8000} rows={2} />
+                            </Form.Item>
+                          </Col>
+                          <Col span={24}>
+                            <Form.Item name={[field.name, "finding"]} label="Phát hiện đánh giá">
+                              <Input.TextArea maxLength={8000} rows={2} />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </Card>
+                    ))}
+                    <Button disabled={readOnly || fields.length >= 200} icon={<PlusOutlined />}
+                      onClick={() => add({ clause: "", content: "", finding: "" })}>
+                      Thêm dòng F.08
+                    </Button>
+                  </Space>
+                )}
+              </Form.List>
             </Form>
           </Card>
 
